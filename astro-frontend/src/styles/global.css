@@ -1,0 +1,179 @@
+/* Import Tailwind base styles */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global accessibility and UX improvements */
+@layer base {
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  /* Better text selection */
+  ::selection {
+    @apply bg-primary-500 text-white;
+  }
+  
+  /* Focus styles for better accessibility */
+  *:focus {
+    outline: none;
+  }
+  
+  *:focus-visible {
+    @apply focus-visible;
+  }
+  
+  /* Prevent zoom on iOS for form inputs */
+  @media (max-width: 768px) {
+    input[type="text"],
+    input[type="password"],
+    input[type="email"],
+    input[type="number"],
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+  
+  /* Improved button and interactive element styles */
+  button,
+  [role="button"],
+  input[type="submit"],
+  input[type="button"] {
+    touch-action: manipulation;
+  }
+  
+  /* Better contrast for disabled elements */
+  :disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  
+  /* Reduce motion for users who prefer it */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Word highlighting components using design system */
+  .word-highlight {
+    @apply word-highlight-base;
+  }
+
+  .word-unknown {
+    @apply word-highlight-base bg-red-100 text-red-700 border-red-200;
+  }
+
+  .word-unknown:hover,
+  .word-unknown:focus {
+    @apply bg-red-200 border-red-300;
+  }
+
+  .word-learning {
+    @apply word-highlight-base bg-yellow-100 text-yellow-700 border-yellow-200;
+  }
+
+  .word-learning:hover,
+  .word-learning:focus {
+    @apply bg-yellow-200 border-yellow-300;
+  }
+
+  .word-known {
+    @apply word-highlight-base bg-green-100 text-green-700 border-green-200;
+  }
+
+  .word-known:hover,
+  .word-known:focus {
+    @apply bg-green-200 border-green-300;
+  }
+
+  /* Navigation active state */
+  .nav-item.active {
+    @apply bg-primary-600 text-white border-primary-600;
+  }
+  
+  /* Loading spinner */
+  .spinner {
+    @apply animate-spin rounded-full border-4 border-gray-200 border-t-primary-600;
+  }
+  
+  /* Status badges */
+  .status-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .status-badge-unknown {
+    @apply status-badge bg-red-100 text-red-800;
+  }
+  
+  .status-badge-learning {
+    @apply status-badge bg-yellow-100 text-yellow-800;
+  }
+  
+  .status-badge-known {
+    @apply status-badge bg-green-100 text-green-800;
+  }
+  
+  /* Alert components */
+  .alert {
+    @apply p-4 rounded-md border;
+  }
+  
+  .alert-success {
+    @apply alert bg-green-50 border-green-200 text-green-800;
+  }
+  
+  .alert-error {
+    @apply alert bg-red-50 border-red-200 text-red-800;
+  }
+  
+  .alert-warning {
+    @apply alert bg-yellow-50 border-yellow-200 text-yellow-800;
+  }
+  
+  .alert-info {
+    @apply alert bg-blue-50 border-blue-200 text-blue-800;
+  }
+}
+
+@layer utilities {
+  /* Mobile-specific utilities */
+  .space-y-mobile > * + * {
+    margin-top: 1rem;
+  }
+  
+  /* Touch-friendly spacing */
+  .touch-spacing {
+    @apply p-4 md:p-6;
+  }
+  
+  /* Truncate text with better accessibility */
+  .truncate-accessible {
+    @apply truncate;
+    text-overflow: ellipsis;
+  }
+  
+  /* High contrast mode support */
+  @media (prefers-contrast: high) {
+    .word-unknown {
+      @apply border-2 border-red-600;
+    }
+    
+    .word-learning {
+      @apply border-2 border-yellow-600;
+    }
+    
+    .word-known {
+      @apply border-2 border-green-600;
+    }
+  }
+}

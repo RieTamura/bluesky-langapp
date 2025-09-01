@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Test</title>
+</head>
+<body>
+    <h1>Frontend Test</h1>
+    <p>Testing if the frontend files are accessible...</p>
+    
+    <script>
+        // Test API connectivity
+        fetch('http://localhost:3000/health')
+            .then(response => response.json())
+            .then(data => {
+                console.log('API Health Check:', data);
+                document.body.innerHTML += '<p>✅ API is accessible: ' + data.status + '</p>';
+            })
+            .catch(error => {
+                console.error('API Error:', error);
+                document.body.innerHTML += '<p>❌ API is not accessible: ' + error.message + '</p>';
+            });
+    </script>
+</body>
+</html>

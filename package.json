@@ -1,0 +1,38 @@
+{
+  "name": "bluesky-langapp",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd astro-frontend && npm run dev",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd astro-frontend && npm run build",
+    "serve:frontend": "cd astro-frontend && npm run preview",
+    "data:init": "node scripts/data-manager.js init",
+    "data:git-init": "node scripts/data-manager.js git-init",
+    "data:export": "node scripts/data-manager.js git-export",
+    "data:stats": "node scripts/data-manager.js stats",
+    "data:backup": "node scripts/data-manager.js backup",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "Bluesky language learning web application",
+  "dependencies": {
+    "@atproto/api": "^0.16.3",
+    "chalk": "^5.6.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "fs": "^0.0.1-security",
+    "inquirer": "^12.9.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "concurrently": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}

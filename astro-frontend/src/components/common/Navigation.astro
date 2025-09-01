@@ -1,0 +1,133 @@
+---
+// Navigation component
+---
+
+<nav class="bg-white py-2 md:py-4 border-b border-gray-200 mb-4 md:mb-8">
+  <div class="container mx-auto px-4 max-w-6xl">
+    <!-- Mobile Navigation -->
+    <div class="md:hidden">
+      <div class="flex justify-between items-center mb-3">
+        <button id="mobileMenuBtn" class="p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+          </svg>
+        </button>
+        <button id="logoutBtnMobile" class="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
+          ログアウト
+        </button>
+      </div>
+      
+      <div id="mobileMenu" class="hidden">
+        <ul class="space-y-2">
+          <li>
+            <a href="/dashboard" class="nav-item block px-3 py-2 rounded-md transition-colors hover:bg-gray-100 border border-transparent hover:border-gray-300 text-sm" data-page="dashboard">
+              📊 ダッシュボード
+            </a>
+          </li>
+          <li>
+            <a href="/posts" class="nav-item block px-3 py-2 rounded-md transition-colors hover:bg-gray-100 border border-transparent hover:border-gray-300 text-sm" data-page="posts">
+              📝 投稿
+            </a>
+          </li>
+          <li>
+            <a href="/words" class="nav-item block px-3 py-2 rounded-md transition-colors hover:bg-gray-100 border border-transparent hover:border-gray-300 text-sm" data-page="words">
+              📚 単語帳
+            </a>
+          </li>
+          <li>
+            <a href="/learning" class="nav-item block px-3 py-2 rounded-md transition-colors hover:bg-gray-100 border border-transparent hover:border-gray-300 text-sm" data-page="learning">
+              🎯 学習
+            </a>
+          </li>
+          <li>
+            <a href="/progress" class="nav-item block px-3 py-2 rounded-md transition-colors hover:bg-gray-100 border border-transparent hover:border-gray-300 text-sm" data-page="progress">
+              📈 進捗
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Desktop Navigation -->
+    <div class="hidden md:flex justify-between items-center">
+      <ul class="flex justify-center space-x-4 lg:space-x-8 flex-1">
+        <li>
+          <a href="/dashboard" class="nav-item px-3 lg:px-4 py-2 rounded-md transition-colors hover:bg-gray-100 border border-transparent hover:border-gray-300 text-sm lg:text-base" data-page="dashboard">
+            📊 ダッシュボード
+          </a>
+        </li>
+        <li>
+          <a href="/posts" class="nav-item px-3 lg:px-4 py-2 rounded-md transition-colors hover:bg-gray-100 border border-transparent hover:border-gray-300 text-sm lg:text-base" data-page="posts">
+            📝 投稿
+          </a>
+        </li>
+        <li>
+          <a href="/words" class="nav-item px-3 lg:px-4 py-2 rounded-md transition-colors hover:bg-gray-100 border border-transparent hover:border-gray-300 text-sm lg:text-base" data-page="words">
+            📚 単語帳
+          </a>
+        </li>
+        <li>
+          <a href="/learning" class="nav-item px-3 lg:px-4 py-2 rounded-md transition-colors hover:bg-gray-100 border border-transparent hover:border-gray-300 text-sm lg:text-base" data-page="learning">
+            🎯 学習
+          </a>
+        </li>
+        <li>
+          <a href="/progress" class="nav-item px-3 lg:px-4 py-2 rounded-md transition-colors hover:bg-gray-100 border border-transparent hover:border-gray-300 text-sm lg:text-base" data-page="progress">
+            📈 進捗
+          </a>
+        </li>
+      </ul>
+      <button id="logoutBtn" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
+        ログアウト
+      </button>
+    </div>
+  </div>
+</nav>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    // Mobile menu toggle
+    const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+    const mobileMenu = document.getElementById('mobileMenu');
+    
+    if (mobileMenuBtn && mobileMenu) {
+      mobileMenuBtn.addEventListener('click', () => {
+        mobileMenu.classList.toggle('hidden');
+      });
+    }
+
+    // Logout functionality
+    const handleLogout = () => {
+      localStorage.removeItem('sessionId');
+      localStorage.removeItem('userIdentifier');
+      window.location.href = '/';
+    };
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    const logoutBtnMobile = document.getElementById('logoutBtnMobile');
+    
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', handleLogout);
+    }
+    
+    if (logoutBtnMobile) {
+      logoutBtnMobile.addEventListener('click', handleLogout);
+    }
+
+    // Close mobile menu when clicking on a nav item
+    const navItems = document.querySelectorAll('.nav-item');
+    navItems.forEach(item => {
+      item.addEventListener('click', () => {
+        if (mobileMenu) {
+          mobileMenu.classList.add('hidden');
+        }
+      });
+    });
+
+    // Close mobile menu when clicking outside
+    document.addEventListener('click', (e) => {
+      if (mobileMenu && !mobileMenu.contains(e.target) && !mobileMenuBtn?.contains(e.target)) {
+        mobileMenu.classList.add('hidden');
+      }
+    });
+  });
+</script>

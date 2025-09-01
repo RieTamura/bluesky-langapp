@@ -1,0 +1,45 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import BlueskyHeader from '../components/bluesky/BlueskyHeader.astro';
+import LeftSidebar from '../components/bluesky/LeftSidebar.astro';
+import RightSidebar from '../components/bluesky/RightSidebar.astro';
+import NotificationContainer from '../components/common/NotificationContainer';
+import WordDetailModal from '../components/words/WordDetailModal';
+
+export interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+---
+
+<BaseLayout title={title} description={description}>
+  <div class="min-h-screen bg-gray-50">
+    <!-- Bluesky Header -->
+    <BlueskyHeader />
+    
+    <!-- Main Layout Container -->
+    <div class="max-w-7xl mx-auto flex">
+      <!-- Left Sidebar - 青い枠線（個人情報・設定） -->
+      <div class="w-64 flex-shrink-0 hidden lg:block">
+        <LeftSidebar />
+      </div>
+      
+      <!-- Main Content Area -->
+      <div class="flex-1 min-w-0 border-x border-gray-200 bg-white">
+        <main class="min-h-screen">
+          <slot />
+        </main>
+      </div>
+      
+      <!-- Right Sidebar - 黄色・赤い枠線（学習機能・単語） -->
+      <div class="w-80 flex-shrink-0 hidden xl:block">
+        <RightSidebar />
+      </div>
+    </div>
+  </div>
+  
+  <NotificationContainer client:load />
+  <WordDetailModal client:load />
+</BaseLayout>

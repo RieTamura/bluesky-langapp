@@ -1,0 +1,44 @@
+---
+// This component will be used to protect routes that require authentication
+---
+
+<div id="protected-content">
+  <slot />
+</div>
+
+<script>
+  // Check authentication on component mount
+  document.addEventListener('DOMContentLoaded', () => {
+    const sessionId = localStorage.getItem('sessionId');
+    const protectedContent = document.getElementById('protected-content');
+    
+    if (!sessionId) {
+      // Redirect to login if not authenticated
+      window.location.href = '/';
+      return;
+    }
+    
+    // Verify session with server
+    fetch('/api/auth/me', {
+      headers: {
+        'Authorization': `Bearer ${sessionId}`,
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (!data.authenticated) {
+        // Clear invalid session and redirect
+        localStorage.removeItem('sessionId');
+        localStorage.removeItem('userIdentifier');
+        window.location.href = '/';
+      }
+    })
+    .catch(() => {
+      // Clear session on error and redirect
+      localStorage.removeItem('sessionId');
+      localStorage.removeItem('userIdentifier');
+      window.location.href = '/';
+    });
+  });
+</script>

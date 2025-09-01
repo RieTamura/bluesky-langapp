@@ -1,0 +1,30 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import Header from '../components/common/Header.astro';
+import Navigation from '../components/common/Navigation.astro';
+import NotificationContainer from '../components/common/NotificationContainer';
+import WordDetailModal from '../components/words/WordDetailModal';
+
+export interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+---
+
+<BaseLayout title={title} description={description}>
+  <Header />
+  <Navigation />
+  <main class="container mx-auto px-4 py-4 md:py-8 max-w-6xl min-h-screen">
+    <div id="messageContainer"></div>
+    <slot />
+  </main>
+  <footer class="text-center py-6 md:py-8 text-gray-500 border-t border-gray-200 mt-8">
+    <div class="container mx-auto px-4">
+      <p class="text-sm md:text-base">&copy; 2024 Bluesky LangApp - 言語学習をもっと楽しく</p>
+    </div>
+  </footer>
+  <NotificationContainer client:load />
+  <WordDetailModal client:load />
+</BaseLayout>

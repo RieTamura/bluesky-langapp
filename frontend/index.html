@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bluesky LangApp - 言語学習アプリ</title>
+    <meta name="description" content="Blueskyの投稿を活用した言語学習アプリケーション">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <h1>🦋 Bluesky LangApp</h1>
+            <p class="subtitle">Blueskyで学ぶ、新しい言語学習体験</p>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="container">
+            <div class="nav-container">
+                <ul class="nav-list">
+                    <li class="nav-item" data-page="dashboard">ダッシュボード</li>
+                    <li class="nav-item" data-page="posts">投稿</li>
+                    <li class="nav-item" data-page="words">単語帳</li>
+                    <li class="nav-item" data-page="learning">学習</li>
+                    <li class="nav-item" data-page="progress">進捗</li>
+                </ul>
+                <button id="logoutBtn" class="btn btn-secondary nav-logout-btn">ログアウト</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container">
+        <!-- Message Container -->
+        <div id="messageContainer"></div>
+
+        <!-- Login Page -->
+        <section id="loginPage" class="page-section">
+            <div class="main-content">
+                <h2 class="text-center mb-4">ログイン</h2>
+                <p class="text-center mb-4">Blueskyアカウントでログインしてください</p>
+                
+                <form id="loginForm" style="max-width: 400px; margin: 0 auto;">
+                    <div class="form-group">
+                        <label for="blueskyId" class="form-label">Bluesky ID</label>
+                        <input 
+                            type="text" 
+                            id="blueskyId" 
+                            class="form-input" 
+                            placeholder="example.bsky.social"
+                            autocomplete="username"
+                            required
+                        >
+                        <small style="color: #6b7280; font-size: 0.875rem;">
+                            例: your-handle.bsky.social
+                        </small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="appPassword" class="form-label">App Password</label>
+                        <input 
+                            type="password" 
+                            id="appPassword" 
+                            class="form-input" 
+                            placeholder="アプリパスワードを入力"
+                            autocomplete="current-password"
+                            required
+                        >
+                        <small style="color: #6b7280; font-size: 0.875rem;">
+                            Blueskyの設定で生成したApp Passwordを入力
+                        </small>
+                    </div>
+                    
+                    <div class="form-group text-center">
+                        <button type="submit" id="loginBtn" class="btn">ログイン</button>
+                    </div>
+                </form>
+                
+                <div class="status-message status-info mt-4">
+                    <p><strong>注意:</strong> App Passwordは、Blueskyの設定画面で生成できる専用パスワードです。</p>
+                    <p>通常のパスワードではなく、App Passwordを使用してください。</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dashboard Page -->
+        <section id="dashboardPage" class="page-section">
+            <div class="main-content">
+                <h2>ダッシュボード</h2>
+                
+                <div class="status-message status-success">
+                    <h3>🎉 フロントエンド基盤が完成しました！</h3>
+                    <p>静的ファイル配信とレスポンシブデザインが実装されています。</p>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 2rem;">
+                    <div style="background: #f8fafc; padding: 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <h4 style="color: #3b82f6; margin-bottom: 0.5rem;">📝 投稿管理</h4>
+                        <p>Blueskyの投稿を取得して、学習対象の単語を発見しましょう。</p>
+                    </div>
+                    
+                    <div style="background: #f8fafc; padding: 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <h4 style="color: #10b981; margin-bottom: 0.5rem;">📚 単語帳</h4>
+                        <p>保存した単語を管理し、学習状況を追跡できます。</p>
+                    </div>
+                    
+                    <div style="background: #f8fafc; padding: 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <h4 style="color: #f59e0b; margin-bottom: 0.5rem;">🎯 学習機能</h4>
+                        <p>クイズやフラッシュカードで効果的に単語を学習できます。</p>
+                    </div>
+                    
+                    <div style="background: #f8fafc; padding: 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <h4 style="color: #8b5cf6; margin-bottom: 0.5rem;">📊 進捗追跡</h4>
+                        <p>学習の進捗を可視化し、モチベーションを維持できます。</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Posts Page -->
+        <section id="postsPage" class="page-section">
+            <div class="main-content">
+                <div class="flex justify-center items-center mb-4">
+                    <h2>投稿一覧</h2>
+                    <button id="refreshPostsBtn" class="btn btn-secondary" style="margin-left: auto;">更新</button>
+                </div>
+                
+                <!-- Feed Type Tabs -->
+                <div class="feed-tabs mb-4">
+                    <button id="myPostsTab" class="feed-tab active" data-feed="my">自分の投稿</button>
+                    <button id="followingTab" class="feed-tab" data-feed="following">Following</button>
+                </div>
+                
+                <!-- Posts Controls -->
+                <div class="posts-controls mb-4">
+                    <div class="form-group" style="max-width: 200px;">
+                        <label for="postsLimit" class="form-label">取得件数</label>
+                        <select id="postsLimit" class="form-input">
+                            <option value="5">5件</option>
+                            <option value="10" selected>10件</option>
+                            <option value="20">20件</option>
+                            <option value="50">50件</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Loading State -->
+                <div id="postsLoading" class="text-center hidden">
+                    <div class="loading-spinner" style="margin: 2rem auto;"></div>
+                    <p>投稿を取得中...</p>
+                </div>
+
+                <!-- Posts Container -->
+                <div id="postsContainer">
+                    <!-- Posts will be dynamically loaded here -->
+                </div>
+
+                <!-- Word Legend -->
+                <div class="word-legend mt-4">
+                    <h4>単語の色分け</h4>
+                    <div class="legend-items">
+                        <span class="legend-item">
+                            <span class="word-badge word-unknown">未知</span>
+                            クリックして保存
+                        </span>
+                        <span class="legend-item">
+                            <span class="word-badge word-learning">学習中</span>
+                            学習中の単語
+                        </span>
+                        <span class="legend-item">
+                            <span class="word-badge word-known">既知</span>
+                            習得済みの単語
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Words Page -->
+        <section id="wordsPage" class="page-section">
+            <div class="main-content">
+                <div class="flex justify-center items-center mb-4">
+                    <h2>単語帳</h2>
+                    <button id="refreshWordsBtn" class="btn btn-secondary" style="margin-left: auto;">更新</button>
+                </div>
+
+                <!-- Words Stats Tabs -->
+                <div id="wordsStats" class="words-stats-tabs mb-4">
+                    <!-- Stats tabs will be populated by JavaScript -->
+                </div>
+
+                <!-- Words Controls -->
+                <div class="words-controls mb-4">
+                    <div class="form-group" style="max-width: 200px;">
+                        <label for="wordsSort" class="form-label">並び順</label>
+                        <select id="wordsSort" class="form-input">
+                            <option value="date-desc">追加日順（新しい順）</option>
+                            <option value="date-asc">追加日順（古い順）</option>
+                            <option value="alphabetical">アルファベット順</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Loading State -->
+                <div id="wordsLoading" class="text-center hidden">
+                    <div class="loading-spinner" style="margin: 2rem auto;"></div>
+                    <p>単語を読み込み中...</p>
+                </div>
+
+                <!-- Words Container -->
+                <div id="wordsContainer">
+                    <!-- Words will be dynamically loaded here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Learning Page -->
+        <section id="learningPage" class="page-section">
+            <div class="main-content">
+                <h2>学習</h2>
+                
+                <!-- Quiz Section -->
+                <div id="quizSection">
+                    <!-- Quiz Start Screen -->
+                    <div id="quizStartScreen" class="quiz-screen">
+                        <div class="quiz-intro">
+                            <h3>🎯 単語クイズ</h3>
+                            <p>保存した単語を使ってクイズに挑戦しましょう！</p>
+                            
+                            <div class="quiz-settings">
+                                <div class="form-group">
+                                    <label for="quizQuestionCount" class="form-label">問題数</label>
+                                    <select id="quizQuestionCount" class="form-input" style="max-width: 200px;">
+                                        <option value="5" selected>5問</option>
+                                        <option value="10">10問</option>
+                                        <option value="15">15問</option>
+                                        <option value="20">20問</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="quiz-actions">
+                                <button id="startQuizBtn" class="btn">クイズを開始</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quiz Question Screen -->
+                    <div id="quizQuestionScreen" class="quiz-screen hidden">
+                        <div class="quiz-progress">
+                            <div class="progress-bar">
+                                <div id="progressFill" class="progress-fill"></div>
+                            </div>
+                            <div class="progress-text">
+                                <span id="currentQuestionNum">1</span> / <span id="totalQuestions">5</span>
+                            </div>
+                        </div>
+
+                        <div class="quiz-question">
+                            <div class="question-type">
+                                <span id="questionType" class="question-type-badge">意味</span>
+                            </div>
+                            <h3 id="questionText">問題文がここに表示されます</h3>
+                        </div>
+
+                        <div class="quiz-answer">
+                            <form id="answerForm">
+                                <div class="form-group">
+                                    <label for="answerInput" class="form-label">回答</label>
+                                    <input 
+                                        type="text" 
+                                        id="answerInput" 
+                                        class="form-input" 
+                                        placeholder="回答を入力してください"
+                                        autocomplete="off"
+                                        required
+                                    >
+                                </div>
+                                
+                                <div class="quiz-actions">
+                                    <button type="submit" id="submitAnswerBtn" class="btn">回答する</button>
+                                    <button type="button" id="skipQuestionBtn" class="btn btn-secondary">スキップ</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Quiz Result Screen -->
+                    <div id="quizResultScreen" class="quiz-screen hidden">
+                        <div class="quiz-result">
+                            <div id="resultIcon" class="result-icon">✅</div>
+                            <h3 id="resultTitle">正解！</h3>
+                            <div id="resultExplanation" class="result-explanation">
+                                <p>素晴らしい回答です。</p>
+                            </div>
+                            
+                            <div class="quiz-actions">
+                                <button id="nextQuestionBtn" class="btn">次の問題</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quiz Complete Screen -->
+                    <div id="quizCompleteScreen" class="quiz-screen hidden">
+                        <div class="quiz-complete">
+                            <div class="complete-icon">🎉</div>
+                            <h3>クイズ完了！</h3>
+                            
+                            <div class="quiz-stats">
+                                <div class="stat-item">
+                                    <div class="stat-number" id="finalScore">0</div>
+                                    <div class="stat-label">正解数</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-number" id="finalTotal">0</div>
+                                    <div class="stat-label">総問題数</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-number" id="finalAccuracy">0%</div>
+                                    <div class="stat-label">正解率</div>
+                                </div>
+                            </div>
+                            
+                            <div class="quiz-actions">
+                                <button id="backToMenuBtn" class="btn">メニューに戻る</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Loading State -->
+                    <div id="quizLoading" class="text-center hidden">
+                        <div class="loading-spinner" style="margin: 2rem auto;"></div>
+                        <p>クイズを準備中...</p>
+                    </div>
+                </div>
+
+                <!-- Learning Stats -->
+                <div id="learningStats" class="learning-stats mt-4">
+                    <h3>学習統計</h3>
+                    <div id="statsContainer" class="stats-grid">
+                        <!-- Stats will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Progress Page -->
+        <section id="progressPage" class="page-section">
+            <div class="main-content">
+                <div class="flex justify-center items-center mb-4">
+                    <h2>学習進捗</h2>
+                    <button id="refreshProgressBtn" class="btn btn-secondary" style="margin-left: auto;">更新</button>
+                </div>
+
+                <!-- Loading State -->
+                <div id="progressLoading" class="text-center hidden">
+                    <div class="loading-spinner" style="margin: 2rem auto;"></div>
+                    <p>進捗データを読み込み中...</p>
+                </div>
+
+                <!-- Progress Container -->
+                <div id="progressContainer">
+                    <!-- Progress data will be dynamically loaded here -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer style="text-align: center; padding: 2rem 0; color: #6b7280; border-top: 1px solid #e5e7eb; margin-top: 2rem;">
+        <div class="container">
+            <p>&copy; 2024 Bluesky LangApp - 言語学習をもっと楽しく</p>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="app.js"></script>
+</body>
+</html>

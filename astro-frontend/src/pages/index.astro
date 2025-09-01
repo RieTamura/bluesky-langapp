@@ -1,0 +1,57 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import LoginForm from '../components/auth/LoginForm';
+---
+
+<BaseLayout title="ログイン - Bluesky LangApp">
+  <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div class="w-full max-w-md">
+      <!-- Logo and Title -->
+      <div class="text-center mb-8">
+        <div class="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+          <span class="text-white text-2xl">🦋</span>
+        </div>
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Bluesky LangApp</h1>
+        <p class="text-gray-600">Blueskyで学ぶ、新しい言語学習体験</p>
+      </div>
+      
+      <div id="messageContainer"></div>
+      
+      <!-- Login Card -->
+      <div class="bg-white rounded-xl shadow-lg p-6 md:p-8">
+        <h2 class="text-center text-xl md:text-2xl font-semibold mb-3 md:mb-4 text-gray-900">ログイン</h2>
+        <p class="text-center text-gray-600 mb-4 md:mb-6 text-sm md:text-base">Blueskyアカウントでログインしてください</p>
+        
+        <LoginForm client:load />
+        
+        <div class="mt-4 md:mt-6 p-3 md:p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
+          <p class="text-xs md:text-sm text-blue-800">
+            <strong>💡 ヒント:</strong> App Passwordは、Blueskyの設定画面で生成できる専用パスワードです。
+          </p>
+          <p class="text-xs md:text-sm text-blue-800 mt-1">
+            通常のパスワードではなく、App Passwordを使用してください。
+          </p>
+        </div>
+      </div>
+      
+      <!-- Features Preview -->
+      <div class="mt-8 text-center">
+        <p class="text-sm text-gray-600 mb-4">Bluesky LangAppの特徴</p>
+        <div class="grid grid-cols-3 gap-4 text-xs text-gray-500">
+          <div>
+            <div class="text-lg mb-1">📝</div>
+            <div>投稿から学習</div>
+          </div>
+          <div>
+            <div class="text-lg mb-1">📚</div>
+            <div>単語帳管理</div>
+          </div>
+          <div>
+            <div class="text-lg mb-1">📊</div>
+            <div>進捗追跡</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</BaseLayout>

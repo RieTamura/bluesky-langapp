@@ -1,0 +1,193 @@
+---
+// Right sidebar with learning features and word display
+---
+
+<aside class="h-screen sticky top-14 p-4 bg-gray-50 overflow-y-auto">
+  <!-- Learning Features Section (Yellow Border) -->
+  <div class="border-2 border-yellow-400 rounded-lg p-4 mb-6 bg-yellow-50">
+    <h2 class="text-lg font-semibold text-yellow-800 mb-4 flex items-center">
+      <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C20.168 18.477 18.582 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+      </svg>
+      学習機能
+    </h2>
+    
+    <!-- Learning Tabs -->
+    <div class="space-y-3">
+      <a href="/words" class="block w-full bg-white hover:bg-yellow-100 border border-yellow-200 rounded-lg p-3 transition-colors">
+        <div class="flex items-center space-x-3">
+          <div class="w-8 h-8 bg-yellow-200 rounded-full flex items-center justify-center">
+            <span class="text-yellow-700">📚</span>
+          </div>
+          <div>
+            <div class="font-medium text-gray-900">単語帳</div>
+            <div class="text-sm text-gray-600">保存した単語を管理</div>
+          </div>
+        </div>
+      </a>
+      
+      <a href="/learning" class="block w-full bg-white hover:bg-yellow-100 border border-yellow-200 rounded-lg p-3 transition-colors">
+        <div class="flex items-center space-x-3">
+          <div class="w-8 h-8 bg-yellow-200 rounded-full flex items-center justify-center">
+            <span class="text-yellow-700">🎯</span>
+          </div>
+          <div>
+            <div class="font-medium text-gray-900">学習</div>
+            <div class="text-sm text-gray-600">クイズで単語を学習</div>
+          </div>
+        </div>
+      </a>
+      
+      <a href="/progress" class="block w-full bg-white hover:bg-yellow-100 border border-yellow-200 rounded-lg p-3 transition-colors">
+        <div class="flex items-center space-x-3">
+          <div class="w-8 h-8 bg-yellow-200 rounded-full flex items-center justify-center">
+            <span class="text-yellow-700">📊</span>
+          </div>
+          <div>
+            <div class="font-medium text-gray-900">進捗</div>
+            <div class="text-sm text-gray-600">学習状況を確認</div>
+          </div>
+        </div>
+      </a>
+    </div>
+    
+    <!-- Quick Stats -->
+    <div class="mt-4 p-3 bg-white rounded-lg border border-yellow-200">
+      <div class="text-sm text-gray-600 mb-2">今日の学習</div>
+      <div class="flex justify-between items-center">
+        <span class="text-xs text-gray-500">新しい単語</span>
+        <span class="text-sm font-medium text-yellow-700" id="todayNewWords">0</span>
+      </div>
+      <div class="flex justify-between items-center">
+        <span class="text-xs text-gray-500">復習完了</span>
+        <span class="text-sm font-medium text-green-600" id="todayReviewed">0</span>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Recent Words Section (Red Border) -->
+  <div class="border-2 border-red-400 rounded-lg p-4 bg-red-50">
+    <h2 class="text-lg font-semibold text-red-800 mb-4 flex items-center">
+      <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>
+      </svg>
+      追加した単語
+    </h2>
+    
+    <!-- Recent Words List -->
+    <div id="recentWordsList" class="space-y-2 max-h-96 overflow-y-auto">
+      <!-- Words will be loaded here -->
+      <div class="text-center text-gray-500 py-8">
+        <svg class="w-12 h-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C20.168 18.477 18.582 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+        </svg>
+        <p class="text-sm">まだ単語が追加されていません</p>
+        <p class="text-xs text-gray-400 mt-1">投稿から単語をクリックして追加しましょう</p>
+      </div>
+    </div>
+    
+    <!-- View All Words Button -->
+    <div class="mt-4 pt-3 border-t border-red-200">
+      <a href="/words" class="block w-full text-center bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors">
+        すべての単語を見る
+      </a>
+    </div>
+  </div>
+</aside>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    loadRecentWords();
+    loadTodayStats();
+  });
+
+  async function loadRecentWords() {
+    try {
+      const sessionId = localStorage.getItem('sessionId');
+      if (!sessionId) return;
+
+      const response = await fetch('/api/words?limit=10', {
+        headers: {
+          'Authorization': `Bearer ${sessionId}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        displayRecentWords(data.words || []);
+      }
+    } catch (error) {
+      console.error('Failed to load recent words:', error);
+    }
+  }
+
+  function displayRecentWords(words) {
+    const container = document.getElementById('recentWordsList');
+    if (!container) return;
+
+    if (words.length === 0) {
+      return; // Keep the empty state
+    }
+
+    container.innerHTML = words.map(word => `
+      <div class="bg-white border border-red-200 rounded-lg p-3 hover:bg-red-50 transition-colors cursor-pointer" onclick="openWordDetail('${word.word}')">
+        <div class="flex items-center justify-between">
+          <div class="flex-1 min-w-0">
+            <div class="font-medium text-gray-900 truncate">${word.word}</div>
+            <div class="text-sm text-gray-600 truncate">${word.meaning || '意味を追加'}</div>
+          </div>
+          <div class="ml-2">
+            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeClass(word.status)}">
+              ${getStatusText(word.status)}
+            </span>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function getStatusBadgeClass(status) {
+    switch (status) {
+      case 'known': return 'bg-green-100 text-green-800';
+      case 'learning': return 'bg-yellow-100 text-yellow-800';
+      default: return 'bg-red-100 text-red-800';
+    }
+  }
+
+  function getStatusText(status) {
+    switch (status) {
+      case 'known': return '習得済み';
+      case 'learning': return '学習中';
+      default: return '未学習';
+    }
+  }
+
+  function openWordDetail(word) {
+    // This will be handled by the WordDetailModal component
+    window.dispatchEvent(new CustomEvent('openWordDetail', { detail: { word } }));
+  }
+
+  async function loadTodayStats() {
+    try {
+      const sessionId = localStorage.getItem('sessionId');
+      if (!sessionId) return;
+
+      const response = await fetch('/api/progress/today', {
+        headers: {
+          'Authorization': `Bearer ${sessionId}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const todayNewWords = document.getElementById('todayNewWords');
+        const todayReviewed = document.getElementById('todayReviewed');
+        
+        if (todayNewWords) todayNewWords.textContent = data.newWords || 0;
+        if (todayReviewed) todayReviewed.textContent = data.reviewed || 0;
+      }
+    } catch (error) {
+      console.error('Failed to load today stats:', error);
+    }
+  }
+</script>
