@@ -9,6 +9,7 @@ import authRoutes from './routes/auth.js';
 import postsRoutes from './routes/posts.js';
 import wordsRoutes from './routes/words.js';
 import learningRoutes from './routes/learning.js';
+import atProtocolRoutes from './routes/atProtocol.js';
 import DataService from './services/dataService.js';
 
 // Get __dirname equivalent for ES modules
@@ -108,6 +109,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/posts', postsRoutes);
 app.use('/api/words', wordsRoutes);
 app.use('/api/learning', learningRoutes);
+app.use('/api/atprotocol', atProtocolRoutes);
 console.log('API routes registered successfully');
 
 // API routes placeholder for other endpoints

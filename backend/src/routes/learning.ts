@@ -35,4 +35,24 @@ router.get('/stats', requireAuth, LearningController.getLearningStats);
  */
 router.get('/progress', requireAuth, LearningController.getLearningProgress);
 
+/**
+ * GET /api/learning/advanced-stats
+ * Get advanced learning statistics with SRS data
+ */
+router.get('/advanced-stats', requireAuth, LearningController.getAdvancedLearningStats);
+
+/**
+ * GET /api/learning/review-schedule
+ * Get the review schedule for upcoming days
+ */
+router.get('/review-schedule', requireAuth, LearningController.getReviewSchedule);
+
+/**
+ * GET /api/learning/history
+ * Get learning history for calendar visualization
+ * Query parameters:
+ * - days: number (optional) - Number of days to retrieve (default: 30)
+ */
+router.get('/history', requireAuth, LearningController.getLearningHistory);
+
 export default router;

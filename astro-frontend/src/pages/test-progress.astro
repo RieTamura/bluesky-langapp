@@ -1,0 +1,34 @@
+---
+import BlueskyLayout from '../layouts/BlueskyLayout.astro';
+---
+
+<BlueskyLayout title="Progress Test - Bluesky LangApp">
+  <div class="p-6">
+    <h1 class="text-2xl font-bold mb-4">Progress Visualization Test</h1>
+    <p class="text-gray-600 mb-4">Testing the new progress visualization components...</p>
+    
+    <div class="bg-white border border-gray-200 rounded-lg p-6">
+      <h2 class="text-xl font-semibold mb-4">Chart.js Test</h2>
+      <div id="chart-test" class="h-64 bg-gray-100 rounded flex items-center justify-center">
+        <p class="text-gray-500">Chart will be rendered here</p>
+      </div>
+    </div>
+  </div>
+</BlueskyLayout>
+
+<script>
+  // Simple test to verify Chart.js is available
+  import('chart.js').then((Chart) => {
+    console.log('Chart.js loaded successfully:', Chart);
+    const testElement = document.getElementById('chart-test');
+    if (testElement) {
+      testElement.innerHTML = '<p class="text-green-600">✅ Chart.js is available!</p>';
+    }
+  }).catch((error) => {
+    console.error('Failed to load Chart.js:', error);
+    const testElement = document.getElementById('chart-test');
+    if (testElement) {
+      testElement.innerHTML = '<p class="text-red-600">❌ Chart.js failed to load</p>';
+    }
+  });
+</script>

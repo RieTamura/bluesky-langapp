@@ -138,6 +138,71 @@ export class BlueskyService {
   }
 
   /**
+   * Create a new post on Bluesky
+   */
+  async createPost(text: string): Promise<{ uri: string; cid: string }> {
+    if (!this.isAuthenticated) {
+      throw new Error('Not authenticated. Please login first.');
+    }
+
+    try {
+      console.log('Creating Bluesky post:', text.substring(0, 50) + '...');
+      
+      const response = await this.agent.post({
+        text: text,
+        createdAt: new Date().toISOString()
+      });
+
+      console.log('Post created successfully:', response.uri);
+      return {
+        uri: response.uri,
+        cid: response.cid
+      };
+    } catch (error) {
+      console.error('Failed to create post:', error);
+      throw new Error(`Failed to create post: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Get current user profile
+   */
+  async getProfile(): Promise<{
+    did: string;
+    handle: string;
+    displayName?: string;
+    description?: string;
+    avatar?: string;
+    followersCount?: number;
+    followsCount?: number;
+    postsCount?: number;
+  }> {
+    if (!this.isAuthenticated) {
+      throw new Error('Not authenticated. Please login first.');
+    }
+
+    try {
+      const profile = await this.agent.getProfile({
+        actor: this.agent.session?.did || ''
+      });
+
+      return {
+        did: profile.data.did,
+        handle: profile.data.handle,
+        displayName: profile.data.displayName,
+        description: profile.data.description,
+        avatar: profile.data.avatar,
+        followersCount: profile.data.followersCount,
+        followsCount: profile.data.followsCount,
+        postsCount: profile.data.postsCount
+      };
+    } catch (error) {
+      console.error('Failed to get profile:', error);
+      throw new Error(`Failed to get profile: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Logout and clear authentication
    */
   logout(): void {

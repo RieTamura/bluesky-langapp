@@ -10,6 +10,26 @@ export interface QuizQuestion {
   correctAnswer: string;
 }
 
+// Spaced Repetition System (SRS) interfaces
+export interface SRSData {
+  interval: number; // Days until next review
+  repetition: number; // Number of successful reviews
+  easeFactor: number; // Difficulty multiplier (1.3 - 2.5)
+  nextReviewDate: string; // ISO date string
+  lastReviewDate: string; // ISO date string
+}
+
+export interface DifficultyAdjustment {
+  baseInterval: number;
+  difficultyMultiplier: number;
+  performanceHistory: number[]; // Recent performance scores (0-1)
+}
+
+export interface WordSRSData extends WordData {
+  srsData?: SRSData;
+  difficultyAdjustment?: DifficultyAdjustment;
+}
+
 export interface QuizAnswer {
   questionId: string;
   userAnswer: string;
@@ -30,6 +50,21 @@ export interface QuizSession {
 class LearningService {
   private dataService: DataService;
   private activeSessions: Map<string, QuizSession> = new Map();
+
+  // SRS constants
+  private readonly SRS_INITIAL_INTERVAL = 1; // 1 day
+  private readonly SRS_INITIAL_EASE_FACTOR = 2.5;
+  private readonly SRS_MIN_EASE_FACTOR = 1.3;
+  private readonly SRS_MAX_EASE_FACTOR = 2.5;
+  private readonly SRS_EASE_FACTOR_BONUS = 0.1;
+  private readonly SRS_EASE_FACTOR_PENALTY = 0.2;
+  
+  // Difficulty adjustment constants
+  private readonly DIFFICULTY_HISTORY_SIZE = 10; // Number of recent attempts to consider
+  private readonly DIFFICULTY_THRESHOLD_EASY = 0.8; // 80% accuracy = easy
+  private readonly DIFFICULTY_THRESHOLD_HARD = 0.4; // 40% accuracy = hard
+  private readonly DIFFICULTY_MULTIPLIER_EASY = 0.8; // Reduce interval by 20%
+  private readonly DIFFICULTY_MULTIPLIER_HARD = 1.5; // Increase interval by 50%
 
   constructor() {
     this.dataService = new DataService();
@@ -109,18 +144,33 @@ class LearningService {
       
       console.log('Words:', allWords.map(w => ({ word: w.word, status: w.status })));
       
-      const learningWords = allWords.filter(word => 
-        word.status === 'learning' || word.status === 'unknown'
-      );
-      console.log(`Learning words found: ${learningWords.length}`);
+      // Get words due for review using SRS algorithm
+      const dueWords = await this.getWordsForReview(userId);
+      console.log(`Words due for review: ${dueWords.length}`);
+      
+      // If not enough due words, include other learning/unknown words
+      let availableWords = dueWords;
+      if (availableWords.length < questionCount) {
+        const otherLearningWords = allWords.filter(word => 
+          (word.status === 'learning' || word.status === 'unknown') &&
+          !dueWords.some(dueWord => dueWord.id === word.id)
+        );
+        availableWords = [...dueWords, ...otherLearningWords];
+      }
+      
+      console.log(`Available words for quiz: ${availableWords.length}`);
 
-      if (learningWords.length === 0) {
+      if (availableWords.length === 0) {
         throw new Error('No words available for quiz. Add some words to your learning list first.');
       }
 
-      // Select random words for quiz
-      const selectedWords = this.shuffleArray(learningWords)
-        .slice(0, Math.min(questionCount, learningWords.length));
+      // Prioritize due words, then shuffle the rest
+      const selectedWords = [
+        ...dueWords.slice(0, Math.min(questionCount, dueWords.length)),
+        ...this.shuffleArray(availableWords.filter(word => 
+          !dueWords.some(dueWord => dueWord.id === word.id)
+        )).slice(0, Math.max(0, questionCount - dueWords.length))
+      ].slice(0, questionCount);
 
       // Generate questions
       const questions = selectedWords.map(word => this.generateQuizQuestion(word));
@@ -194,12 +244,8 @@ class LearningService {
     };
     session.answers.push(answer);
 
-    // Update word statistics if correct
-    if (isCorrect) {
-      await this.updateWordStats(currentQuestion.word.id, true);
-    } else {
-      await this.updateWordStats(currentQuestion.word.id, false);
-    }
+    // Update word statistics with SRS and difficulty adjustment
+    await this.updateWordStats(currentQuestion.word.id, isCorrect, responseTimeMs);
 
     // Move to next question
     session.currentQuestionIndex++;
@@ -316,9 +362,9 @@ class LearningService {
   }
 
   /**
-   * Update word learning statistics
+   * Update word learning statistics with SRS and difficulty adjustment
    */
-  private async updateWordStats(wordId: string, isCorrect: boolean): Promise<void> {
+  private async updateWordStats(wordId: string, isCorrect: boolean, responseTimeMs?: number): Promise<void> {
     try {
       const word = await this.dataService.getWordById(wordId);
       if (!word) return;
@@ -326,20 +372,82 @@ class LearningService {
       const reviewCount = (word.reviewCount || 0) + 1;
       const correctCount = (word.correctCount || 0) + (isCorrect ? 1 : 0);
       
-      // Update status based on performance
+      // Initialize or parse existing SRS data
+      let srsData: SRSData;
+      try {
+        // For now, we'll store SRS data in the word's existing fields
+        // In a future version, we could extend the data model
+        if (word.lastReviewedAt && word.reviewCount && word.reviewCount > 0) {
+          srsData = {
+            interval: 1, // Will be recalculated
+            repetition: word.reviewCount,
+            easeFactor: this.SRS_INITIAL_EASE_FACTOR,
+            nextReviewDate: word.lastReviewedAt,
+            lastReviewDate: word.lastReviewedAt
+          };
+        } else {
+          srsData = this.initializeSRSData();
+        }
+      } catch (error) {
+        srsData = this.initializeSRSData();
+      }
+
+      // Initialize or parse difficulty adjustment data
+      let difficultyData: DifficultyAdjustment;
+      try {
+        // For now, we'll use a simple approach and store in memory
+        // In a future version, this could be persisted
+        difficultyData = this.initializeDifficultyAdjustment();
+      } catch (error) {
+        difficultyData = this.initializeDifficultyAdjustment();
+      }
+
+      // Calculate quality score for SRS algorithm
+      const quality = this.calculateQuality(isCorrect, responseTimeMs);
+      
+      // Update SRS data
+      const updatedSRSData = this.updateSRSData(srsData, quality);
+      
+      // Update difficulty adjustment
+      const updatedDifficultyData = this.updateDifficultyAdjustment(difficultyData, isCorrect, responseTimeMs);
+      
+      // Apply difficulty adjustment to SRS interval
+      const adjustedInterval = Math.round(updatedSRSData.interval * updatedDifficultyData.difficultyMultiplier);
+      updatedSRSData.interval = Math.max(1, adjustedInterval);
+      
+      // Recalculate next review date with adjusted interval
+      const now = new Date();
+      const nextReviewDate = new Date(now.getTime() + updatedSRSData.interval * 24 * 60 * 60 * 1000);
+      updatedSRSData.nextReviewDate = nextReviewDate.toISOString();
+      
+      // Update status based on SRS performance
       let newStatus = word.status;
-      if (isCorrect && reviewCount >= 3 && correctCount >= 2) {
+      if (updatedSRSData.repetition >= 5 && updatedSRSData.easeFactor >= 2.0) {
+        // Word has been successfully reviewed multiple times with good ease factor
         newStatus = 'known';
       } else if (reviewCount > 0) {
         newStatus = 'learning';
       }
 
+      // Save updated word data
       await this.dataService.saveWord({
         ...word,
         reviewCount,
         correctCount,
         status: newStatus,
-        lastReviewedAt: new Date().toISOString()
+        lastReviewedAt: now.toISOString(),
+        // Store some SRS data in existing fields for now
+        difficultyLevel: Math.round(updatedSRSData.easeFactor * 10) // Store ease factor as difficulty level
+      });
+
+      console.log(`Updated word stats for "${word.word}":`, {
+        reviewCount,
+        correctCount,
+        status: newStatus,
+        srsInterval: updatedSRSData.interval,
+        easeFactor: updatedSRSData.easeFactor,
+        difficultyMultiplier: updatedDifficultyData.difficultyMultiplier,
+        nextReviewDate: updatedSRSData.nextReviewDate
       });
     } catch (error) {
       console.error('Failed to update word stats:', error);
@@ -401,6 +509,212 @@ class LearningService {
   }
 
   /**
+   * Initialize SRS data for a word
+   */
+  private initializeSRSData(): SRSData {
+    const now = new Date();
+    const nextReview = new Date(now.getTime() + this.SRS_INITIAL_INTERVAL * 24 * 60 * 60 * 1000);
+    
+    return {
+      interval: this.SRS_INITIAL_INTERVAL,
+      repetition: 0,
+      easeFactor: this.SRS_INITIAL_EASE_FACTOR,
+      nextReviewDate: nextReview.toISOString(),
+      lastReviewDate: now.toISOString()
+    };
+  }
+
+  /**
+   * Initialize difficulty adjustment data for a word
+   */
+  private initializeDifficultyAdjustment(): DifficultyAdjustment {
+    return {
+      baseInterval: this.SRS_INITIAL_INTERVAL,
+      difficultyMultiplier: 1.0,
+      performanceHistory: []
+    };
+  }
+
+  /**
+   * Update SRS data based on quiz performance
+   * Implements the SM-2 algorithm with modifications
+   */
+  private updateSRSData(srsData: SRSData, quality: number): SRSData {
+    const now = new Date();
+    let newSRSData = { ...srsData };
+
+    // Quality: 0-5 scale (0 = complete blackout, 5 = perfect response)
+    // We'll map our boolean correct/incorrect to this scale
+    // quality >= 3 is considered successful
+    
+    if (quality >= 3) {
+      // Successful review
+      if (newSRSData.repetition === 0) {
+        newSRSData.interval = 1;
+      } else if (newSRSData.repetition === 1) {
+        newSRSData.interval = 6;
+      } else {
+        newSRSData.interval = Math.round(newSRSData.interval * newSRSData.easeFactor);
+      }
+      newSRSData.repetition += 1;
+    } else {
+      // Failed review - reset repetition but keep some progress
+      newSRSData.repetition = 0;
+      newSRSData.interval = 1;
+    }
+
+    // Update ease factor based on quality
+    newSRSData.easeFactor = newSRSData.easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
+    
+    // Clamp ease factor to valid range
+    newSRSData.easeFactor = Math.max(this.SRS_MIN_EASE_FACTOR, 
+      Math.min(this.SRS_MAX_EASE_FACTOR, newSRSData.easeFactor));
+
+    // Calculate next review date
+    const nextReviewDate = new Date(now.getTime() + newSRSData.interval * 24 * 60 * 60 * 1000);
+    newSRSData.nextReviewDate = nextReviewDate.toISOString();
+    newSRSData.lastReviewDate = now.toISOString();
+
+    return newSRSData;
+  }
+
+  /**
+   * Update difficulty adjustment based on recent performance
+   */
+  private updateDifficultyAdjustment(
+    difficultyData: DifficultyAdjustment, 
+    isCorrect: boolean, 
+    responseTimeMs?: number
+  ): DifficultyAdjustment {
+    const newDifficultyData = { ...difficultyData };
+    
+    // Calculate performance score (0-1)
+    let performanceScore = isCorrect ? 1 : 0;
+    
+    // Adjust score based on response time if available
+    if (responseTimeMs && isCorrect) {
+      // Faster responses get higher scores
+      // Assume 5 seconds is average, scale accordingly
+      const timeScore = Math.max(0.5, Math.min(1.0, 5000 / responseTimeMs));
+      performanceScore = performanceScore * timeScore;
+    }
+    
+    // Add to performance history
+    newDifficultyData.performanceHistory.push(performanceScore);
+    
+    // Keep only recent history
+    if (newDifficultyData.performanceHistory.length > this.DIFFICULTY_HISTORY_SIZE) {
+      newDifficultyData.performanceHistory = newDifficultyData.performanceHistory.slice(-this.DIFFICULTY_HISTORY_SIZE);
+    }
+    
+    // Calculate average performance over recent attempts
+    const recentPerformance = newDifficultyData.performanceHistory.reduce((sum, score) => sum + score, 0) / 
+      newDifficultyData.performanceHistory.length;
+    
+    // Adjust difficulty multiplier based on performance
+    if (recentPerformance >= this.DIFFICULTY_THRESHOLD_EASY) {
+      // Word is too easy - reduce intervals
+      newDifficultyData.difficultyMultiplier = this.DIFFICULTY_MULTIPLIER_EASY;
+    } else if (recentPerformance <= this.DIFFICULTY_THRESHOLD_HARD) {
+      // Word is too hard - increase intervals
+      newDifficultyData.difficultyMultiplier = this.DIFFICULTY_MULTIPLIER_HARD;
+    } else {
+      // Word difficulty is appropriate
+      newDifficultyData.difficultyMultiplier = 1.0;
+    }
+    
+    return newDifficultyData;
+  }
+
+  /**
+   * Convert boolean correctness and response time to SM-2 quality scale
+   */
+  private calculateQuality(isCorrect: boolean, responseTimeMs?: number): number {
+    if (!isCorrect) {
+      return 0; // Complete failure
+    }
+    
+    // Base quality for correct answer
+    let quality = 4; // Good response
+    
+    // Adjust based on response time if available
+    if (responseTimeMs) {
+      if (responseTimeMs < 3000) { // Very fast (< 3 seconds)
+        quality = 5; // Perfect response
+      } else if (responseTimeMs < 8000) { // Fast (< 8 seconds)
+        quality = 4; // Good response
+      } else if (responseTimeMs < 15000) { // Moderate (< 15 seconds)
+        quality = 3; // Satisfactory response
+      } else {
+        quality = 3; // Slow but correct
+      }
+    }
+    
+    return quality;
+  }
+
+  /**
+   * Check if a word is due for review based on SRS data
+   */
+  private isWordDueForReview(srsData?: SRSData): boolean {
+    if (!srsData) {
+      return true; // New words are always due
+    }
+    
+    const now = new Date();
+    const nextReviewDate = new Date(srsData.nextReviewDate);
+    
+    return now >= nextReviewDate;
+  }
+
+  /**
+   * Get words that are due for review
+   */
+  async getWordsForReview(userId: string): Promise<WordData[]> {
+    try {
+      const allWords = await this.dataService.getWords(userId);
+      
+      // Filter words that are due for review
+      const dueWords = allWords.filter(word => {
+        // Only include learning and unknown words
+        if (word.status === 'known') {
+          return false;
+        }
+        
+        // Parse SRS data if available
+        let srsData: SRSData | undefined;
+        try {
+          if (word.lastReviewedAt) {
+            // Try to reconstruct SRS data from existing fields
+            srsData = {
+              interval: 1, // Default interval
+              repetition: word.reviewCount || 0,
+              easeFactor: this.SRS_INITIAL_EASE_FACTOR,
+              nextReviewDate: word.lastReviewedAt, // Will be recalculated
+              lastReviewDate: word.lastReviewedAt
+            };
+          }
+        } catch (error) {
+          // If parsing fails, treat as new word
+          srsData = undefined;
+        }
+        
+        return this.isWordDueForReview(srsData);
+      });
+      
+      // Sort by priority (words not reviewed recently first)
+      return dueWords.sort((a, b) => {
+        const aLastReview = a.lastReviewedAt ? new Date(a.lastReviewedAt).getTime() : 0;
+        const bLastReview = b.lastReviewedAt ? new Date(b.lastReviewedAt).getTime() : 0;
+        return aLastReview - bLastReview;
+      });
+    } catch (error) {
+      console.error('Failed to get words for review:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Utility function to shuffle array
    */
   private shuffleArray<T>(array: T[]): T[] {
@@ -413,7 +727,132 @@ class LearningService {
   }
 
   /**
-   * Get learning statistics for a user
+   * Get SRS-enhanced learning statistics for a user
+   */
+  async getAdvancedLearningStats(userId: string): Promise<{
+    totalWords: number;
+    unknownWords: number;
+    learningWords: number;
+    knownWords: number;
+    totalReviews: number;
+    averageAccuracy: number;
+    wordsForReview: number;
+    averageEaseFactor: number;
+    reviewSchedule: {
+      today: number;
+      tomorrow: number;
+      thisWeek: number;
+      nextWeek: number;
+    };
+  }> {
+    try {
+      console.log(`Getting advanced learning stats for user: ${userId}`);
+      let words = await this.dataService.getWords(userId);
+      console.log(`Advanced stats - Total words found for user ${userId}: ${words.length}`);
+      
+      // Migration logic (same as before)
+      if (words.length === 0) {
+        console.log('No words found for user, checking for default_user words to migrate...');
+        const defaultWords = await this.dataService.getWords('default_user');
+        console.log(`Found ${defaultWords.length} default_user words to migrate`);
+        
+        if (defaultWords.length > 0) {
+          for (const word of defaultWords) {
+            await this.dataService.saveWord({
+              ...word,
+              userId: userId
+            });
+          }
+          console.log(`Migrated ${defaultWords.length} words to user ${userId}`);
+          words = await this.dataService.getWords(userId);
+        }
+      }
+      
+      const totalWords = words.length;
+      const unknownWords = words.filter(w => w.status === 'unknown').length;
+      const learningWords = words.filter(w => w.status === 'learning').length;
+      const knownWords = words.filter(w => w.status === 'known').length;
+      
+      const totalReviews = words.reduce((sum, word) => sum + (word.reviewCount || 0), 0);
+      const totalCorrect = words.reduce((sum, word) => sum + (word.correctCount || 0), 0);
+      const averageAccuracy = totalReviews > 0 ? totalCorrect / totalReviews : 0;
+      
+      // Get words due for review
+      const wordsForReview = (await this.getWordsForReview(userId)).length;
+      
+      // Calculate average ease factor from difficulty levels
+      const wordsWithDifficulty = words.filter(w => w.difficultyLevel);
+      const averageEaseFactor = wordsWithDifficulty.length > 0 
+        ? wordsWithDifficulty.reduce((sum, word) => sum + (word.difficultyLevel || 25), 0) / wordsWithDifficulty.length / 10
+        : this.SRS_INITIAL_EASE_FACTOR;
+      
+      // Calculate review schedule
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+      const thisWeekEnd = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const nextWeekEnd = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
+      
+      let reviewToday = 0;
+      let reviewTomorrow = 0;
+      let reviewThisWeek = 0;
+      let reviewNextWeek = 0;
+      
+      for (const word of words) {
+        if (word.status === 'known') continue;
+        
+        // Estimate next review date based on last review and difficulty
+        let nextReviewDate = today;
+        if (word.lastReviewedAt) {
+          const lastReview = new Date(word.lastReviewedAt);
+          const daysSinceReview = Math.floor((now.getTime() - lastReview.getTime()) / (24 * 60 * 60 * 1000));
+          
+          // Simple estimation - in a full implementation, this would use stored SRS data
+          let estimatedInterval = 1;
+          if (word.reviewCount && word.reviewCount > 0) {
+            estimatedInterval = Math.min(30, Math.max(1, word.reviewCount * 2));
+          }
+          
+          nextReviewDate = new Date(lastReview.getTime() + estimatedInterval * 24 * 60 * 60 * 1000);
+        }
+        
+        if (nextReviewDate <= tomorrow) {
+          if (nextReviewDate <= today) {
+            reviewToday++;
+          } else {
+            reviewTomorrow++;
+          }
+        } else if (nextReviewDate <= thisWeekEnd) {
+          reviewThisWeek++;
+        } else if (nextReviewDate <= nextWeekEnd) {
+          reviewNextWeek++;
+        }
+      }
+
+      return {
+        totalWords,
+        unknownWords,
+        learningWords,
+        knownWords,
+        totalReviews,
+        averageAccuracy,
+        wordsForReview,
+        averageEaseFactor,
+        reviewSchedule: {
+          today: reviewToday,
+          tomorrow: reviewTomorrow,
+          thisWeek: reviewThisWeek,
+          nextWeek: reviewNextWeek
+        }
+      };
+    } catch (error) {
+      console.error('Failed to get advanced learning stats:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get learning statistics for a user (backward compatibility)
    */
   async getLearningStats(userId: string): Promise<{
     totalWords: number;

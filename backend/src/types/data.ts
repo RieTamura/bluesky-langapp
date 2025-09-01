@@ -14,6 +14,11 @@ export interface WordData {
   lastReviewedAt?: string;
   difficultyLevel?: number;
   firstEncounteredAt?: string;
+  // SRS-related fields (stored as encoded data for now)
+  srsInterval?: number;
+  srsRepetition?: number;
+  srsEaseFactor?: number;
+  srsNextReviewDate?: string;
 }
 
 export interface UserData {

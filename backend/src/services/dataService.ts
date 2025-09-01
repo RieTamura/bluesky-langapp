@@ -13,6 +13,8 @@ export interface WordData {
   reviewCount?: number;
   correctCount?: number;
   lastReviewedAt?: string;
+  difficultyLevel?: number;
+  firstEncounteredAt?: string;
 }
 
 export interface UserData {
@@ -361,6 +363,8 @@ class DataService {
       reviewCount: wordData.reviewCount || 0,
       correctCount: wordData.correctCount || 0,
       lastReviewedAt: wordData.lastReviewedAt,
+      difficultyLevel: wordData.difficultyLevel,
+      firstEncounteredAt: wordData.firstEncounteredAt,
       date: now
     };
     

@@ -5,7 +5,7 @@
       "word": "Excited",
       "status": "unknown",
       "date": "2025-08-26T18:17:44.880Z",
-      "id": "word_1756695362881_0",
+      "id": "word_1756705410861_0",
       "userId": "default_user",
       "definition": "興奮した、わくわくした",
       "exampleSentence": "I am so excited about the new project."
@@ -14,7 +14,7 @@
       "word": "stuff",
       "status": "unknown",
       "date": "2025-08-26T18:17:58.505Z",
-      "id": "word_1756695362881_1",
+      "id": "word_1756705410861_1",
       "userId": "default_user",
       "definition": "物、もの、材料",
       "exampleSentence": "There's a lot of stuff in the garage."
@@ -23,7 +23,7 @@
       "word": "records",
       "status": "unknown",
       "date": "2025-08-26T18:18:43.455Z",
-      "id": "word_1756695362881_2",
+      "id": "word_1756705410861_2",
       "userId": "default_user",
       "definition": "記録、レコード",
       "exampleSentence": "Please keep records of all transactions."
@@ -32,7 +32,7 @@
       "word": "from",
       "status": "unknown",
       "date": "2025-08-26T18:18:45.660Z",
-      "id": "word_1756695362881_3",
+      "id": "word_1756705410861_3",
       "userId": "default_user",
       "definition": "〜から、〜より",
       "exampleSentence": "I received a letter from my friend."
@@ -41,7 +41,7 @@
       "word": "backfill",
       "status": "unknown",
       "date": "2025-08-26T18:18:54.358Z",
-      "id": "word_1756695362881_4",
+      "id": "word_1756705410861_4",
       "userId": "default_user",
       "definition": "埋め戻し、補完",
       "exampleSentence": "We need to backfill the missing data."
@@ -50,7 +50,7 @@
       "word": "provides",
       "status": "unknown",
       "date": "2025-08-26T18:18:58.349Z",
-      "id": "word_1756695362881_5",
+      "id": "word_1756705410861_5",
       "userId": "default_user",
       "definition": "提供する、与える",
       "exampleSentence": "This service provides excellent support."
@@ -59,7 +59,7 @@
       "word": "typescript",
       "status": "unknown",
       "date": "2025-08-26T18:19:02.255Z",
-      "id": "word_1756695362881_6",
+      "id": "word_1756705410861_6",
       "userId": "default_user",
       "definition": "TypeScript（プログラミング言語）",
       "exampleSentence": "TypeScript helps catch errors at compile time."
@@ -68,7 +68,7 @@
       "word": "client",
       "status": "unknown",
       "date": "2025-08-26T18:19:03.550Z",
-      "id": "word_1756695362881_7",
+      "id": "word_1756705410861_7",
       "userId": "default_user",
       "definition": "クライアント、顧客",
       "exampleSentence": "The client was very satisfied with our work."
@@ -77,7 +77,7 @@
       "word": "interact",
       "status": "unknown",
       "date": "2025-08-26T18:19:06.105Z",
-      "id": "word_1756695362881_8",
+      "id": "word_1756705410861_8",
       "userId": "default_user",
       "definition": "相互作用する、やり取りする",
       "exampleSentence": "Users can interact with the application easily."
@@ -86,7 +86,7 @@
       "word": "Celebration",
       "status": "unknown",
       "date": "2025-08-26T18:19:48.810Z",
-      "id": "word_1756695362881_9",
+      "id": "word_1756705410861_9",
       "userId": "default_user",
       "definition": "お祝い、祝賀",
       "exampleSentence": "We had a celebration for her birthday."
@@ -95,7 +95,7 @@
       "word": "companion!",
       "status": "unknown",
       "date": "2025-08-26T18:20:08.203Z",
-      "id": "word_1756695362881_10",
+      "id": "word_1756705410861_10",
       "userId": "default_user",
       "definition": "仲間、相棒",
       "exampleSentence": "My dog is my faithful companion."
@@ -104,7 +104,7 @@
       "word": "Earn",
       "status": "unknown",
       "date": "2025-08-26T18:20:10.098Z",
-      "id": "word_1756695362881_11",
+      "id": "word_1756705410861_11",
       "userId": "default_user",
       "definition": "稼ぐ、得る",
       "exampleSentence": "You need to earn their trust first."
