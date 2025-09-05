@@ -1,5 +1,5 @@
 import React from 'react';
-import { Post } from '../../stores/posts';
+import type { Post } from '../../stores/posts';
 import PostItem from './PostItem';
 import WordLegend from './WordLegend';
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Post } from '../../stores/posts';
+import type { Post } from '../../stores/posts';
 import WordHighlighter from '../posts/WordHighlighter';
 
 interface BlueskyPostItemProps {

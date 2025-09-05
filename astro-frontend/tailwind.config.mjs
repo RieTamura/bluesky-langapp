@@ -192,25 +192,27 @@ export default {
         
         // Word highlight components
         '.word-highlight-base': {
-          display: 'inline-flex',
-          alignItems: 'center',
-          padding: '2px 8px',
+          // Compact token style so background matches actual text height
+          display: 'inline-block',
+          padding: '2px 6px', // tighter vertical padding
+          lineHeight: '1.1', // reduce extra vertical space
           borderRadius: '6px',
           border: '1px solid',
           cursor: 'pointer',
           touchAction: 'manipulation',
-          minHeight: '44px',
           transition: 'all 0.2s ease-in-out',
+          whiteSpace: 'nowrap', // avoid internal wrap that can stretch height
+          verticalAlign: 'baseline',
           '&:focus': {
             outline: '2px solid #3b82f6',
             outlineOffset: '2px',
           },
           '&:active': {
-            transform: 'scale(0.98)',
+            transform: 'scale(0.97)',
           },
           '@media (max-width: 768px)': {
-            minHeight: '48px',
-            padding: '4px 8px',
+            padding: '2px 6px', // keep same on mobile; removed min-height for natural height
+            lineHeight: '1.15',
           },
         },
         

@@ -120,6 +120,26 @@
       "definition": "稼ぐ、得る",
       "exampleSentence": "You need to earn their trust first.",
       "languageCode": "en"
+    },
+    {
+      "id": "word_1757089114518_bsq55ol9m",
+      "word": "nra",
+      "status": "unknown",
+      "userId": "connectobasan.com",
+      "languageCode": "en",
+      "reviewCount": 0,
+      "correctCount": 0,
+      "date": "2025-09-05T16:18:34.518Z"
+    },
+    {
+      "id": "word_1757089124613_gchl1d2y9",
+      "word": "account",
+      "status": "learning",
+      "userId": "connectobasan.com",
+      "languageCode": "en",
+      "reviewCount": 0,
+      "correctCount": 0,
+      "date": "2025-09-05T16:18:44.613Z"
     }
   ],
   "version": "1.0.0"
