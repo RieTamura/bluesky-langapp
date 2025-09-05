@@ -1,20 +1,19 @@
-import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, SafeAreaView, Animated, NativeSyntheticEvent, NativeScrollEvent, Easing } from 'react-native';
 import { useThemeColors } from '../stores/theme';
 import { useAuth } from '../hooks/useAuth';
 import { useUserPosts, useFollowingFeed, useDiscoverFeed } from '../hooks/usePosts';
 import { useFeedStore } from '../stores/feed';
-import { useQuiz } from '../hooks/useQuiz';
 import { WordDetailModal } from '../components/WordDetailModal';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '../services/api';
 
 // メイン画面: 1) フィード 2) クイズ 3) 進捗
 export const MainScreen: React.FC = () => {
   const { identifier } = useAuth();
-  const userPosts = useUserPosts(identifier || undefined, 20);
-  const following = useFollowingFeed(20);
-  const discover = useDiscoverFeed(20);
+  // 取得件数をユーザーが変更できるように state 化
+  const [limit, setLimit] = useState(20);
+  const userPosts = useUserPosts(identifier || undefined, limit);
+  const following = useFollowingFeed(limit);
+  const discover = useDiscoverFeed(limit);
   const feedTab = useFeedStore(s => s.feedTab);
   const setFeedTab = useFeedStore(s => s.setFeedTab);
   const loadingFeed = userPosts.isLoading || following.isLoading || discover.isLoading;
@@ -31,16 +30,7 @@ export const MainScreen: React.FC = () => {
     else discover.refetch();
   };
 
-  const quiz = useQuiz(5);
-  useEffect(() => { quiz.start(); }, [quiz.start]);
-
-  const statsQuery = useQuery({
-    queryKey: ['advanced-stats-inline'],
-    queryFn: () => api.get<any>('/api/learning/advanced-stats')
-  });
-
-  const stats: any = (statsQuery.data as any)?.data || statsQuery.data;
-  const schedule = stats?.reviewSchedule || {};
+  // Quiz / Progress セクションは削除し、フィードのみ表示
 
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
   // expose setter for inner token components (quick solution without context)
@@ -55,6 +45,10 @@ export const MainScreen: React.FC = () => {
   const isShownRef = useRef(true); // 離散状態管理
   const lastY = useRef(0);
   const [tabsInteractive, setTabsInteractive] = useState(true);
+  // --- Scroll To Top Button ---
+  const [showTopBtn, setShowTopBtn] = useState(false);
+  // ref は任意 any で安全側 (複雑な Animated 型指定を避ける)
+  const scrollRef = useRef<any>(null);
 
   const translateY = headerOffset.interpolate({
     inputRange: [0, tabHeight],
@@ -84,11 +78,20 @@ export const MainScreen: React.FC = () => {
       if (interactive !== tabsInteractive) setTabsInteractive(interactive);
     });
   }, [headerOffset, tabHeight, tabsInteractive]);
+  const scrollToTop = useCallback(() => {
+    scrollRef.current?.scrollTo?.({ y: 0, animated: true });
+    if (!isShownRef.current) {
+      isShownRef.current = true;
+      animateTo(0);
+    }
+  }, [animateTo]);
   // トップ到達時だけ表示 / それ以外は隠す (離散)
   const TOP_THRESHOLD = 2; // px
   const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = e.nativeEvent.contentOffset.y;
     lastY.current = y;
+  // TOPボタン表示制御 (200px 超で表示)
+  if (!showTopBtn && y > 200) setShowTopBtn(true); else if (showTopBtn && y <= 200) setShowTopBtn(false);
     if (y <= TOP_THRESHOLD) {
       if (!isShownRef.current) {
         isShownRef.current = true;
@@ -100,7 +103,7 @@ export const MainScreen: React.FC = () => {
         animateTo(tabHeight);
       }
     }
-  }, [animateTo, tabHeight]);
+  }, [animateTo]);
 
   const snap = useCallback(() => {}, []); // 不要
 
@@ -151,79 +154,65 @@ export const MainScreen: React.FC = () => {
             </TouchableOpacity>
           );
         })}
-  </Animated.View>
-  <Animated.ScrollView
+        <View style={styles.limitRow} accessibilityRole="adjustable" accessible accessibilityLabel="Posts fetch limit selector">
+          {[10,20,50,100].map(v => {
+            const active = limit === v;
+            return (
+              <TouchableOpacity
+                key={v}
+                style={[
+                  styles.limitOption,
+                  {
+                    backgroundColor: active ? c.accent : c.surface,
+                    borderColor: active ? c.accent : c.border
+                  }
+                ]}
+                onPress={() => setLimit(v)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`Limit ${v}`}
+              >
+                <Text style={[styles.limitText, { color: active ? '#fff' : c.text }]}>{v}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </Animated.View>
+      <Animated.ScrollView
+        ref={scrollRef}
         onScroll={onScroll}
   // snapは不要（離散制御）
         scrollEventThrottle={16}
         refreshControl={<RefreshControl refreshing={loadingFeed} onRefresh={refetchCurrentFeed} />}
       >
-  <Animated.View style={{ paddingTop: tabHeight, paddingBottom: 140, paddingHorizontal: 16, transform: [{ translateY: contentTranslateY }] }}>
-        {loadingFeed && <ActivityIndicator style={{ marginVertical: 12 }} />}
-        {!loadingFeed && currentFeed.map((item: any, i: number) => (
-          <View key={feedTab + '-' + i} style={[styles.feedRow,{ borderColor: c.border }]}> 
-            <Text style={[styles.handle,{ color: c.accent }]}>@{item.author?.handle}</Text>
-            <SelectableText text={item.text} />
-            <Text style={[styles.time,{ color: c.secondaryText }]}>{new Date(item.createdAt).toLocaleString()}</Text>
-          </View>
-        ))}
-
-        {/* Quiz Section */}
-        <Text style={[styles.sectionTitle,{ color: c.text }]}>Quiz</Text>
-        {quiz.isLoading && !quiz.current && !quiz.completed && <ActivityIndicator />}
-        {quiz.current && !quiz.completed && (
-          <View style={[styles.quizBox,{ backgroundColor: c.background, borderColor: c.border }]}> 
-            <Text style={styles.quizQ}>{quiz.current.question}</Text>
-            {quiz.current.questionType === 'usage' && (
-              <Text style={[styles.quizHint,{ color: c.secondaryText }]}>語の用法を選択してください</Text>
-            )}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-              {(quiz.current.options || []).map((c: string) => (
-                <Text key={c} onPress={() => quiz.answer(c)} style={styles.choice}>{c}</Text>
-              ))}
+        <Animated.View style={{ paddingTop: tabHeight, paddingBottom: 140, paddingHorizontal: 16, transform: [{ translateY: contentTranslateY }] }}>
+          {loadingFeed && <ActivityIndicator style={{ marginVertical: 12 }} />}
+          {!loadingFeed && currentFeed.map((item: any, i: number) => (
+            <View key={feedTab + '-' + i} style={[styles.feedRow,{ borderColor: c.border }]}> 
+              <Text style={[styles.handle,{ color: c.accent }]}>@{item.author?.handle}</Text>
+              <SelectableText text={item.text} />
+              <Text style={[styles.time,{ color: c.secondaryText }]}>{new Date(item.createdAt).toLocaleString()}</Text>
             </View>
-            {quiz.lastResult && (
-              <Text style={styles.feedback}>{quiz.lastResult.correct ? '✔ Correct' : `✖ ${quiz.lastResult.correctAnswer}`}</Text>
-            )}
-            <Text style={styles.meta}>{quiz.answered}/{quiz.totalQuestions}</Text>
-          </View>
-        )}
-        {quiz.completed && (
-          <View style={[styles.quizBox,{ backgroundColor: c.background, borderColor: c.border }]}> 
-            <Text style={styles.quizResult}>Finished! Accuracy {Math.round((quiz.accuracy || 0) * 100)}%</Text>
-          </View>
-        )}
-
-        {/* Progress Section */}
-        <Text style={[styles.sectionTitle,{ color: c.text }]}>Progress</Text>
-        {statsQuery.isLoading && <ActivityIndicator />}
-        {!statsQuery.isLoading && stats && (
-          <View style={[styles.progressBox,{ backgroundColor: c.background, borderColor: c.border }]}> 
-            <ProgressRow label="総語彙" value={stats.totalWords} />
-            <ProgressRow label="未知" value={stats.unknownWords} />
-            <ProgressRow label="学習中" value={stats.learningWords} />
-            <ProgressRow label="既知" value={stats.knownWords} />
-            <ProgressRow label="正答率" value={((stats.averageAccuracy || 0) * 100).toFixed(1) + '%'} />
-            <ProgressRow label="レビュー対象" value={stats.wordsForReview} />
-            <ProgressRow label="平均Ease" value={stats.averageEaseFactor?.toFixed(2)} />
-            <ProgressRow label="今日" value={schedule.today} />
-            <ProgressRow label="明日" value={schedule.tomorrow} />
-            <ProgressRow label="今週" value={schedule.thisWeek} />
-            <ProgressRow label="来週" value={schedule.nextWeek} />
-          </View>
-        )}
+          ))}
         </Animated.View>
       </Animated.ScrollView>
+      {showTopBtn && (
+        <TouchableOpacity
+          style={[styles.scrollTopButton, { backgroundColor: c.accent }]}
+          onPress={scrollToTop}
+          accessibilityRole="button"
+          accessibilityLabel="トップへ戻る"
+        >
+          <Text style={styles.scrollTopButtonText}>↑</Text>
+        </TouchableOpacity>
+      )}
     </SafeAreaView>
-  <WordDetailModal word={selectedWord} onClose={() => setSelectedWord(null)} />
-  </>
+    <WordDetailModal word={selectedWord} onClose={() => setSelectedWord(null)} />
+    </>
   );
 };
 
-const ProgressRow: React.FC<{ label: string; value: any }> = ({ label, value }) => {
-  const c = useThemeColors();
-  return <View style={[styles.row,{ borderColor: c.border }]}><Text style={[styles.rowLabel,{ color: c.text }]}>{label}</Text><Text style={[styles.rowVal,{ color: c.text }]}>{value}</Text></View>;
-};
+// ProgressRow / Quiz は削除
 
 const SelectableText: React.FC<{ text: string }> = ({ text }) => {
   // Pass selectedWord setter through closure by attaching to each token via captured function from outer component (prop drilling alternative).
@@ -243,7 +232,7 @@ const SelectableText: React.FC<{ text: string }> = ({ text }) => {
 const styles = StyleSheet.create({
   // Words / Quiz と同じ開始位置に揃える (SafeArea + paddingTop:48)
   container: { flex: 1, paddingHorizontal: 12, paddingTop: 48 },
-  sectionTitle: { fontSize: 20, fontWeight: '700', marginTop: 24, marginBottom: 12 },
+  // sectionTitle 削除
   feedRow: { paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   handle: { fontWeight: '600', marginBottom: 6 },
   postText: { fontSize: 15, lineHeight: 20 },
@@ -253,19 +242,15 @@ const styles = StyleSheet.create({
   time: { marginTop: 8, fontSize: 11, color: '#555' },
   feedDivider: { fontSize: 16, fontWeight: '600', marginTop: 8 }, // (legacy not used, keep for potential reuse)
   feedHeader: { fontSize: 18, fontWeight: '700', marginBottom: 4, marginTop: 4 }, // (obsolete, kept for potential reuse)
-  quizBox: { padding: 16, borderWidth: 1, borderRadius: 12 },
-  quizQ: { fontSize: 16, fontWeight: '600' },
-  quizHint: { marginTop: 6, fontSize: 13, color: '#555' },
-  choice: { backgroundColor: '#eef2f5', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, fontWeight: '600' },
-  feedback: { marginTop: 12, fontWeight: '700' },
-  meta: { position: 'absolute', top: 8, right: 12, fontSize: 12, fontWeight: '600' },
-  quizResult: { fontSize: 18, fontWeight: '700' },
-  progressBox: { borderRadius: 12, padding: 12, borderWidth: 1 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth },
-  rowLabel: { fontWeight: '600' },
-  rowVal: { fontVariant: ['tabular-nums'] },
+  // quiz / progress styles 削除
   // Tabs (復元)
   tabsWrapper: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', marginBottom: 8, paddingHorizontal: 16 },
   tab: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 18, marginRight: 10, marginBottom: 10 },
-  tabText: { fontSize: 14, fontWeight: '600' }
+  tabText: { fontSize: 14, fontWeight: '600' },
+  limitRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginTop: 4 },
+  limitOption: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 12, marginRight: 6, marginBottom: 6, borderWidth: StyleSheet.hairlineWidth },
+  limitText: { fontSize: 12, fontWeight: '600' },
+  // Scroll To Top Button
+  scrollTopButton: { position: 'absolute', bottom: 32, right: 24, width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
+  scrollTopButtonText: { fontSize: 24, color: '#fff', fontWeight: '700', lineHeight: 28 }
 });
