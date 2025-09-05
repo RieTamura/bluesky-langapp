@@ -1,5 +1,6 @@
 // Basic mobile API client with error mapping and retry
 import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 
 export type ApiErrorCode =
   | 'AUTH_REQUIRED'
@@ -29,7 +30,20 @@ export interface ApiSuccess<T> {
   message?: string;
 }
 
-const BASE_URL = __DEV__ ? 'http://localhost:3000' : 'https://your-api.example.com';
+// Resolve base URL in this order:
+// 1. app.json -> expo.extra.apiUrl
+// 2. Dev: try to derive LAN host from hostUri (when using LAN / tunnel) and assume port 3000
+// 3. Fallback to localhost (only works on emulator / simulator)
+let derivedHost: string | undefined;
+try {
+  const hostUri = (Constants as any)?.expoConfig?.hostUri as string | undefined;
+  if (hostUri && hostUri.includes(':')) {
+    // e.g. 192.168.1.5:8081
+    derivedHost = hostUri.split(':')[0];
+  }
+} catch {}
+const configApiUrl = (Constants as any)?.expoConfig?.extra?.apiUrl as string | undefined;
+const BASE_URL = (configApiUrl || (__DEV__ && derivedHost ? `http://${derivedHost}:3000` : (__DEV__ ? 'http://localhost:3000' : 'https://your-api.example.com'))).replace(/\/$/, '');
 
 const RETRY_POLICIES: Record<string, number[]> = {
   RATE_LIMIT: [5000],
@@ -70,10 +84,12 @@ async function request<T>(path: string, init: RequestInit = {}, attempt = 0): Pr
   try {
     res = await fetch(BASE_URL + path, { ...init, headers });
   } catch (e) {
-    // network level
-    if (!navigator.onLine) {
+    // network level (fetch threw before getting a response)
+    const hasNavigatorOnlineFlag = typeof navigator !== 'undefined' && Object.prototype.hasOwnProperty.call(navigator, 'onLine');
+    if (hasNavigatorOnlineFlag && (navigator as any).onLine === false) {
       throw <ApiErrorShape>{ error: 'NETWORK_OFFLINE', message: 'オフラインです', status: 0 };
     }
+    // Could not conclusively determine offline; treat as generic network error
     throw <ApiErrorShape>{ error: 'SERVER_ERROR', message: 'ネットワークエラー', status: 0 };
   }
 
