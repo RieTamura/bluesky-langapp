@@ -158,5 +158,6 @@ export const statsApi = {
 
 export const postsApi = {
   listUser: (identifier: string, limit = 20) => api.get<any>(`/api/posts?identifier=${encodeURIComponent(identifier)}&limit=${limit}`),
-  following: (limit = 20) => api.get<any>(`/api/posts/following?limit=${limit}`)
+  following: (limit = 20) => api.get<any>(`/api/posts/following?limit=${limit}`),
+  discover: (limit = 20) => api.get<any>(`/api/posts/discover?limit=${limit}`)
 };

@@ -22,3 +22,13 @@ export function useFollowingFeed(limit = 20) {
     }
   });
 }
+
+export function useDiscoverFeed(limit = 20) {
+  return useQuery({
+    queryKey: ['posts','discover', limit],
+    queryFn: async () => {
+      const res = await postsApi.discover(limit);
+      return (res as any).data || res;
+    }
+  });
+}

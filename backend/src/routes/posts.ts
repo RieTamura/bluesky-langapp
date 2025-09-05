@@ -22,6 +22,14 @@ router.get('/', requireAuth, PostsController.getPosts);
 router.get('/following', requireAuth, PostsController.getFollowingFeed);
 
 /**
+ * GET /api/posts/discover
+ * Get discover (popular) feed
+ * Query parameters:
+ * - limit: Number of posts to fetch (optional, default: 10, max: 100)
+ */
+router.get('/discover', requireAuth, PostsController.getDiscoverFeed);
+
+/**
  * GET /api/posts/:id
  * Get a specific post by ID
  */

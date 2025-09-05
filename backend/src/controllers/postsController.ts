@@ -137,6 +137,43 @@ export class PostsController {
   }
 
   /**
+   * Get discover (popular) feed posts
+   */
+  static async getDiscoverFeed(req: Request, res: Response): Promise<void> {
+    try {
+      console.log('getDiscoverFeed called with query:', req.query);
+      const blueskyService = AuthController.getBlueskyService(req);
+      if (!blueskyService || !blueskyService.isLoggedIn()) {
+        res.status(401).json({ error: 'Not authenticated', message: 'Please login first' });
+        return;
+      }
+      const limit = parseInt(req.query.limit as string) || 10;
+      if (limit < 1 || limit > 100) {
+        res.status(400).json({ error: 'Invalid limit', message: 'Limit must be between 1 and 100' });
+        return;
+      }
+      console.log('Fetching discover feed from Bluesky...');
+      const posts = await (blueskyService as any).getDiscoverFeed(limit);
+      console.log('Discover posts fetched:', posts.length);
+      const postsWithWords = posts.map((post: any) => ({
+        ...post,
+        extractedWords: extractMeaningfulWords(post.text)
+      }));
+      res.json({
+        success: true,
+        data: postsWithWords,
+        meta: { count: posts.length, limit, feedType: 'discover' }
+      });
+    } catch (error) {
+      console.error('Get discover feed error:', error);
+      res.status(500).json({
+        error: 'Failed to fetch discover feed',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
    * Get a specific post by ID
    */
   static async getPost(req: Request, res: Response): Promise<void> {

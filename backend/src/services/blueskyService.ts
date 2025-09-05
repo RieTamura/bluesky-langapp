@@ -138,6 +138,45 @@ export class BlueskyService {
   }
 
   /**
+   * Get "discover" (popular) feed posts
+   * Bluesky currently exposes a popular feed endpoint. We map it into the same
+   * simplified BlueskyPost shape used elsewhere.
+   */
+  async getDiscoverFeed(limit: number = 10): Promise<BlueskyPost[]> {
+    console.log('BlueskyService.getDiscoverFeed called:', { limit, isAuthenticated: this.isAuthenticated });
+    if (!this.isAuthenticated) {
+      throw new Error('Not authenticated. Please login first.');
+    }
+    try {
+      // The SDK exposes nested namespace access for less common endpoints
+      // Using (this.agent as any) to avoid adding types for experimental endpoints
+      const response = await (this.agent as any).app.bsky.feed.getPopular({ limit });
+      console.log('Raw discover(popular) response:', {
+        feedLength: response.data.feed.length,
+        cursor: response.data.cursor
+      });
+      const posts: BlueskyPost[] = response.data.feed.map((item: any) => {
+        const record = item.post.record as any;
+        return {
+          id: item.post.uri,
+            text: record?.text || '',
+            createdAt: record?.createdAt || item.post.indexedAt,
+            author: {
+              did: item.post.author.did,
+              handle: item.post.author.handle,
+              displayName: item.post.author.displayName
+            }
+        };
+      });
+      console.log('Processed discover posts:', posts.length);
+      return posts;
+    } catch (error) {
+      console.error('BlueskyService.getDiscoverFeed error:', error);
+      throw new Error(`Failed to fetch discover feed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Create a new post on Bluesky
    */
   async createPost(text: string): Promise<{ uri: string; cid: string }> {
