@@ -12,7 +12,7 @@
   "android": { "adaptiveIcon": { "backgroundColor": "#ffffff" } },
   "web": {},
     "extra": {
-      "apiUrl": "http://192.168.11.27:3001"
+      "apiUrl": "http://192.168.11.27:3000"
     }
   }
 }
