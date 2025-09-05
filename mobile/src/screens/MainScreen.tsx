@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { ScrollView, View, Text, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, SafeAreaView } from 'react-native';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, SafeAreaView, Animated, NativeSyntheticEvent, NativeScrollEvent, Easing } from 'react-native';
 import { useThemeColors } from '../stores/theme';
 import { useAuth } from '../hooks/useAuth';
 import { useUserPosts, useFollowingFeed, useDiscoverFeed } from '../hooks/usePosts';
@@ -47,10 +47,85 @@ export const MainScreen: React.FC = () => {
   (MainScreen as any)._setWord = (w: string) => setSelectedWord(w);
 
   const c = useThemeColors();
+
+  // --- Tabs hide on scroll animation ---
+  // タブ高さを実測し、その分だけ隠す (初期値 56 程度)
+  const [tabHeight, setTabHeight] = useState(56);
+  const headerOffset = useRef(new Animated.Value(0)).current; // 0=表示 / tabHeight=完全隠れ
+  const isShownRef = useRef(true); // 離散状態管理
+  const lastY = useRef(0);
+  const [tabsInteractive, setTabsInteractive] = useState(true);
+
+  const translateY = headerOffset.interpolate({
+    inputRange: [0, tabHeight],
+    outputRange: [0, -tabHeight],
+    extrapolate: 'clamp'
+  });
+  const opacity = headerOffset.interpolate({
+    inputRange: [0, tabHeight * 0.5, tabHeight],
+    outputRange: [1, 0.15, 0],
+    extrapolate: 'clamp'
+  });
+  // コンテンツをタブ隠しに同期させるための translateY （tabs と同量シフト）
+  const contentTranslateY = headerOffset.interpolate({
+    inputRange: [0, tabHeight],
+    outputRange: [0, -tabHeight],
+    extrapolate: 'clamp'
+  });
+
+  const animateTo = useCallback((val: number) => {
+    Animated.timing(headerOffset, {
+      toValue: val,
+      duration: 200,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true
+    }).start(() => {
+      const interactive = val < tabHeight - 4;
+      if (interactive !== tabsInteractive) setTabsInteractive(interactive);
+    });
+  }, [headerOffset, tabHeight, tabsInteractive]);
+  // トップ到達時だけ表示 / それ以外は隠す (離散)
+  const TOP_THRESHOLD = 2; // px
+  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = e.nativeEvent.contentOffset.y;
+    lastY.current = y;
+    if (y <= TOP_THRESHOLD) {
+      if (!isShownRef.current) {
+        isShownRef.current = true;
+        animateTo(0);
+      }
+    } else {
+      if (isShownRef.current) {
+        isShownRef.current = false;
+        animateTo(tabHeight);
+      }
+    }
+  }, [animateTo, tabHeight]);
+
+  const snap = useCallback(() => {}, []); // 不要
+
   return (
     <>
     <SafeAreaView style={[styles.container,{ backgroundColor: c.background }]}> 
-      <View style={styles.tabsWrapper}>
+      <Animated.View
+        style={[
+          styles.tabsWrapper,
+          {
+            transform: [{ translateY }],
+            opacity,
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 10
+          }
+        ]}
+        onLayout={e => {
+          const h = e.nativeEvent.layout.height;
+          if (Math.abs(h - tabHeight) > 2) setTabHeight(h); // 変化があれば更新
+        }}
+        pointerEvents={tabsInteractive ? 'auto' : 'none'}
+      >
         {([
           { key: 'posts', label: 'Posts' },
           { key: 'following', label: 'Following' },
@@ -76,8 +151,14 @@ export const MainScreen: React.FC = () => {
             </TouchableOpacity>
           );
         })}
-      </View>
-  <ScrollView contentContainerStyle={{ paddingBottom: 140, paddingHorizontal: 16 }} refreshControl={<RefreshControl refreshing={loadingFeed} onRefresh={refetchCurrentFeed} />}> 
+  </Animated.View>
+  <Animated.ScrollView
+        onScroll={onScroll}
+  // snapは不要（離散制御）
+        scrollEventThrottle={16}
+        refreshControl={<RefreshControl refreshing={loadingFeed} onRefresh={refetchCurrentFeed} />}
+      >
+  <Animated.View style={{ paddingTop: tabHeight, paddingBottom: 140, paddingHorizontal: 16, transform: [{ translateY: contentTranslateY }] }}>
         {loadingFeed && <ActivityIndicator style={{ marginVertical: 12 }} />}
         {!loadingFeed && currentFeed.map((item: any, i: number) => (
           <View key={feedTab + '-' + i} style={[styles.feedRow,{ borderColor: c.border }]}> 
@@ -131,7 +212,8 @@ export const MainScreen: React.FC = () => {
             <ProgressRow label="来週" value={schedule.nextWeek} />
           </View>
         )}
-      </ScrollView>
+        </Animated.View>
+      </Animated.ScrollView>
     </SafeAreaView>
   <WordDetailModal word={selectedWord} onClose={() => setSelectedWord(null)} />
   </>

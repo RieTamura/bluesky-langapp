@@ -22,8 +22,8 @@ export const AppHeader: React.FC<Props> = ({ onOpenMenu }) => {
 };
 
 const styles = StyleSheet.create({
-  // 下に十分な余白を設けてコンテンツとの視覚的距離を出す
-  container: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, paddingBottom: 14, marginBottom: 12 },
+  // 最小限の高さ + 下線を透明化
+  container: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'transparent', paddingBottom: 8 },
   menuBtn: { padding: 8 },
   menuText: { fontSize: 22, fontWeight: '600' }
 });

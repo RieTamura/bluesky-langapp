@@ -4,8 +4,8 @@
     {
       "word": "Excited",
       "status": "unknown",
-      "date": "2025-09-05T15:34:23.119Z",
-      "id": "word_1757086440115_0",
+      "date": "2025-09-05T22:26:53.683Z",
+      "id": "word_1757110921432_0",
       "userId": "connectobasan.com",
       "definition": "興奮した、わくわくした",
       "exampleSentence": "I am so excited about the new project.",
@@ -14,8 +14,8 @@
     {
       "word": "stuff",
       "status": "unknown",
-      "date": "2025-09-05T15:34:23.121Z",
-      "id": "word_1757086440115_1",
+      "date": "2025-09-05T22:26:53.686Z",
+      "id": "word_1757110921432_1",
       "userId": "connectobasan.com",
       "definition": "物、もの、材料",
       "exampleSentence": "There's a lot of stuff in the garage.",
@@ -24,8 +24,8 @@
     {
       "word": "records",
       "status": "unknown",
-      "date": "2025-09-05T15:34:23.122Z",
-      "id": "word_1757086440115_2",
+      "date": "2025-09-05T22:26:53.688Z",
+      "id": "word_1757110921432_2",
       "userId": "connectobasan.com",
       "definition": "記録、レコード",
       "exampleSentence": "Please keep records of all transactions.",
@@ -34,8 +34,8 @@
     {
       "word": "from",
       "status": "unknown",
-      "date": "2025-09-05T15:34:23.124Z",
-      "id": "word_1757086440115_3",
+      "date": "2025-09-05T22:26:53.690Z",
+      "id": "word_1757110921432_3",
       "userId": "connectobasan.com",
       "definition": "〜から、〜より",
       "exampleSentence": "I received a letter from my friend.",
@@ -44,8 +44,8 @@
     {
       "word": "backfill",
       "status": "unknown",
-      "date": "2025-09-05T15:34:23.125Z",
-      "id": "word_1757086440115_4",
+      "date": "2025-09-05T22:26:53.692Z",
+      "id": "word_1757110921432_4",
       "userId": "connectobasan.com",
       "definition": "埋め戻し、補完",
       "exampleSentence": "We need to backfill the missing data.",
@@ -54,8 +54,8 @@
     {
       "word": "provides",
       "status": "unknown",
-      "date": "2025-09-05T15:34:23.127Z",
-      "id": "word_1757086440115_5",
+      "date": "2025-09-05T22:26:53.694Z",
+      "id": "word_1757110921432_5",
       "userId": "connectobasan.com",
       "definition": "提供する、与える",
       "exampleSentence": "This service provides excellent support.",
@@ -64,8 +64,8 @@
     {
       "word": "typescript",
       "status": "unknown",
-      "date": "2025-09-05T15:34:23.128Z",
-      "id": "word_1757086440115_6",
+      "date": "2025-09-05T22:26:53.695Z",
+      "id": "word_1757110921432_6",
       "userId": "connectobasan.com",
       "definition": "TypeScript（プログラミング言語）",
       "exampleSentence": "TypeScript helps catch errors at compile time.",
@@ -74,8 +74,8 @@
     {
       "word": "client",
       "status": "unknown",
-      "date": "2025-09-05T15:34:23.130Z",
-      "id": "word_1757086440115_7",
+      "date": "2025-09-05T22:26:53.697Z",
+      "id": "word_1757110921432_7",
       "userId": "connectobasan.com",
       "definition": "クライアント、顧客",
       "exampleSentence": "The client was very satisfied with our work.",
@@ -84,8 +84,8 @@
     {
       "word": "interact",
       "status": "unknown",
-      "date": "2025-09-05T15:34:23.132Z",
-      "id": "word_1757086440115_8",
+      "date": "2025-09-05T22:26:53.698Z",
+      "id": "word_1757110921432_8",
       "userId": "connectobasan.com",
       "definition": "相互作用する、やり取りする",
       "exampleSentence": "Users can interact with the application easily.",
@@ -94,8 +94,8 @@
     {
       "word": "Celebration",
       "status": "unknown",
-      "date": "2025-09-05T15:34:23.134Z",
-      "id": "word_1757086440115_9",
+      "date": "2025-09-05T22:26:53.699Z",
+      "id": "word_1757110921432_9",
       "userId": "connectobasan.com",
       "definition": "お祝い、祝賀",
       "exampleSentence": "We had a celebration for her birthday.",
@@ -104,8 +104,8 @@
     {
       "word": "companion!",
       "status": "unknown",
-      "date": "2025-09-05T15:34:23.135Z",
-      "id": "word_1757086440115_10",
+      "date": "2025-09-05T22:26:53.700Z",
+      "id": "word_1757110921432_10",
       "userId": "connectobasan.com",
       "definition": "仲間、相棒",
       "exampleSentence": "My dog is my faithful companion.",
@@ -114,52 +114,22 @@
     {
       "word": "Earn",
       "status": "unknown",
-      "date": "2025-09-05T15:34:23.136Z",
-      "id": "word_1757086440115_11",
+      "date": "2025-09-05T22:26:53.701Z",
+      "id": "word_1757110921432_11",
       "userId": "connectobasan.com",
       "definition": "稼ぐ、得る",
       "exampleSentence": "You need to earn their trust first.",
       "languageCode": "en"
     },
     {
-      "id": "word_1757089114518_bsq55ol9m",
-      "word": "nra",
+      "id": "word_1757111263018_256bwx34h",
+      "word": "absolute",
       "status": "unknown",
       "userId": "connectobasan.com",
       "languageCode": "en",
       "reviewCount": 0,
       "correctCount": 0,
-      "date": "2025-09-05T16:18:34.518Z"
-    },
-    {
-      "id": "word_1757089124613_gchl1d2y9",
-      "word": "account",
-      "status": "learning",
-      "userId": "connectobasan.com",
-      "languageCode": "en",
-      "reviewCount": 0,
-      "correctCount": 0,
-      "date": "2025-09-05T16:18:44.613Z"
-    },
-    {
-      "id": "word_1757090079426_cwyorvqtq",
-      "word": "clients",
-      "status": "unknown",
-      "userId": "connectobasan.com",
-      "languageCode": "en",
-      "reviewCount": 0,
-      "correctCount": 0,
-      "date": "2025-09-05T16:34:39.426Z"
-    },
-    {
-      "id": "word_1757090218756_jt3is7h51",
-      "word": "has",
-      "status": "unknown",
-      "userId": "connectobasan.com",
-      "languageCode": "en",
-      "reviewCount": 0,
-      "correctCount": 0,
-      "date": "2025-09-05T16:36:58.756Z"
+      "date": "2025-09-05T22:27:43.018Z"
     }
   ],
   "version": "1.0.0"
