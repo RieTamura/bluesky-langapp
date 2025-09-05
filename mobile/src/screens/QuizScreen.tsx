@@ -43,7 +43,7 @@ export const QuizScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: 16, paddingBottom: 140 },
+  container: { flex: 1, paddingTop: 32, paddingBottom: 140 },
   inner: { flex: 1, width: '100%', maxWidth: MAX_WIDTH, alignSelf: 'center', paddingHorizontal: 16 },
   cardWrap: { width: '100%' },
   result: { marginTop: 24, alignItems: 'center' },

@@ -67,7 +67,7 @@ const SortButton: React.FC<{ label: string; active?: boolean; onPress: ()=>void 
 );
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: 0, paddingBottom: 140 },
+  container: { flex: 1, paddingTop: 32, paddingBottom: 140 },
   inner: { flex: 1, width: '100%', maxWidth: MAX_WIDTH, alignSelf: 'center', paddingHorizontal: 16 },
   cardWrap: { width: '100%' },
   inputRow: { flexDirection: 'row', marginBottom: 8 },

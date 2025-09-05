@@ -33,9 +33,9 @@ export const MainScreen: React.FC = () => {
     <>
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 140 }}>
   {/* Feed Section (タイトル削除済) */}
-      {loadingFeed && <ActivityIndicator style={{ marginVertical: 12 }} />}
+      {loadingFeed && <ActivityIndicator style={{ marginVertical: 12, marginTop: 32 }} />}
       {!loadingFeed && (
-        <View style={{ gap: 12 }}>
+        <View style={{ gap: 12, marginTop: 32 }}>
           {(userPosts.data || []).map((item: any, i: number) => (
             <View key={'up-' + i} style={styles.card}>
               <Text style={styles.handle}>@{item.author?.handle}</Text>
@@ -55,10 +55,9 @@ export const MainScreen: React.FC = () => {
       )}
 
       {/* Quiz Section */}
-      <Text style={styles.sectionTitle}>Quiz</Text>
-      {quiz.isLoading && !quiz.current && !quiz.completed && <ActivityIndicator />}
+      {quiz.isLoading && !quiz.current && !quiz.completed && <ActivityIndicator style={{ marginTop: 32 }} />}
       {quiz.current && !quiz.completed && (
-        <View style={styles.quizBox}>
+        <View style={[styles.quizBox, { marginTop: 32 }]}>
           <Text style={styles.quizQ}>{quiz.current.question}</Text>
           {quiz.current.questionType === 'usage' && (
             <Text style={styles.quizHint}>語の用法を選択してください</Text>
@@ -75,16 +74,15 @@ export const MainScreen: React.FC = () => {
         </View>
       )}
       {quiz.completed && (
-        <View style={styles.quizBox}> 
+        <View style={[styles.quizBox, { marginTop: 32 }]}>
           <Text style={styles.quizResult}>Finished! Accuracy {Math.round((quiz.accuracy || 0) * 100)}%</Text>
         </View>
       )}
 
       {/* Progress Section */}
-      <Text style={styles.sectionTitle}>Progress</Text>
-      {statsQuery.isLoading && <ActivityIndicator />}
+      {statsQuery.isLoading && <ActivityIndicator style={{ marginTop: 32 }} />}
       {!statsQuery.isLoading && stats && (
-        <View style={styles.progressBox}>
+        <View style={[styles.progressBox, { marginTop: 32 }]}>
           <ProgressRow label="総語彙" value={stats.totalWords} />
           <ProgressRow label="未知" value={stats.unknownWords} />
             <ProgressRow label="学習中" value={stats.learningWords} />

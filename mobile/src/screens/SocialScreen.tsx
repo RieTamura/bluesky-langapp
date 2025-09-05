@@ -13,6 +13,7 @@ export const SocialScreen: React.FC = () => {
   return (
     <FlatList
       style={styles.list}
+      contentContainerStyle={{ paddingTop: 32 }}
       data={(userPosts.data || []).concat([{ divider: true } as any]).concat(following.data || [])}
       keyExtractor={(_, i) => String(i)}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={() => { userPosts.refetch(); following.refetch(); }} />}
@@ -28,7 +29,6 @@ export const SocialScreen: React.FC = () => {
           </View>
         );
       }}
-      ListHeaderComponent={<Text style={styles.header}>My Posts</Text>}
       ListEmptyComponent={loading ? <Text style={styles.empty}>Loading...</Text> : <Text style={styles.empty}>No posts</Text>}
     />
   );

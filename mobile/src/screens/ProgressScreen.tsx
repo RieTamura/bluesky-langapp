@@ -50,7 +50,7 @@ export const ProgressScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 140 },
+  container: { paddingHorizontal: 16, paddingTop: 32, paddingBottom: 140 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#ccc' },
   key: { fontWeight: '600' },
