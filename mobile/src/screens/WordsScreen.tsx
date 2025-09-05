@@ -40,7 +40,7 @@ export const WordsScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 16 },
+  container: { flex: 1, paddingHorizontal: 16, paddingBottom: 140 },
   header: { fontSize: 24, fontWeight: '700', marginVertical: 12 },
   inputRow: { flexDirection: 'row', marginBottom: 8 },
   input: { flex: 1, backgroundColor: '#fff', padding: 12, borderRadius: 8, fontSize: 16 }

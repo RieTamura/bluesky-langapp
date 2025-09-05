@@ -20,7 +20,8 @@
     }
   },
   "include": [
-    "src"
+    "src",
+    "App.tsx"
   ],
   "exclude": [
     "node_modules"
