@@ -39,7 +39,8 @@ export const QuizScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 16, paddingBottom: 140, paddingTop: 24 },
+  // paddingHorizontalをMainScreen (12) に合わせて統一
+  container: { flex: 1, paddingHorizontal: 12, paddingBottom: 140, paddingTop: 24 },
   result: { marginTop: 24, alignItems: 'center' },
   resultText: { fontSize: 18, fontWeight: '600' },
   feedback: { marginTop: 12, fontSize: 16, fontWeight: '600' },
