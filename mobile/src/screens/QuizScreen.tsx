@@ -2,15 +2,16 @@ import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ActivityIndicator } from 'react-native';
 import { useQuiz } from '../hooks/useQuiz';
 import { QuizCard } from '../components/QuizCard';
+import { useThemeColors } from '../stores/theme';
 
 export const QuizScreen: React.FC = () => {
   const { start, answer, current, completed, isLoading, accuracy, answered, totalQuestions, lastResult } = useQuiz(5);
 
   useEffect(() => { start(); }, [start]);
+  const c = useThemeColors();
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.header}>Quiz</Text>
+  <SafeAreaView style={[styles.container,{ backgroundColor: c.background }]}> 
       {isLoading && !current && !completed && <ActivityIndicator />}
       {current && (
         <QuizCard
@@ -38,8 +39,7 @@ export const QuizScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  header: { fontSize: 24, fontWeight: '700', marginBottom: 12 },
+  container: { flex: 1, paddingHorizontal: 16, paddingBottom: 140, paddingTop: 24 },
   result: { marginTop: 24, alignItems: 'center' },
   resultText: { fontSize: 18, fontWeight: '600' },
   feedback: { marginTop: 12, fontSize: 16, fontWeight: '600' },

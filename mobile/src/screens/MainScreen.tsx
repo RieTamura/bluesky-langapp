@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { useThemeColors } from '../stores/theme';
 import { useAuth } from '../hooks/useAuth';
 import { useUserPosts, useFollowingFeed } from '../hooks/usePosts';
 import { useQuiz } from '../hooks/useQuiz';
@@ -29,40 +30,40 @@ export const MainScreen: React.FC = () => {
   // expose setter for inner token components (quick solution without context)
   (MainScreen as any)._setWord = (w: string) => setSelectedWord(w);
 
+  const c = useThemeColors();
   return (
     <>
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 140 }}>
-      {/* Feed Section */}
-      <Text style={styles.sectionTitle}>My Posts</Text>
+    <ScrollView style={[styles.container,{ backgroundColor: c.background }]} contentContainerStyle={{ paddingBottom: 140 }}>
+      {/* Feed Section (タイトル削除・余白確保) */}
       {loadingFeed && <ActivityIndicator style={{ marginVertical: 12 }} />}
       {!loadingFeed && (
-        <View style={{ gap: 12 }}>
+        <View>
           {(userPosts.data || []).map((item: any, i: number) => (
-            <View key={'up-' + i} style={styles.card}>
-              <Text style={styles.handle}>@{item.author?.handle}</Text>
+            <View key={'up-' + i} style={[styles.feedRow,{ borderColor: c.border }]}> 
+              <Text style={[styles.handle,{ color: c.accent }]}>@{item.author?.handle}</Text>
               <SelectableText text={item.text} />
-              <Text style={styles.time}>{new Date(item.createdAt).toLocaleString()}</Text>
+              <Text style={[styles.time,{ color: c.secondaryText }]}>{new Date(item.createdAt).toLocaleString()}</Text>
             </View>
           ))}
-          <Text style={styles.feedDivider}>Following Feed</Text>
+          <Text style={[styles.feedDivider,{ color: c.secondaryText, backgroundColor: c.background }]}>Following Feed</Text>
           {(following.data || []).map((item: any, i: number) => (
-            <View key={'fw-' + i} style={styles.card}>
-              <Text style={styles.handle}>@{item.author?.handle}</Text>
+            <View key={'fw-' + i} style={[styles.feedRow,{ borderColor: c.border }]}> 
+              <Text style={[styles.handle,{ color: c.accent }]}>@{item.author?.handle}</Text>
               <SelectableText text={item.text} />
-              <Text style={styles.time}>{new Date(item.createdAt).toLocaleString()}</Text>
+              <Text style={[styles.time,{ color: c.secondaryText }]}>{new Date(item.createdAt).toLocaleString()}</Text>
             </View>
           ))}
         </View>
       )}
 
       {/* Quiz Section */}
-      <Text style={styles.sectionTitle}>Quiz</Text>
+  <Text style={[styles.sectionTitle,{ color: c.text }]}>Quiz</Text>
       {quiz.isLoading && !quiz.current && !quiz.completed && <ActivityIndicator />}
       {quiz.current && !quiz.completed && (
-        <View style={styles.quizBox}>
+    <View style={[styles.quizBox,{ backgroundColor: c.background, borderColor: c.border }]}> 
           <Text style={styles.quizQ}>{quiz.current.question}</Text>
           {quiz.current.questionType === 'usage' && (
-            <Text style={styles.quizHint}>語の用法を選択してください</Text>
+      <Text style={[styles.quizHint,{ color: c.secondaryText }]}>語の用法を選択してください</Text>
           )}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
             {(quiz.current.options || []).map((c: string) => (
@@ -76,16 +77,16 @@ export const MainScreen: React.FC = () => {
         </View>
       )}
       {quiz.completed && (
-        <View style={styles.quizBox}> 
+    <View style={[styles.quizBox,{ backgroundColor: c.background, borderColor: c.border }]}> 
           <Text style={styles.quizResult}>Finished! Accuracy {Math.round((quiz.accuracy || 0) * 100)}%</Text>
         </View>
       )}
 
       {/* Progress Section */}
-      <Text style={styles.sectionTitle}>Progress</Text>
+      <Text style={[styles.sectionTitle,{ color: c.text }]}>Progress</Text>
       {statsQuery.isLoading && <ActivityIndicator />}
       {!statsQuery.isLoading && stats && (
-        <View style={styles.progressBox}>
+        <View style={[styles.progressBox,{ backgroundColor: c.background, borderColor: c.border }]}> 
           <ProgressRow label="総語彙" value={stats.totalWords} />
           <ProgressRow label="未知" value={stats.unknownWords} />
             <ProgressRow label="学習中" value={stats.learningWords} />
@@ -105,9 +106,10 @@ export const MainScreen: React.FC = () => {
   );
 };
 
-const ProgressRow: React.FC<{ label: string; value: any }> = ({ label, value }) => (
-  <View style={styles.row}><Text style={styles.rowLabel}>{label}</Text><Text style={styles.rowVal}>{value}</Text></View>
-);
+const ProgressRow: React.FC<{ label: string; value: any }> = ({ label, value }) => {
+  const c = useThemeColors();
+  return <View style={[styles.row,{ borderColor: c.border }]}><Text style={[styles.rowLabel,{ color: c.text }]}>{label}</Text><Text style={[styles.rowVal,{ color: c.text }]}>{value}</Text></View>;
+};
 
 const SelectableText: React.FC<{ text: string }> = ({ text }) => {
   // Pass selectedWord setter through closure by attaching to each token via captured function from outer component (prop drilling alternative).
@@ -125,9 +127,9 @@ const SelectableText: React.FC<{ text: string }> = ({ text }) => {
 
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f7', paddingHorizontal: 12 },
+  container: { flex: 1, paddingHorizontal: 12, paddingTop: 20 },
   sectionTitle: { fontSize: 20, fontWeight: '700', marginTop: 24, marginBottom: 12 },
-  card: { backgroundColor: '#fff', borderRadius: 12, padding: 14, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  feedRow: { paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   handle: { fontWeight: '600', marginBottom: 6 },
   postText: { fontSize: 15, lineHeight: 20 },
   tokensWrap: { flexDirection: 'row', flexWrap: 'wrap' },
@@ -135,15 +137,15 @@ const styles = StyleSheet.create({
   space: { fontSize: 15, lineHeight: 20 },
   time: { marginTop: 8, fontSize: 11, color: '#555' },
   feedDivider: { fontSize: 16, fontWeight: '600', marginTop: 8 },
-  quizBox: { backgroundColor: '#fff', padding: 16, borderRadius: 12 },
+  quizBox: { padding: 16, borderWidth: 1, borderRadius: 12 },
   quizQ: { fontSize: 16, fontWeight: '600' },
   quizHint: { marginTop: 6, fontSize: 13, color: '#555' },
   choice: { backgroundColor: '#eef2f5', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, fontWeight: '600' },
   feedback: { marginTop: 12, fontWeight: '700' },
   meta: { position: 'absolute', top: 8, right: 12, fontSize: 12, fontWeight: '600' },
   quizResult: { fontSize: 18, fontWeight: '700' },
-  progressBox: { backgroundColor: '#fff', borderRadius: 12, padding: 12 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#eee' },
+  progressBox: { borderRadius: 12, padding: 12, borderWidth: 1 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth },
   rowLabel: { fontWeight: '600' },
   rowVal: { fontVariant: ['tabular-nums'] }
 });

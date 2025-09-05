@@ -9,6 +9,7 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import { useAuth } from './src/hooks/useAuth';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Text, View } from 'react-native';
+import { useThemeColors } from './src/stores/theme';
 import { MainScreen } from './src/screens/MainScreen';
 import { AppHeader, SettingsMenu, FooterNav } from './src/components';
 import { SettingsScreen } from './src/screens/SettingsScreen';
@@ -37,10 +38,11 @@ function AuthGate() {
 
 function AuthedStack() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const c = useThemeColors();
   return (
     <>
       <View style={{ flex: 1 }}>
-        <Stack.Navigator screenOptions={{ contentStyle: { backgroundColor: '#f5f5f7' } }}>
+        <Stack.Navigator screenOptions={{ contentStyle: { backgroundColor: c.background } }}>
           <Stack.Screen name="Main" component={MainScreen} options={{ header: () => <AppHeader onOpenMenu={() => setMenuOpen(true)} /> }} />
           <Stack.Screen name="Words" component={WordsScreen} options={{ header: () => <AppHeader onOpenMenu={() => setMenuOpen(true)} /> }} />
           <Stack.Screen name="Quiz" component={QuizScreen} options={{ header: () => <AppHeader onOpenMenu={() => setMenuOpen(true)} /> }} />

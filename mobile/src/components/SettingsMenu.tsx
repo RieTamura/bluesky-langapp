@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '@react-navigation/native';
+import { useTheme } from '../stores/theme';
 
 interface Props {
   visible: boolean;
@@ -10,6 +11,7 @@ interface Props {
 
 export const SettingsMenu: React.FC<Props> = ({ visible, onClose }) => {
   const { identifier, logout } = useAuth();
+  const { mode, toggle } = useTheme();
   const navigation: any = useNavigation();
 
   return (
@@ -22,6 +24,12 @@ export const SettingsMenu: React.FC<Props> = ({ visible, onClose }) => {
         <View style={styles.section}>
           <Text style={styles.label}>ログイン情報</Text>
           <Text style={styles.value}>{identifier}</Text>
+        </View>
+        <View style={[styles.section,{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }]}> 
+          <Text style={styles.label}>テーマ</Text>
+          <Pressable onPress={toggle} style={{ paddingVertical:6, paddingHorizontal:12, backgroundColor:'#eef2f5', borderRadius:16 }} accessibilityLabel="テーマ切替">
+            <Text style={{ fontWeight:'600' }}>{mode === 'light' ? 'ライト' : 'ダーク'}</Text>
+          </Pressable>
         </View>
         <Pressable style={styles.logoutBtn} onPress={() => { onClose(); navigation.navigate('Settings'); }} accessibilityLabel="設定画面へ">
           <Text style={styles.logoutText}>設定画面へ</Text>

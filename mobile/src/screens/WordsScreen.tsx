@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
-import { View, Text, FlatList, TextInput, StyleSheet, SafeAreaView } from 'react-native';
+import { View, FlatList, TextInput, StyleSheet, SafeAreaView } from 'react-native';
+import { useThemeColors } from '../stores/theme';
 import { useWords } from '../hooks/useWords';
 import { WordCard } from '../components/WordCard';
 
@@ -13,13 +14,13 @@ export const WordsScreen: React.FC = () => {
     setText('');
   }, [text, addWord]);
 
+  const c = useThemeColors();
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.header}>Words</Text>
-      <View style={styles.inputRow}>
+  <SafeAreaView style={[styles.container,{ backgroundColor: c.background }]}> 
+      <View style={[styles.inputRow,{ borderColor: c.border }]}> 
         <TextInput
           placeholder="Add word"
-          style={styles.input}
+          style={[styles.input,{ backgroundColor: c.surface, color: c.text, borderColor: c.border }]}
           value={text}
           onChangeText={setText}
           onSubmitEditing={submit}
@@ -30,7 +31,7 @@ export const WordsScreen: React.FC = () => {
         data={words}
         refreshing={isLoading}
         keyExtractor={item => item.id}
-        contentContainerStyle={{ paddingVertical: 12 }}
+        contentContainerStyle={{ paddingVertical: 4 }}
         renderItem={({ item }) => (
           <WordCard word={item} onStatusChange={updateStatus} />
         )}
@@ -40,8 +41,7 @@ export const WordsScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 16, paddingBottom: 140 },
-  header: { fontSize: 24, fontWeight: '700', marginVertical: 12 },
-  inputRow: { flexDirection: 'row', marginBottom: 8 },
-  input: { flex: 1, backgroundColor: '#fff', padding: 12, borderRadius: 8, fontSize: 16 }
+  container: { flex: 1, paddingHorizontal: 16, paddingBottom: 140, paddingTop: 20 },
+  inputRow: { flexDirection: 'row', marginBottom: 8, borderBottomWidth: StyleSheet.hairlineWidth, paddingBottom: 8 },
+  input: { flex: 1, padding: 10, borderRadius: 8, fontSize: 15, borderWidth: 1 }
 });
