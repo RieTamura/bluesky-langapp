@@ -32,8 +32,7 @@ export const MainScreen: React.FC = () => {
   return (
     <>
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 140 }}>
-      {/* Feed Section */}
-      <Text style={styles.sectionTitle}>My Posts</Text>
+  {/* Feed Section (タイトル削除済) */}
       {loadingFeed && <ActivityIndicator style={{ marginVertical: 12 }} />}
       {!loadingFeed && (
         <View style={{ gap: 12 }}>
@@ -125,7 +124,7 @@ const SelectableText: React.FC<{ text: string }> = ({ text }) => {
 
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f7', paddingHorizontal: 12 },
+  container: { flex: 1, backgroundColor: '#f5f5f7', paddingHorizontal: 16 },
   sectionTitle: { fontSize: 20, fontWeight: '700', marginTop: 24, marginBottom: 12 },
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 14, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   handle: { fontWeight: '600', marginBottom: 6 },

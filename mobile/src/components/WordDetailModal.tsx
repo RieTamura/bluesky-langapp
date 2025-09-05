@@ -75,7 +75,7 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
     try {
       await wordsApi.update(id, { status });
       setInfo(s => s ? { ...s, status } : s);
-      setMessage(status === 'KNOWN' ? '既知に設定しました' : '未知に設定しました');
+  setMessage(status === 'known' ? '既知に設定しました' : '未知に設定しました');
     } catch (e: any) {
       Alert.alert('エラー', e?.message || '更新失敗');
     } finally { setSaving(false); }
@@ -99,10 +99,10 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
             {info.definition && <Text style={styles.definition}>{info.definition}</Text>}
             {info.exampleSentence && <Text style={styles.example}>{info.exampleSentence}</Text>}
             <View style={styles.buttonsRow}>
-              <Pressable style={[styles.btn, styles.secondary]} disabled={saving} onPress={() => setStatus('UNKNOWN')}>
+              <Pressable style={[styles.btn, styles.secondary]} disabled={saving} onPress={() => setStatus('unknown')}>
                 <Text style={styles.btnText}>覚えてない</Text>
               </Pressable>
-              <Pressable style={[styles.btn, styles.primary]} disabled={saving} onPress={() => setStatus('KNOWN')}>
+              <Pressable style={[styles.btn, styles.primary]} disabled={saving} onPress={() => setStatus('known')}>
                 <Text style={[styles.btnText,{color:'#fff'}]}>覚えている</Text>
               </Pressable>
             </View>
