@@ -43,13 +43,14 @@
     },
     {
       "word": "backfill",
-      "status": "unknown",
-      "date": "2025-09-05T07:11:44.458Z",
+      "status": "known",
+      "date": "2025-09-05T15:15:59.561Z",
       "id": "word_1757055961303_4",
       "userId": "connectobasan.com",
       "definition": "埋め戻し、補完",
       "exampleSentence": "We need to backfill the missing data.",
-      "languageCode": "en"
+      "languageCode": "en",
+      "lastReviewedAt": "2025-09-05T15:15:59.560Z"
     },
     {
       "word": "provides",
@@ -73,13 +74,14 @@
     },
     {
       "word": "client",
-      "status": "unknown",
-      "date": "2025-09-05T07:11:44.465Z",
+      "status": "learning",
+      "date": "2025-09-05T15:14:39.069Z",
       "id": "word_1757055961303_7",
       "userId": "connectobasan.com",
       "definition": "クライアント、顧客",
       "exampleSentence": "The client was very satisfied with our work.",
-      "languageCode": "en"
+      "languageCode": "en",
+      "lastReviewedAt": "2025-09-05T15:14:39.069Z"
     },
     {
       "word": "interact",
@@ -93,13 +95,14 @@
     },
     {
       "word": "Celebration",
-      "status": "unknown",
-      "date": "2025-09-05T07:11:44.468Z",
+      "status": "learning",
+      "date": "2025-09-05T15:14:37.266Z",
       "id": "word_1757055961303_9",
       "userId": "connectobasan.com",
       "definition": "お祝い、祝賀",
       "exampleSentence": "We had a celebration for her birthday.",
-      "languageCode": "en"
+      "languageCode": "en",
+      "lastReviewedAt": "2025-09-05T15:14:37.265Z"
     },
     {
       "word": "companion!",
