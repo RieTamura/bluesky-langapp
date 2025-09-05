@@ -69,58 +69,53 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
 
   const setStatus = useCallback(async (status: string) => {
     if (!info) return;
+    const wasNew = !info.id;
     const id = info.id || await ensureCreated();
     if (!id) return;
     setSaving(true); setMessage(null);
     try {
       await wordsApi.update(id, { status });
       setInfo(s => s ? { ...s, status } : s);
-      setMessage(status === 'KNOWN' ? '既知に設定しました' : '未知に設定しました');
+      if (status === 'KNOWN') setMessage('既知に設定しました');
+      else if (status === 'UNKNOWN' && wasNew) setMessage('登録しました (未知)');
+      else setMessage('未知に設定しました');
     } catch (e: any) {
       Alert.alert('エラー', e?.message || '更新失敗');
     } finally { setSaving(false); }
   }, [info, ensureCreated]);
 
-  const registerOnly = useCallback(async () => {
-    if (!info) return;
-    if (info.id) { setMessage('既に登録済み'); return; }
-    await ensureCreated();
-    setMessage('登録しました');
-  }, [info, ensureCreated]);
-
   return (
     <Modal visible={!!word} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheet}>
-        {loading && <ActivityIndicator style={{ marginBottom: 12 }} />}
-        {!loading && info && (
-          <>
-            <Text style={styles.word}>{info.word}</Text>
-            {info.definition && <Text style={styles.definition}>{info.definition}</Text>}
-            {info.exampleSentence && <Text style={styles.example}>{info.exampleSentence}</Text>}
-            <View style={styles.buttonsRow}>
-              <Pressable style={[styles.btn, styles.secondary]} disabled={saving} onPress={() => setStatus('UNKNOWN')}>
-                <Text style={styles.btnText}>覚えてない</Text>
-              </Pressable>
-              <Pressable style={[styles.btn, styles.primary]} disabled={saving} onPress={() => setStatus('KNOWN')}>
-                <Text style={[styles.btnText,{color:'#fff'}]}>覚えている</Text>
-              </Pressable>
-            </View>
-            <Pressable style={[styles.btn, styles.outline]} disabled={saving} onPress={registerOnly}>
-              <Text style={styles.outlineText}>{info.id ? '再登録不要' : '単語を登録'}</Text>
-            </Pressable>
-            {message && <Text style={styles.message}>{message}</Text>}
-            <Pressable style={styles.closeBtn} onPress={onClose}><Text style={styles.closeText}>閉じる</Text></Pressable>
-          </>
-        )}
+      <View style={styles.centerWrapper} pointerEvents="box-none">
+        <View style={styles.sheet}>
+          {loading && <ActivityIndicator style={{ marginBottom: 12 }} />}
+          {!loading && info && (
+            <>
+              <Text style={styles.word}>{info.word}</Text>
+              {info.definition && <Text style={styles.definition}>{info.definition}</Text>}
+              {info.exampleSentence && <Text style={styles.example}>{info.exampleSentence}</Text>}
+              <View style={styles.buttonsRow}>
+                <Pressable style={[styles.btn, styles.secondary]} disabled={saving} onPress={() => setStatus('UNKNOWN')}>
+                  <Text style={styles.btnText}>覚えてない</Text>
+                </Pressable>
+                <Pressable style={[styles.btn, styles.primary]} disabled={saving} onPress={() => setStatus('KNOWN')}>
+                  <Text style={[styles.btnText,{color:'#fff'}]}>覚えている</Text>
+                </Pressable>
+              </View>
+              {message && <Text style={styles.message}>{message}</Text>}
+              <Pressable style={styles.closeBtn} onPress={onClose}><Text style={styles.closeText}>閉じる</Text></Pressable>
+            </>
+          )}
+        </View>
       </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  backdrop: { position: 'absolute', top:0,left:0,right:0,bottom:0, backgroundColor:'rgba(0,0,0,0.3)' },
-  sheet: { position: 'absolute', left:0, right:0, bottom:0, backgroundColor:'#fff', borderTopLeftRadius:24, borderTopRightRadius:24, padding:20, maxHeight:'80%' },
+  // backdrop削除
+  centerWrapper: { flex:1, justifyContent:'flex-end', backgroundColor:'transparent' },
+  sheet: { backgroundColor:'#fff', borderTopLeftRadius:24, borderTopRightRadius:24, padding:20, maxHeight:'80%', shadowColor:'#000', shadowOpacity:0.15, shadowRadius:12, shadowOffset:{ width:0, height:-2 }, elevation:6 },
   word: { fontSize:22, fontWeight:'700', marginBottom:8 },
   definition: { fontSize:15, lineHeight:20, marginBottom:8 },
   example: { fontSize:13, lineHeight:18, color:'#555', marginBottom:12 },
@@ -129,8 +124,6 @@ const styles = StyleSheet.create({
   primary: { backgroundColor:'#007aff' },
   secondary: { backgroundColor:'#eef2f7' },
   btnText: { fontWeight:'700', color:'#222' },
-  outline: { borderWidth:1, borderColor:'#007aff', backgroundColor:'#fff', marginBottom:8 },
-  outlineText: { color:'#007aff', fontWeight:'700' },
   message: { textAlign:'center', color:'#007aff', fontSize:12, marginTop:4 },
   closeBtn: { marginTop:12, alignItems:'center' },
   closeText: { fontWeight:'600', color:'#333' }
