@@ -3,8 +3,8 @@
   "words": [
     {
       "word": "Excited",
-      "status": "learning",
-      "date": "2025-09-05T04:55:47.288Z",
+      "status": "known",
+      "date": "2025-09-05T05:11:56.621Z",
       "id": "word_1757047755384_0",
       "userId": "connectobasan.com",
       "definition": "興奮した、わくわくした",
@@ -12,7 +12,7 @@
       "languageCode": "en",
       "reviewCount": 1,
       "correctCount": 0,
-      "lastReviewedAt": "2025-09-05T04:55:47.287Z",
+      "lastReviewedAt": "2025-09-05T05:11:56.620Z",
       "difficultyLevel": 17
     },
     {

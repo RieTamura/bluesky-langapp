@@ -10,7 +10,10 @@ interface AdvancedStats {
 }
 
 export const ProgressScreen: React.FC = () => {
-  const { data, isLoading, error } = useQuery(['advanced-stats'], () => api.get<AdvancedStats>('/api/learning/advanced-stats'));
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['advanced-stats'],
+    queryFn: () => api.get<AdvancedStats>('/api/learning/advanced-stats')
+  });
 
   if (isLoading) return <View style={styles.center}><ActivityIndicator /></View>;
   if (error) return <View style={styles.center}><Text>エラー</Text></View>;

@@ -6,6 +6,7 @@ import { WordsScreen } from './src/screens/WordsScreen';
 import { QuizScreen } from './src/screens/QuizScreen';
 import { ProgressScreen } from './src/screens/ProgressScreen';
 import { ShareScreen } from './src/screens/ShareScreen';
+import { SocialScreen } from './src/screens/SocialScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { useAuth } from './src/hooks/useAuth';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -21,8 +22,9 @@ function AuthedTabs() {
     <Tab.Navigator screenOptions={{ headerShown: false }}>
       <Tab.Screen name="Words" component={WordsScreen} />
       <Tab.Screen name="Quiz" component={QuizScreen} />
-      <Tab.Screen name="Progress" component={ProgressScreen} />
-      <Tab.Screen name="Share" component={ShareScreen} />
+  <Tab.Screen name="Progress" component={ProgressScreen} />
+  <Tab.Screen name="Social" component={SocialScreen} />
+  <Tab.Screen name="Share" component={ShareScreen} />
     </Tab.Navigator>
   );
 }

@@ -4,7 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
 
 export const ShareScreen: React.FC = () => {
-  const { data: stats, isLoading } = useQuery(['share-advanced'], () => api.get<any>('/api/learning/advanced-stats'));
+  const { data: stats, isLoading } = useQuery({
+    queryKey: ['share-advanced'],
+    queryFn: () => api.get<any>('/api/learning/advanced-stats')
+  });
   const [draft, setDraft] = useState('');
   const [posting, setPosting] = useState(false);
   const [result, setResult] = useState<string | null>(null);
