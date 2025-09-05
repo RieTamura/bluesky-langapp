@@ -130,6 +130,19 @@
       "reviewCount": 0,
       "correctCount": 0,
       "date": "2025-09-05T22:27:43.018Z"
+    },
+    {
+      "id": "word_1757116575755_dgd26ztr2",
+      "word": "more",
+      "status": "unknown",
+      "userId": "connectobasan.com",
+      "languageCode": "en",
+      "definition": "To a greater degree or extent.",
+      "exampleSentence": "I could no more climb that than fly!",
+      "reviewCount": 0,
+      "correctCount": 0,
+      "date": "2025-09-05T23:56:15.787Z",
+      "lastReviewedAt": "2025-09-05T23:56:15.786Z"
     }
   ],
   "version": "1.0.0"

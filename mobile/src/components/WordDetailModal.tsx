@@ -28,26 +28,49 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
       setLoading(true); setInfo(null); setMessage(null);
       const target = word.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g,'');
       try {
-        // 1. 既存語彙検索 (仮: フィルタパラメータ仕様不明のため一覧→find)
+        // 1. ユーザー既存語彙一覧から同一語を検索
         let existing: any;
         try {
           const list: any = await wordsApi.list();
           const arr = (list?.data || list) as any[];
           existing = arr?.find(w => (w.word || '').toLowerCase() === target.toLowerCase());
         } catch {}
-        if (existing) {
-          if (!cancelled) setInfo({ word: existing.word, definition: existing.definition, exampleSentence: existing.exampleSentence, status: existing.status, id: existing.id });
-        } else {
-          // 2. 辞書API試行 (存在しない場合は例外→無視)
-            try {
-              const dict: any = await api.get<any>(`/api/dictionary/lookup?word=${encodeURIComponent(target)}`);
-              const d = dict?.data || dict;
-              if (!cancelled) setInfo({ word: target, definition: d.definition || d.meaning, exampleSentence: d.exampleSentence });
-            } catch {
-              if (!cancelled) setInfo({ word: target });
-            }
+
+        // 2. 既存語があるが definition / example が空、または存在しない → 辞書定義取得
+        let definition: string | undefined;
+        let exampleSentence: string | undefined;
+        if (existing?.definition) definition = existing.definition;
+        if (existing?.exampleSentence) exampleSentence = existing.exampleSentence;
+
+        if (!definition) {
+          try {
+            // バックエンド実装に合わせた正しいエンドポイント (/api/words/:word/definition)
+            const dict: any = await api.get<any>(`/api/words/${encodeURIComponent(target)}/definition`);
+            const d = dict?.data || dict; // SimplifiedDefinition 期待
+            const firstDef = Array.isArray(d?.definitions) ? d.definitions[0] : undefined;
+            if (firstDef?.definition) definition = firstDef.definition;
+            if (!exampleSentence && firstDef?.example) exampleSentence = firstDef.example;
+          } catch (e) {
+            // 404 (未定義) やその他は無視して既存情報のみ表示
+          }
         }
-      } finally { if (!cancelled) setLoading(false); }
+
+        if (!cancelled) {
+          if (existing) {
+            setInfo({
+              word: existing.word,
+              definition,
+              exampleSentence,
+              status: existing.status,
+              id: existing.id
+            });
+          } else {
+            setInfo({ word: target, definition, exampleSentence });
+          }
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }
     load();
     return () => { cancelled = true; };
@@ -69,16 +92,18 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
 
   const setStatus = useCallback(async (status: string) => {
     if (!info) return;
+    const normalized = status.toLowerCase(); // APIは小文字 (unknown / learning / known)
+    if (!['unknown','learning','known'].includes(normalized)) return;
     const wasNew = !info.id;
     const id = info.id || await ensureCreated();
     if (!id) return;
     setSaving(true); setMessage(null);
     try {
-      await wordsApi.update(id, { status });
-      setInfo(s => s ? { ...s, status } : s);
-      if (status === 'KNOWN') setMessage('既知に設定しました');
-      else if (status === 'UNKNOWN' && wasNew) setMessage('登録しました (未知)');
-      else setMessage('未知に設定しました');
+      await wordsApi.update(id, { status: normalized });
+      setInfo(s => s ? { ...s, status: normalized } : s);
+      if (normalized === 'known') setMessage('既知に設定しました');
+      else if (normalized === 'unknown' && wasNew) setMessage('登録しました (未知)');
+      else if (normalized === 'unknown') setMessage('未知に設定しました');
     } catch (e: any) {
       Alert.alert('エラー', e?.message || '更新失敗');
     } finally { setSaving(false); }
@@ -95,10 +120,10 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
               {info.definition && <Text style={styles.definition}>{info.definition}</Text>}
               {info.exampleSentence && <Text style={styles.example}>{info.exampleSentence}</Text>}
               <View style={styles.buttonsRow}>
-                <Pressable style={[styles.btn, styles.secondary]} disabled={saving} onPress={() => setStatus('UNKNOWN')}>
+                <Pressable style={[styles.btn, styles.secondary]} disabled={saving} onPress={() => setStatus('unknown')}>
                   <Text style={styles.btnText}>覚えてない</Text>
                 </Pressable>
-                <Pressable style={[styles.btn, styles.primary]} disabled={saving} onPress={() => setStatus('KNOWN')}>
+                <Pressable style={[styles.btn, styles.primary]} disabled={saving} onPress={() => setStatus('known')}>
                   <Text style={[styles.btnText,{color:'#fff'}]}>覚えている</Text>
                 </Pressable>
               </View>
