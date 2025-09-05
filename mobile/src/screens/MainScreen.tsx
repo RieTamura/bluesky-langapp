@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
   feedRow: { paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   handle: { fontWeight: '600', marginBottom: 6 },
   postText: { fontSize: 15, lineHeight: 20 },
-  tokensWrap: { flexDirection: 'row', flexWrap: 'wrap' },
+  tokensWrap: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start' },
   token: { fontSize: 15, lineHeight: 20, paddingHorizontal: 6, paddingVertical: 2, marginRight: 4, marginBottom: 4, borderRadius: 6, backgroundColor: '#eef2f7' },
   space: { fontSize: 15, lineHeight: 20 },
   time: { marginTop: 8, fontSize: 11, color: '#555' },
