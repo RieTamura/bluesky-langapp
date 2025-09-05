@@ -1,3 +1,58 @@
+# ---
+# 今後の開発方針・段階的実装計画（設計書より抜粋）
+
+## Next.js + Expo 構成案と移行戦略
+
+- Web版はNext.js（Reactベース）、モバイルはExpo（React Native/React Native for Web）で開発。
+- UI部品・ロジックは`shared/`ディレクトリでWeb/モバイル共通化。
+- バックエンドAPIはExpress.js（現状維持）。
+
+### ディレクトリ構成例
+
+```
+bluesky-langapp/
+├── backend/         # Express.js API
+├── web/             # Next.js Webアプリ
+├── mobile/          # Expo（React Native）アプリ
+└── shared/          # 共通ロジック・型・APIクライアント
+```
+
+### 技術スタック
+- Web：Next.js＋React＋Tailwind CSS
+- Mobile：Expo＋React Native＋React Native for Web
+- 共通：TypeScript、Zustand/Recoil（状態管理）、Axios（API通信）
+
+### UI部品・ロジックの共通化
+- `shared/components/`や`shared/hooks/`にWeb/Expo両対応のReactコンポーネント・ロジックを配置
+- Next.jsとExpoでimportして利用
+
+### API連携
+- Express.js APIはWeb/モバイル両方からfetch/axiosで利用
+- 認証・投稿取得・単語管理・学習進捗などのAPIは共通
+
+### 段階的移行手順
+1. Astro→Next.jsへのWeb移行
+2. UI部品の共通化
+3. Expo（React Native）アプリ新規開発
+4. APIクライアントの共通化
+5. 段階的リリース（Web→Expo→API拡張）
+
+### タスクリスト（フェーズ別抜粋）
+
+#### フェーズ1: 基本機能
+- Bluesky認証・セッション管理
+- 投稿取得・単語抽出・色分け表示
+- 単語保存・ステータス管理
+
+#### フェーズ2: 学習・進捗機能
+- クイズ機能・進捗更新
+- 統計グラフ・履歴表示
+- 目標設定・進捗バー
+
+#### フェーズ3: 高度な機能・UI改善
+- データエクスポート・バックアップ
+- モバイル対応・レスポンシブUI
+- Expo/Next.jsによるクロスプラットフォーム化
 # 要件定義書
 
 ## はじめに

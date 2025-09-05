@@ -42,6 +42,12 @@ router.get('/progress', requireAuth, LearningController.getLearningProgress);
 router.get('/advanced-stats', requireAuth, LearningController.getAdvancedLearningStats);
 
 /**
+ * GET /api/learning/due-words
+ * List words due for review (optional languageCode filter)
+ */
+router.get('/due-words', requireAuth, LearningController.getDueWords);
+
+/**
  * GET /api/learning/review-schedule
  * Get the review schedule for upcoming days
  */

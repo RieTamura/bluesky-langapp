@@ -1,3 +1,42 @@
+---
+
+## 要件定義書・タスクリスト要約
+
+### 要件定義書（主要要件）
+
+1. **ユーザー認証とBluesky連携**
+  - Blueskyアカウントでログイン、API認証、セッション維持
+2. **投稿データの取得と表示**
+  - 投稿取得・表示、単語の色分け、取得件数指定、エラー表示
+3. **単語管理機能**
+  - 未知単語の保存・詳細表示、ステータス変更、並び替え・削除
+4. **単語学習機能**
+  - 単語詳細（意味・例文・発音）、クイズ、進捗更新、自動ステータス更新
+5. **学習進捗の可視化**
+  - 統計グラフ、履歴、目標管理、進捗バー
+6. **データの永続化とバックアップ**
+  - DB保存、タイムスタンプ、エクスポート、エラーハンドリング
+7. **レスポンシブWebインターフェース**
+  - モバイル最適化、タッチ・キーボード対応、レイアウト調整
+
+### タスクリスト（フェーズ別抜粋）
+
+#### フェーズ1: 基本機能
+- Bluesky認証・セッション管理
+- 投稿取得・単語抽出・色分け表示
+- 単語保存・ステータス管理
+
+#### フェーズ2: 学習・進捗機能
+- クイズ機能・進捗更新
+- 統計グラフ・履歴表示
+- 目標設定・進捗バー
+
+#### フェーズ3: 高度な機能・UI改善
+- データエクスポート・バックアップ
+- モバイル対応・レスポンシブUI
+- Expo/Next.jsによるクロスプラットフォーム化
+
+---
 # 設計書
 
 ## 概要
@@ -394,8 +433,72 @@ const errorHandler = (err: Error, req: Request, res: Response, next: NextFunctio
   - Bluesky API連携のテスト
   - データベース統合テスト
 
+
 ### テストカバレッジ目標
 
 - フロントエンド: 80%以上
 - バックエンド: 85%以上
 - 重要な機能（認証、単語管理、学習機能）: 95%以上
+
+---
+
+## Next.js + Expo 構成案と移行戦略
+
+### 概要
+Web版をNext.js（Reactベース）で再構築し、Expo（React Native for Web）とUI部品・ロジックを最大限共有する。バックエンドAPIはExpress.js（現状維持）。モバイルアプリはExpo（React Native）で開発。
+
+### ディレクトリ構成例
+
+```
+bluesky-langapp/
+├── backend/         # Express.js API
+├── web/             # Next.js Webアプリ
+│   ├── pages/
+│   ├── components/  # UI部品（Web/Expo共通化可能）
+│   ├── hooks/       # ロジック（Web/Expo共通化可能）
+│   ├── styles/
+│   └── ...
+├── mobile/          # Expo（React Native）アプリ
+│   ├── components/  # UI部品（Web/Expo共通化可能）
+│   ├── screens/
+│   ├── hooks/       # ロジック（Web/Expo共通化可能）
+│   └── ...
+└── shared/          # 共通ロジック・型・APIクライアント
+```
+
+### 技術スタック
+- Web: Next.js + React + Tailwind CSS
+- Mobile: Expo + React Native + React Native for Web
+- 共通: TypeScript, Zustand/Recoil（状態管理）, Axios（API通信）
+
+### UI部品・ロジックの共通化
+- `shared/components/`や`shared/hooks/`にWeb/Expo両対応のReactコンポーネント・ロジックを配置
+- Next.jsとExpoでimportして利用
+
+### API連携
+- Express.js APIはWeb/モバイル両方からfetch/axiosで利用
+- 認証・投稿取得・単語管理・学習進捗などのAPIは共通
+
+### 段階的移行手順
+1. **Astro→Next.jsへのWeb移行**
+  - 既存Astroのページ・コンポーネントをNext.jsの`pages/`や`components/`へ移植
+  - SSR/静的生成はNext.jsで対応可能
+2. **UI部品の共通化**
+  - Web/Expo両対応のReactコンポーネント設計（スタイリングはTailwind CSS + twin.macro等で統一）
+  - ロジック（hooks, stores）も共通化
+3. **Expo（React Native）アプリ新規開発**
+  - `mobile/`ディレクトリでExpoプロジェクト作成
+  - 共通部品・ロジックをimportして開発効率化
+4. **APIクライアントの共通化**
+  - `shared/api.ts`などでAPI通信ロジックを共通化
+5. **段階的リリース**
+  - まずNext.js Web版をリリース
+  - UI部品・ロジックの共通化を進めつつExpoアプリ開発
+  - 並行してAPIの拡張・認証・永続化等を強化
+
+### 補足
+- Next.jsはSSR/PWA/SEOに強く、Web版の品質向上
+- Expoでモバイルアプリの開発・配布が容易
+- Web/モバイル両対応のUI/ロジックを最大限共有できる
+
+---

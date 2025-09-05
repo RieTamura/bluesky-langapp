@@ -309,6 +309,58 @@ export class LearningController {
   }
 
   /**
+   * GET /api/learning/due-words
+   * Get list of words due for review (optionally filtered by languageCode)
+   * Query:
+   * - languageCode (optional) single code or comma separated list
+   * - limit (optional)
+   */
+  static async getDueWords(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = AuthController.getUserId(req);
+      if (!userId) {
+        res.status(401).json({
+          error: 'Authentication required',
+          message: 'Valid session required'
+        });
+        return;
+      }
+
+      const languageParam = (req.query.languageCode as string) || '';
+      const limit = parseInt(req.query.limit as string) || undefined;
+      const languageFilter = languageParam
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      const dueWords = await LearningController.learningService.getWordsForReview(userId);
+      let filtered = dueWords;
+      if (languageFilter.length > 0) {
+        filtered = filtered.filter(w => languageFilter.includes(w.languageCode || 'en'));
+      }
+      if (limit) {
+        filtered = filtered.slice(0, limit);
+      }
+
+      res.json({
+        success: true,
+        data: filtered,
+        meta: {
+          total: dueWords.length,
+          filtered: filtered.length,
+          languages: languageFilter
+        }
+      });
+    } catch (error) {
+      console.error('Get due words error:', error);
+      res.status(500).json({
+        error: 'Failed to get due words',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
    * GET /api/learning/review-schedule
    * Get the review schedule for upcoming days
    */

@@ -8,6 +8,7 @@ export interface WordData {
   status: 'unknown' | 'learning' | 'known';
   date: string;
   userId?: string;
+  languageCode?: string; // ISO code (e.g., 'en', 'ja')
   definition?: string;
   exampleSentence?: string;
   reviewCount?: number;
@@ -114,6 +115,9 @@ class DataService {
 
     // Add definitions to words that don't have them
     await this.addMissingDefinitions();
+
+  // Ensure languageCode present
+  await this.addMissingLanguageCodes();
   }
 
   /**
@@ -208,6 +212,29 @@ class DataService {
       }
     } catch (error) {
       console.error('Failed to add missing definitions:', error);
+    }
+  }
+
+  /**
+   * Ensure every word has a languageCode (default 'en')
+   */
+  private async addMissingLanguageCodes(): Promise<void> {
+    try {
+      const appData = await this.readAppData();
+      let changed = false;
+      for (let i = 0; i < appData.words.length; i++) {
+        const w = appData.words[i];
+        if (!w.languageCode) {
+          appData.words[i] = { ...w, languageCode: 'en' };
+          changed = true;
+        }
+      }
+      if (changed) {
+        await this.writeAppData(appData);
+        console.log('Added default languageCode="en" to words lacking it');
+      }
+    } catch (err) {
+      console.error('Failed to add missing language codes:', err);
     }
   }
 
@@ -345,6 +372,7 @@ class DataService {
         appData.words[wordIndex] = {
           ...appData.words[wordIndex],
           ...wordData,
+          languageCode: wordData.languageCode || appData.words[wordIndex].languageCode || 'en',
           date: now
         };
         await this.writeAppData(appData);
@@ -358,6 +386,7 @@ class DataService {
       word: wordData.word,
       status: wordData.status,
       userId: wordData.userId || 'default_user',
+  languageCode: wordData.languageCode || 'en',
       definition: wordData.definition,
       exampleSentence: wordData.exampleSentence,
       reviewCount: wordData.reviewCount || 0,

@@ -28,6 +28,7 @@ export class WordsController {
       const status = req.query.status as string;
       const limit = parseInt(req.query.limit as string) || undefined;
       const offset = parseInt(req.query.offset as string) || 0;
+  const languageCodesParam = req.query.languageCode as string | undefined; // comma separated
 
       let words = await WordsController.dataService.getWords(userId);
       console.log(`Words API - User: ${userId}, Total words: ${words.length}`);
@@ -35,6 +36,14 @@ export class WordsController {
       // Filter by status if provided
       if (status && ['unknown', 'learning', 'known'].includes(status)) {
         words = words.filter(word => word.status === status);
+      }
+
+      // Filter by languageCode(s) if provided
+      if (languageCodesParam) {
+        const langs = languageCodesParam.split(',').map(s => s.trim()).filter(Boolean);
+        if (langs.length > 0) {
+          words = words.filter(w => langs.includes((w as any).languageCode || 'en'));
+        }
       }
 
       // Apply pagination
@@ -106,6 +115,7 @@ export class WordsController {
         word: normalizedWord,
         status: wordData.status || 'unknown',
         userId,
+  languageCode: wordData.languageCode || 'en',
         definition: wordData.definition,
         exampleSentence: wordData.exampleSentence
       });
@@ -174,6 +184,7 @@ export class WordsController {
         ...existingWord,
         ...updateData,
         id: wordId,
+  languageCode: updateData.languageCode || existingWord.languageCode || 'en',
         lastReviewedAt: updateData.status ? new Date().toISOString() : existingWord.lastReviewedAt
       });
 

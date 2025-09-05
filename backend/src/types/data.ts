@@ -6,6 +6,7 @@ export interface WordData {
   status: 'unknown' | 'learning' | 'known';
   date: string;
   userId?: string;
+  languageCode?: string; // ISO language code (e.g., 'en', 'ja')
   definition?: string;
   exampleSentence?: string;
   pronunciation?: string;
@@ -112,12 +113,14 @@ export interface CreateWordRequest {
   word: string;
   status?: 'unknown' | 'learning' | 'known';
   userId?: string;
+  languageCode?: string;
   definition?: string;
   exampleSentence?: string;
 }
 
 export interface UpdateWordRequest {
   status?: 'unknown' | 'learning' | 'known';
+  languageCode?: string;
   definition?: string;
   exampleSentence?: string;
   reviewCount?: number;

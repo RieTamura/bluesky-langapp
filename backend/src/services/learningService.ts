@@ -164,13 +164,21 @@ class LearningService {
         throw new Error('No words available for quiz. Add some words to your learning list first.');
       }
 
-      // Prioritize due words, then shuffle the rest
-      const selectedWords = [
+      // Phase 2: simple reinjection of some known words (placeholder)
+      const knownWordsPool = allWords.filter(w => w.status === 'known');
+      const reinjectCount = Math.min(2, Math.floor(questionCount / 4)); // up to 25% of quiz
+      const reinjected = this.shuffleArray(knownWordsPool).slice(0, reinjectCount);
+
+      // Prioritize due words, then shuffle remaining unknown/learning, then optional reinjected known words
+      const baseSelection = [
         ...dueWords.slice(0, Math.min(questionCount, dueWords.length)),
-        ...this.shuffleArray(availableWords.filter(word => 
-          !dueWords.some(dueWord => dueWord.id === word.id)
-        )).slice(0, Math.max(0, questionCount - dueWords.length))
-      ].slice(0, questionCount);
+        ...this.shuffleArray(availableWords.filter(word => !dueWords.some(dueWord => dueWord.id === word.id)))
+      ];
+      let selectedWords = baseSelection.slice(0, questionCount);
+      if (reinjected.length > 0 && selectedWords.length < questionCount) {
+        const slotsLeft = questionCount - selectedWords.length;
+        selectedWords = [...selectedWords, ...reinjected.slice(0, slotsLeft)];
+      }
 
       // Generate questions
       const questions = selectedWords.map(word => this.generateQuizQuestion(word));
