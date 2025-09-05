@@ -20,7 +20,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const BASE_PORT = Number(process.env.PORT) || 3000;
 
 // Middleware
 app.use(cors({
@@ -142,18 +142,36 @@ app.get('*', (req, res) => {
   }
 });
 
-app.listen(PORT, async () => {
-  console.log(`🚀 Bluesky LangApp API Server running at http://localhost:${PORT}`);
-  console.log(`📊 Health check available at http://localhost:${PORT}/health`);
-  
-  // Initialize data service
-  try {
-    const dataService = new DataService();
-    await dataService.initialize();
-    console.log(`💾 Data service initialized successfully`);
-  } catch (error) {
-    console.error('❌ Failed to initialize data service:', error);
-  }
-});
+async function start(port: number, attempt = 0) {
+  const server = app.listen(port, async () => {
+    console.log(`🚀 Bluesky LangApp API Server running at http://localhost:${port}`);
+    console.log(`📊 Health check available at http://localhost:${port}/health`);
+
+    // Initialize data service
+    try {
+      const dataService = new DataService();
+      await dataService.initialize();
+      console.log(`💾 Data service initialized successfully`);
+    } catch (error) {
+      console.error('❌ Failed to initialize data service:', error);
+    }
+  });
+
+  server.on('error', (err: any) => {
+    if (err && err.code === 'EADDRINUSE') {
+      if (attempt > 5) {
+        console.error(`❌ Port selection failed after multiple attempts. Last tried: ${port}`);
+        process.exit(1);
+      }
+      const nextPort = port + 1;
+      console.warn(`⚠️  Port ${port} in use. Retrying with ${nextPort}...`);
+      setTimeout(() => start(nextPort, attempt + 1), 300);
+    } else {
+      console.error('Server error:', err);
+    }
+  });
+}
+
+start(BASE_PORT);
 
 export default app;
