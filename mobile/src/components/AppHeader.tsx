@@ -12,7 +12,7 @@ export const AppHeader: React.FC<Props> = ({ onOpenMenu }) => {
   const insets = useSafeAreaInsets();
   const c = useThemeColors();
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 4, height: insets.top + 72, backgroundColor: c.background, borderColor: c.border }]}> 
+    <View style={[styles.container, { paddingTop: insets.top + 4, /* 動的高さ: content + padding */ backgroundColor: c.background, borderColor: c.border }]}> 
       <View style={styles.leftGroup}>
   <Pressable style={[styles.navBtn,{ backgroundColor: c.border }]} onPress={() => navigation.navigate('Main')} accessibilityLabel="Feed へ">
           <Text style={[styles.navBtnText,{ color: c.text }]}>Feed</Text>
@@ -26,7 +26,8 @@ export const AppHeader: React.FC<Props> = ({ onOpenMenu }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, paddingBottom: 10 },
+  // 下に十分な余白を設けてコンテンツとの視覚的距離を出す
+  container: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, paddingBottom: 14, marginBottom: 12 },
   leftGroup: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   navBtn: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 20, backgroundColor: '#eef2f5' },
   navBtnText: { fontWeight: '600', fontSize: 14 },

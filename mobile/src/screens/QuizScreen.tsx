@@ -40,7 +40,8 @@ export const QuizScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   // paddingHorizontalをMainScreen (12) に合わせて統一
-  container: { flex: 1, paddingHorizontal: 12, paddingBottom: 140, paddingTop: 24 },
+  // WordsScreen と統一したヘッダー下余白 (増加)
+  container: { flex: 1, paddingHorizontal: 12, paddingBottom: 140, paddingTop: 48 },
   result: { marginTop: 24, alignItems: 'center' },
   resultText: { fontSize: 18, fontWeight: '600' },
   feedback: { marginTop: 12, fontSize: 16, fontWeight: '600' },
