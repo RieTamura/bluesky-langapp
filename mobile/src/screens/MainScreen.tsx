@@ -1,5 +1,8 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, SafeAreaView, NativeSyntheticEvent, NativeScrollEvent, ScrollView } from 'react-native';
+import * as Speech from 'expo-speech';
+import { useTTSStore } from '../stores/tts';
+import { detectLanguage, mapToSpeechCode } from '../utils/langDetect';
 import { useThemeColors } from '../stores/theme';
 import { useAuth } from '../hooks/useAuth';
 import { useUserPosts, useFollowingFeed, useDiscoverFeed } from '../hooks/usePosts';
@@ -86,11 +89,7 @@ export const MainScreen: React.FC = () => {
       >
         {loadingFeed && <ActivityIndicator style={{ marginVertical: 12 }} />}
         {!loadingFeed && currentFeed.map((item: any, i: number) => (
-          <View key={feedTab + '-' + i} style={[styles.feedRow,{ borderColor: c.border }]}> 
-            <Text style={[styles.handle,{ color: c.accent }]}>@{item.author?.handle}</Text>
-            <SelectableText text={item.text} />
-            <Text style={[styles.time,{ color: c.secondaryText }]}>{new Date(item.createdAt).toLocaleString()}</Text>
-          </View>
+          <FeedItem key={feedTab + '-' + i} item={item} accentColor={c.accent} secondaryColor={c.secondaryText} borderColor={c.border} />
         ))}
       </ScrollView>
       {showTopBtn && (
@@ -149,5 +148,53 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 16, alignItems: 'center', paddingBottom: 40 },
   // Scroll To Top Button
   scrollTopButton: { position: 'absolute', bottom: 32, right: 24, width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
-  scrollTopButtonText: { fontSize: 24, color: '#fff', fontWeight: '700', lineHeight: 28 }
+  scrollTopButtonText: { fontSize: 24, color: '#fff', fontWeight: '700', lineHeight: 28 },
+  dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+  ttsBtn: { marginLeft: 12 },
+  ttsBtnText: { fontSize: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 14, borderWidth: 1, overflow: 'hidden' }
 });
+
+// --- Feed Item with TTS ---
+const FeedItem: React.FC<{ item: any; accentColor: string; secondaryColor: string; borderColor: string }> = ({ item, accentColor, secondaryColor, borderColor }) => {
+  const [speaking, setSpeaking] = useState(false);
+  const mode = useTTSStore(s => s.mode);
+  const manualLanguage = useTTSStore(s => s.manualLanguage);
+  const onPressSpeak = useCallback(() => {
+    if (speaking) {
+      Speech.stop();
+      setSpeaking(false);
+      return;
+    }
+    const text = item?.text || '';
+    if (!text.trim()) return;
+    // 念のため既存の読み上げを停止
+    Speech.stop();
+    let language = 'en-US';
+    if (mode === 'manual') {
+      language = manualLanguage || 'en-US';
+    } else {
+      const det = detectLanguage(text);
+      language = mapToSpeechCode(det.code);
+    }
+    setSpeaking(true);
+    Speech.speak(text, {
+      language,
+      onDone: () => setSpeaking(false),
+      onStopped: () => setSpeaking(false),
+      onError: () => setSpeaking(false)
+    });
+  }, [speaking, item, mode, manualLanguage]);
+  return (
+    <View style={[styles.feedRow,{ borderColor }]}> 
+      <Text style={[styles.handle,{ color: accentColor }]}>@{item.author?.handle}</Text>
+      <SelectableText text={item.text} />
+      <View style={styles.dateRow}>
+        <Text style={[styles.time,{ color: secondaryColor }]}>{new Date(item.createdAt).toLocaleString()}</Text>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={speaking ? '音声停止' : '読み上げ'} onPress={onPressSpeak} style={styles.ttsBtn}>
+          <Text style={[styles.ttsBtnText,{ color: speaking ? '#fff' : accentColor, backgroundColor: speaking ? accentColor : 'transparent', borderColor: accentColor }]}>{speaking ? '■' : '▶'}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
