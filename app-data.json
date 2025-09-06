@@ -4,9 +4,9 @@
     {
       "word": "Excited",
       "status": "unknown",
-      "date": "2025-09-05T22:26:53.683Z",
-      "id": "word_1757110921432_0",
-      "userId": "connectobasan.com",
+      "date": "2025-08-26T18:17:44.880Z",
+      "id": "word_1757199398801_0",
+      "userId": "default_user",
       "definition": "興奮した、わくわくした",
       "exampleSentence": "I am so excited about the new project.",
       "languageCode": "en"
@@ -14,9 +14,9 @@
     {
       "word": "stuff",
       "status": "unknown",
-      "date": "2025-09-05T22:26:53.686Z",
-      "id": "word_1757110921432_1",
-      "userId": "connectobasan.com",
+      "date": "2025-08-26T18:17:58.505Z",
+      "id": "word_1757199398801_1",
+      "userId": "default_user",
       "definition": "物、もの、材料",
       "exampleSentence": "There's a lot of stuff in the garage.",
       "languageCode": "en"
@@ -24,9 +24,9 @@
     {
       "word": "records",
       "status": "unknown",
-      "date": "2025-09-05T22:26:53.688Z",
-      "id": "word_1757110921432_2",
-      "userId": "connectobasan.com",
+      "date": "2025-08-26T18:18:43.455Z",
+      "id": "word_1757199398801_2",
+      "userId": "default_user",
       "definition": "記録、レコード",
       "exampleSentence": "Please keep records of all transactions.",
       "languageCode": "en"
@@ -34,9 +34,9 @@
     {
       "word": "from",
       "status": "unknown",
-      "date": "2025-09-05T22:26:53.690Z",
-      "id": "word_1757110921432_3",
-      "userId": "connectobasan.com",
+      "date": "2025-08-26T18:18:45.660Z",
+      "id": "word_1757199398801_3",
+      "userId": "default_user",
       "definition": "〜から、〜より",
       "exampleSentence": "I received a letter from my friend.",
       "languageCode": "en"
@@ -44,9 +44,9 @@
     {
       "word": "backfill",
       "status": "unknown",
-      "date": "2025-09-05T22:26:53.692Z",
-      "id": "word_1757110921432_4",
-      "userId": "connectobasan.com",
+      "date": "2025-08-26T18:18:54.358Z",
+      "id": "word_1757199398801_4",
+      "userId": "default_user",
       "definition": "埋め戻し、補完",
       "exampleSentence": "We need to backfill the missing data.",
       "languageCode": "en"
@@ -54,9 +54,9 @@
     {
       "word": "provides",
       "status": "unknown",
-      "date": "2025-09-05T22:26:53.694Z",
-      "id": "word_1757110921432_5",
-      "userId": "connectobasan.com",
+      "date": "2025-08-26T18:18:58.349Z",
+      "id": "word_1757199398801_5",
+      "userId": "default_user",
       "definition": "提供する、与える",
       "exampleSentence": "This service provides excellent support.",
       "languageCode": "en"
@@ -64,9 +64,9 @@
     {
       "word": "typescript",
       "status": "unknown",
-      "date": "2025-09-05T22:26:53.695Z",
-      "id": "word_1757110921432_6",
-      "userId": "connectobasan.com",
+      "date": "2025-08-26T18:19:02.255Z",
+      "id": "word_1757199398801_6",
+      "userId": "default_user",
       "definition": "TypeScript（プログラミング言語）",
       "exampleSentence": "TypeScript helps catch errors at compile time.",
       "languageCode": "en"
@@ -74,9 +74,9 @@
     {
       "word": "client",
       "status": "unknown",
-      "date": "2025-09-05T22:26:53.697Z",
-      "id": "word_1757110921432_7",
-      "userId": "connectobasan.com",
+      "date": "2025-08-26T18:19:03.550Z",
+      "id": "word_1757199398801_7",
+      "userId": "default_user",
       "definition": "クライアント、顧客",
       "exampleSentence": "The client was very satisfied with our work.",
       "languageCode": "en"
@@ -84,9 +84,9 @@
     {
       "word": "interact",
       "status": "unknown",
-      "date": "2025-09-05T22:26:53.698Z",
-      "id": "word_1757110921432_8",
-      "userId": "connectobasan.com",
+      "date": "2025-08-26T18:19:06.105Z",
+      "id": "word_1757199398801_8",
+      "userId": "default_user",
       "definition": "相互作用する、やり取りする",
       "exampleSentence": "Users can interact with the application easily.",
       "languageCode": "en"
@@ -94,9 +94,9 @@
     {
       "word": "Celebration",
       "status": "unknown",
-      "date": "2025-09-05T22:26:53.699Z",
-      "id": "word_1757110921432_9",
-      "userId": "connectobasan.com",
+      "date": "2025-08-26T18:19:48.810Z",
+      "id": "word_1757199398801_9",
+      "userId": "default_user",
       "definition": "お祝い、祝賀",
       "exampleSentence": "We had a celebration for her birthday.",
       "languageCode": "en"
@@ -104,9 +104,9 @@
     {
       "word": "companion!",
       "status": "unknown",
-      "date": "2025-09-05T22:26:53.700Z",
-      "id": "word_1757110921432_10",
-      "userId": "connectobasan.com",
+      "date": "2025-08-26T18:20:08.203Z",
+      "id": "word_1757199398801_10",
+      "userId": "default_user",
       "definition": "仲間、相棒",
       "exampleSentence": "My dog is my faithful companion.",
       "languageCode": "en"
@@ -114,35 +114,24 @@
     {
       "word": "Earn",
       "status": "unknown",
-      "date": "2025-09-05T22:26:53.701Z",
-      "id": "word_1757110921432_11",
-      "userId": "connectobasan.com",
+      "date": "2025-08-26T18:20:10.098Z",
+      "id": "word_1757199398801_11",
+      "userId": "default_user",
       "definition": "稼ぐ、得る",
       "exampleSentence": "You need to earn their trust first.",
       "languageCode": "en"
     },
     {
-      "id": "word_1757111263018_256bwx34h",
-      "word": "absolute",
+      "id": "word_1757200177800_iv9su8kmm",
+      "word": "god",
       "status": "unknown",
       "userId": "connectobasan.com",
       "languageCode": "en",
+      "definition": "A being such as a monotheistic God: a single divine creator and ruler of the universe.",
       "reviewCount": 0,
       "correctCount": 0,
-      "date": "2025-09-05T22:27:43.018Z"
-    },
-    {
-      "id": "word_1757116575755_dgd26ztr2",
-      "word": "more",
-      "status": "unknown",
-      "userId": "connectobasan.com",
-      "languageCode": "en",
-      "definition": "To a greater degree or extent.",
-      "exampleSentence": "I could no more climb that than fly!",
-      "reviewCount": 0,
-      "correctCount": 0,
-      "date": "2025-09-05T23:56:15.787Z",
-      "lastReviewedAt": "2025-09-05T23:56:15.786Z"
+      "date": "2025-09-06T23:09:37.842Z",
+      "lastReviewedAt": "2025-09-06T23:09:37.842Z"
     }
   ],
   "version": "1.0.0"

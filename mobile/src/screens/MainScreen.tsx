@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, SafeAreaView, Animated, NativeSyntheticEvent, NativeScrollEvent, Easing } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, SafeAreaView, NativeSyntheticEvent, NativeScrollEvent, ScrollView } from 'react-native';
 import { useThemeColors } from '../stores/theme';
 import { useAuth } from '../hooks/useAuth';
 import { useUserPosts, useFollowingFeed, useDiscoverFeed } from '../hooks/usePosts';
@@ -38,122 +38,21 @@ export const MainScreen: React.FC = () => {
 
   const c = useThemeColors();
 
-  // --- Tabs hide on scroll animation ---
-  // タブ高さを実測し、その分だけ隠す (初期値 56 程度)
-  const [tabHeight, setTabHeight] = useState(56);
-  const headerOffset = useRef(new Animated.Value(0)).current; // 0=表示 / tabHeight=完全隠れ
-  const isShownRef = useRef(true); // 離散状態管理
-  const lastY = useRef(0);
-  const [tabsInteractive, setTabsInteractive] = useState(true);
   // --- Scroll To Top Button ---
   const [showTopBtn, setShowTopBtn] = useState(false);
-  // ref は任意 any で安全側 (複雑な Animated 型指定を避ける)
   const scrollRef = useRef<any>(null);
-
-  const translateY = headerOffset.interpolate({
-    inputRange: [0, tabHeight],
-    outputRange: [0, -tabHeight],
-    extrapolate: 'clamp'
-  });
-  const opacity = headerOffset.interpolate({
-    inputRange: [0, tabHeight * 0.5, tabHeight],
-    outputRange: [1, 0.15, 0],
-    extrapolate: 'clamp'
-  });
-  // コンテンツをタブ隠しに同期させるための translateY （tabs と同量シフト）
-  const contentTranslateY = headerOffset.interpolate({
-    inputRange: [0, tabHeight],
-    outputRange: [0, -tabHeight],
-    extrapolate: 'clamp'
-  });
-
-  const animateTo = useCallback((val: number) => {
-    Animated.timing(headerOffset, {
-      toValue: val,
-      duration: 200,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true
-    }).start(() => {
-      const interactive = val < tabHeight - 4;
-      if (interactive !== tabsInteractive) setTabsInteractive(interactive);
-    });
-  }, [headerOffset, tabHeight, tabsInteractive]);
   const scrollToTop = useCallback(() => {
     scrollRef.current?.scrollTo?.({ y: 0, animated: true });
-    if (!isShownRef.current) {
-      isShownRef.current = true;
-      animateTo(0);
-    }
-  }, [animateTo]);
-  // トップ到達時だけ表示 / それ以外は隠す (離散)
-  const TOP_THRESHOLD = 2; // px
+  }, []);
   const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = e.nativeEvent.contentOffset.y;
-    lastY.current = y;
-  // TOPボタン表示制御 (200px 超で表示)
-  if (!showTopBtn && y > 200) setShowTopBtn(true); else if (showTopBtn && y <= 200) setShowTopBtn(false);
-    if (y <= TOP_THRESHOLD) {
-      if (!isShownRef.current) {
-        isShownRef.current = true;
-        animateTo(0);
-      }
-    } else {
-      if (isShownRef.current) {
-        isShownRef.current = false;
-        animateTo(tabHeight);
-      }
-    }
-  }, [animateTo]);
-
-  const snap = useCallback(() => {}, []); // 不要
+    if (!showTopBtn && y > 200) setShowTopBtn(true); else if (showTopBtn && y <= 200) setShowTopBtn(false);
+  }, [showTopBtn]);
 
   return (
     <>
     <SafeAreaView style={[styles.container,{ backgroundColor: c.background }]}> 
-      <Animated.View
-        style={[
-          styles.tabsWrapper,
-          {
-            transform: [{ translateY }],
-            opacity,
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: 10
-          }
-        ]}
-        onLayout={e => {
-          const h = e.nativeEvent.layout.height;
-          if (Math.abs(h - tabHeight) > 2) setTabHeight(h); // 変化があれば更新
-        }}
-        pointerEvents={tabsInteractive ? 'auto' : 'none'}
-      >
-        {([
-          { key: 'posts', label: 'Posts' },
-          { key: 'following', label: 'Following' },
-          { key: 'discover', label: 'Discover' }
-        ] as const).map(t => {
-          const active = feedTab === t.key;
-          return (
-            <TouchableOpacity
-              key={t.key}
-              style={[
-                styles.tab,
-                {
-                  backgroundColor: active ? c.accent : c.surface,
-                  borderWidth: StyleSheet.hairlineWidth,
-                  borderColor: active ? c.accent : c.border
-                }
-              ]}
-              onPress={() => setFeedTab(t.key)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-            >
-              <Text style={[styles.tabText, { color: active ? '#fff' : c.text }]}>{t.label}</Text>
-            </TouchableOpacity>
-          );
-        })}
+      <View style={styles.limitRowContainer}>
         <View style={styles.limitRow} accessibilityRole="adjustable" accessible accessibilityLabel="Posts fetch limit selector">
           {[10,20,50,100].map(v => {
             const active = limit === v;
@@ -177,25 +76,23 @@ export const MainScreen: React.FC = () => {
             );
           })}
         </View>
-      </Animated.View>
-      <Animated.ScrollView
+      </View>
+      <ScrollView
         ref={scrollRef}
         onScroll={onScroll}
-  // snapは不要（離散制御）
         scrollEventThrottle={16}
         refreshControl={<RefreshControl refreshing={loadingFeed} onRefresh={refetchCurrentFeed} />}
+        contentContainerStyle={styles.scrollContent}
       >
-        <Animated.View style={{ paddingTop: tabHeight, paddingBottom: 140, paddingHorizontal: 16, transform: [{ translateY: contentTranslateY }] }}>
-          {loadingFeed && <ActivityIndicator style={{ marginVertical: 12 }} />}
-          {!loadingFeed && currentFeed.map((item: any, i: number) => (
-            <View key={feedTab + '-' + i} style={[styles.feedRow,{ borderColor: c.border }]}> 
-              <Text style={[styles.handle,{ color: c.accent }]}>@{item.author?.handle}</Text>
-              <SelectableText text={item.text} />
-              <Text style={[styles.time,{ color: c.secondaryText }]}>{new Date(item.createdAt).toLocaleString()}</Text>
-            </View>
-          ))}
-        </Animated.View>
-      </Animated.ScrollView>
+        {loadingFeed && <ActivityIndicator style={{ marginVertical: 12 }} />}
+        {!loadingFeed && currentFeed.map((item: any, i: number) => (
+          <View key={feedTab + '-' + i} style={[styles.feedRow,{ borderColor: c.border }]}> 
+            <Text style={[styles.handle,{ color: c.accent }]}>@{item.author?.handle}</Text>
+            <SelectableText text={item.text} />
+            <Text style={[styles.time,{ color: c.secondaryText }]}>{new Date(item.createdAt).toLocaleString()}</Text>
+          </View>
+        ))}
+      </ScrollView>
       {showTopBtn && (
         <TouchableOpacity
           style={[styles.scrollTopButton, { backgroundColor: c.accent }]}
@@ -231,9 +128,9 @@ const SelectableText: React.FC<{ text: string }> = ({ text }) => {
 
 const styles = StyleSheet.create({
   // Words / Quiz と同じ開始位置に揃える (SafeArea + paddingTop:48)
-  container: { flex: 1, paddingHorizontal: 12, paddingTop: 48 },
+  container: { flex: 1, paddingHorizontal: 12, paddingTop: 48, paddingBottom: 140 },
   // sectionTitle 削除
-  feedRow: { paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  feedRow: { paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, width: '100%', maxWidth: 680, alignSelf: 'center' },
   handle: { fontWeight: '600', marginBottom: 6 },
   postText: { fontSize: 15, lineHeight: 20 },
   tokensWrap: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start' },
@@ -244,12 +141,12 @@ const styles = StyleSheet.create({
   feedHeader: { fontSize: 18, fontWeight: '700', marginBottom: 4, marginTop: 4 }, // (obsolete, kept for potential reuse)
   // quiz / progress styles 削除
   // Tabs (復元)
-  tabsWrapper: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', marginBottom: 8, paddingHorizontal: 16 },
-  tab: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 18, marginRight: 10, marginBottom: 10 },
-  tabText: { fontSize: 14, fontWeight: '600' },
-  limitRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginTop: 4 },
+  // ヘッダーへ移動済タブ
+  limitRowContainer: { width: '100%', alignItems: 'center' },
+  limitRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginTop: 4, width: '100%', maxWidth: 680, paddingHorizontal: 16 },
   limitOption: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 12, marginRight: 6, marginBottom: 6, borderWidth: StyleSheet.hairlineWidth },
   limitText: { fontSize: 12, fontWeight: '600' },
+  scrollContent: { paddingHorizontal: 16, alignItems: 'center', paddingBottom: 40 },
   // Scroll To Top Button
   scrollTopButton: { position: 'absolute', bottom: 32, right: 24, width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   scrollTopButtonText: { fontSize: 24, color: '#fff', fontWeight: '700', lineHeight: 28 }
