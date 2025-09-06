@@ -43,7 +43,7 @@ function AuthedStack() {
     <>
       <View style={{ flex: 1 }}>
         <Stack.Navigator screenOptions={{ contentStyle: { backgroundColor: c.background } }}>
-          <Stack.Screen name="Main" component={MainScreen} options={{ header: () => <AppHeader onOpenMenu={() => setMenuOpen(true)} /> }} />
+          <Stack.Screen name="Main" component={MainScreen} options={{ header: () => <AppHeader showFeedTabs onOpenMenu={() => setMenuOpen(true)} /> }} />
           <Stack.Screen name="Words" component={WordsScreen} options={{ header: () => <AppHeader onOpenMenu={() => setMenuOpen(true)} /> }} />
           <Stack.Screen name="Quiz" component={QuizScreen} options={{ header: () => <AppHeader onOpenMenu={() => setMenuOpen(true)} /> }} />
           <Stack.Screen name="Progress" component={ProgressScreen} options={{ header: () => <AppHeader onOpenMenu={() => setMenuOpen(true)} /> }} />

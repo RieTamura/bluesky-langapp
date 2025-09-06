@@ -5,10 +5,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '../stores/theme';
 import { useFeedStore } from '../stores/feed';
 
-interface Props { onOpenMenu: () => void; }
+interface Props { onOpenMenu: () => void; showFeedTabs?: boolean; }
 
 // グローバルヘッダー: Feed | 単語集 | ☰
-export const AppHeader: React.FC<Props> = ({ onOpenMenu }) => {
+export const AppHeader: React.FC<Props> = ({ onOpenMenu, showFeedTabs }) => {
   // navigation 参照は今後の拡張用（現状未使用）
   const navigation: any = useNavigation();
   const insets = useSafeAreaInsets();
@@ -18,28 +18,30 @@ export const AppHeader: React.FC<Props> = ({ onOpenMenu }) => {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 4, backgroundColor: c.background, borderColor: c.border }]}> 
-      {/* 左: フィードタブ (左寄せ) */}
-      <View style={styles.tabsRow} accessibilityRole="tablist">
-        {([
-          { key: 'posts', label: 'Posts' },
-          { key: 'following', label: 'Following' },
-          { key: 'discover', label: 'Discover' }
-        ] as const).map(t => {
-          const active = feedTab === t.key;
-          return (
-            <Pressable
-              key={t.key}
-              onPress={() => setFeedTab(t.key)}
-              style={[styles.tabBtn, active && { borderBottomColor: c.accent }]}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: active }}
-            >
-              <Text style={[styles.tabText, { color: active ? c.accent : c.text }]}>{t.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      {/* 右: メニュー */}
+      {showFeedTabs ? (
+        <View style={styles.tabsRow} accessibilityRole="tablist">
+          {([
+            { key: 'posts', label: 'Posts' },
+            { key: 'following', label: 'Following' },
+            { key: 'discover', label: 'Discover' }
+          ] as const).map(t => {
+            const active = feedTab === t.key;
+            return (
+              <Pressable
+                key={t.key}
+                onPress={() => setFeedTab(t.key)}
+                style={[styles.tabBtn, active && { borderBottomColor: c.accent }]}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+              >
+                <Text style={[styles.tabText, { color: active ? c.accent : c.text }]}>{t.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : (
+        <View style={{ flex: 1 }} />
+      )}
       <Pressable onPress={onOpenMenu} style={styles.menuBtn} accessibilityLabel="設定メニューを開く">
         <Text style={[styles.menuText,{ color: c.text }]}>☰</Text>
       </Pressable>
