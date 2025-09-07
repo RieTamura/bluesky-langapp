@@ -31,6 +31,16 @@ export const SettingsScreen: React.FC = () => {
   const setMode = useTTSStore(s => s.setMode);
   const manualLanguage = useTTSStore(s => s.manualLanguage);
   const setManualLanguage = useTTSStore(s => s.setManualLanguage);
+  const detectionConfidenceThreshold = useTTSStore(s => s.detectionConfidenceThreshold);
+  const setDetectionConfidenceThreshold = useTTSStore(s => s.setDetectionConfidenceThreshold);
+  const pauseSentenceMs = useTTSStore(s => s.pauseSentenceMs);
+  const setPauseSentenceMs = useTTSStore(s => s.setPauseSentenceMs);
+  const pauseShortMs = useTTSStore(s => s.pauseShortMs);
+  const setPauseShortMs = useTTSStore(s => s.setPauseShortMs);
+  const pauseWordMs = useTTSStore(s => s.pauseWordMs);
+  const setPauseWordMs = useTTSStore(s => s.setPauseWordMs);
+  const chunkMaxWords = useTTSStore(s => s.chunkMaxWords);
+  const setChunkMaxWords = useTTSStore(s => s.setChunkMaxWords);
   const hydrate = useTTSStore(s => s.hydrate);
   React.useEffect(()=> { hydrate(); }, [hydrate]);
 
@@ -58,7 +68,7 @@ export const SettingsScreen: React.FC = () => {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>読み上げ (TTS)</Text>
         <View style={styles.row}> 
-          {(['auto','manual'] as const).map(m => {
+          {(['auto','auto-multi','manual'] as const).map(m => {
             const active = ttsMode === m;
             return (
               <TouchableOpacity key={m} style={[styles.modeBtn, active && styles.modeBtnActive]} onPress={()=> setMode(m)} accessibilityRole="button" accessibilityState={{ selected: active }}>
@@ -82,8 +92,26 @@ export const SettingsScreen: React.FC = () => {
           </View>
         )}
         {ttsMode === 'auto' && (
-          <Text style={styles.help}>自動: 投稿テキストの文字種から簡易判定します。</Text>
+          <Text style={styles.help}>自動: 投稿全体で主要言語を 1 つ判定します。</Text>
         )}
+        {ttsMode === 'auto-multi' && (
+          <Text style={styles.help}>複数: 単語ごとに文字種を見て最適な言語へ切替えます (精度は簡易)。</Text>
+        )}
+        <View style={{ marginTop: 16 }}>
+          <Text style={styles.label}>言語判定信頼度しきい値 (0-1)</Text>
+          <TextInput value={String(detectionConfidenceThreshold)} onChangeText={(v)=> {
+            const num = parseFloat(v); if (!isNaN(num)) setDetectionConfidenceThreshold(Math.max(0, Math.min(1, num)));
+          }} style={styles.input} keyboardType='decimal-pad' accessibilityLabel='Detection confidence threshold' />
+        </View>
+        <View style={{ marginTop: 16 }}>
+          <Text style={styles.label}>ポーズ (ms)</Text>
+          <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
+            <View style={styles.pauseBox}><Text style={styles.pauseLabel}>文末</Text><TextInput value={String(pauseSentenceMs)} onChangeText={(v)=> { const n = parseInt(v); if(!isNaN(n)) setPauseSentenceMs(n); }} style={styles.pauseInput} keyboardType='number-pad' /></View>
+            <View style={styles.pauseBox}><Text style={styles.pauseLabel}>区切り</Text><TextInput value={String(pauseShortMs)} onChangeText={(v)=> { const n = parseInt(v); if(!isNaN(n)) setPauseShortMs(n); }} style={styles.pauseInput} keyboardType='number-pad' /></View>
+            <View style={styles.pauseBox}><Text style={styles.pauseLabel}>単語</Text><TextInput value={String(pauseWordMs)} onChangeText={(v)=> { const n = parseInt(v); if(!isNaN(n)) setPauseWordMs(n); }} style={styles.pauseInput} keyboardType='number-pad' /></View>
+            <View style={styles.pauseBox}><Text style={styles.pauseLabel}>Chunk</Text><TextInput value={String(chunkMaxWords)} onChangeText={(v)=> { const n = parseInt(v); if(!isNaN(n)) setChunkMaxWords(Math.max(1, n)); }} style={styles.pauseInput} keyboardType='number-pad' /></View>
+          </View>
+        </View>
       </View>
       <View style={styles.section}>
         <Text style={styles.logout} onPress={logout}>ログアウト</Text>
@@ -124,4 +152,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, fontWeight: '600', marginBottom: 4, color: '#444' },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
   help: { marginTop: 8, fontSize: 12, color: '#666' }
+  ,pauseBox: { width: 90 },
+  pauseLabel: { fontSize: 11, fontWeight: '600', marginBottom: 4 },
+  pauseInput: { borderWidth: 1, borderColor: '#ccc', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4, fontSize: 13, textAlign: 'center' }
 });
