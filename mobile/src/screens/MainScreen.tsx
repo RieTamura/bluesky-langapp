@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, SafeAreaView, NativeSyntheticEvent, NativeScrollEvent, ScrollView } from 'react-native';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, SafeAreaView, NativeSyntheticEvent, NativeScrollEvent, ScrollView, Alert } from 'react-native';
 import * as Speech from 'expo-speech';
 import { useTTSStore } from '../stores/tts';
 import { detectLanguage, mapToSpeechCode } from '../utils/langDetect';
@@ -162,18 +162,24 @@ const styles = StyleSheet.create({
   scrollTopButton: { position: 'absolute', bottom: 32, right: 24, width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   scrollTopButtonText: { fontSize: 24, color: '#fff', fontWeight: '700', lineHeight: 28 },
   dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
-  ttsBtn: { marginLeft: 12 },
+  ttsBtn: { marginLeft: 12, flexDirection: 'row', alignItems: 'center' },
   ttsBtnText: { fontSize: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
   tokenPlaying: { backgroundColor: '#ffe7b3' },
-  waveWrap: { flexDirection:'row', alignItems:'center', marginLeft:8 },
+  waveWrap: { flexDirection:'row', alignItems:'center', marginRight:8 },
   waveBar: { width:3, marginHorizontal:1, borderRadius:1, backgroundColor:'#007aff' }
 });
+
+// Waveform 初期値 (再利用/調整しやすく定数化)
+const DEFAULT_WAVE_AMPS: number[] = [6, 10, 14, 8];
 
 // --- Feed Item with TTS ---
 const FeedItem: React.FC<{ item: any; index: number; accentColor: string; secondaryColor: string; borderColor: string }> = ({ item, index, accentColor, secondaryColor, borderColor }) => {
   const [speaking, setSpeaking] = useState(false);
   const [currentWordIdx, setCurrentWordIdx] = useState<number | null>(null);
-  const [waveAmps, setWaveAmps] = useState<number[]>([6,10,14,8]);
+  const [waveAmps, setWaveAmps] = useState<number[]>(DEFAULT_WAVE_AMPS);
+  // speaking の最新値を interval 内で参照するための ref（stale closure 回避）
+  const speakingRef = React.useRef(speaking);
+  React.useEffect(()=> { speakingRef.current = speaking; }, [speaking]);
   const mode = useTTSStore(s => s.mode);
   const manualLanguage = useTTSStore(s => s.manualLanguage);
   const currentPostId = useTTSStore(s => s.currentPostId);
@@ -185,6 +191,9 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
   const tokensRef = React.useRef<{ raw:string; cleaned:string }[]>([]);
   const baseLangRef = React.useRef<string>('en-US');
   const chunkPlanRef = React.useRef<{ start:number; length:number; durations:number[]; total:number }|null>(null);
+  // A: 実測時間によるスケール補正 (次チャンク以降に反映)
+  const adaptiveSpeedRef = React.useRef<number>(1); // 実測/予測 比率
+  const chunkStartTimeRef = React.useRef<number>(0);
 
   const buildTokens = useCallback(() => {
     const text = item?.text || '';
@@ -199,48 +208,88 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
     }
   }, [item, mode, manualLanguage]);
 
+  // --- Helper: detect language for a token with cache & threshold logic ---
+  const detectTokenLanguage = (
+    tokenClean: string,
+    baseLang: string,
+    modeLocal: string,
+    cache: React.MutableRefObject<Record<string,{lang:string;confidence:number}>>,
+    threshold: number
+  ): { lang: string; confidence: number } => {
+    if (modeLocal !== 'auto-multi') return { lang: baseLang, confidence: 1 };
+    const key = tokenClean.toLowerCase();
+    let cached = cache.current[key];
+    if (!cached) {
+      const det = detectLanguage(tokenClean);
+      cached = { lang: mapToSpeechCode(det.code), confidence: det.confidence };
+      cache.current[key] = cached;
+    }
+    let thr = threshold;
+    if (/-(JP|CN)|ja|zh/.test(cached.lang)) thr = Math.min(1, thr + 0.1);
+    const finalLang = cached.confidence >= thr ? cached.lang : baseLang;
+    return { lang: finalLang, confidence: cached.confidence };
+  };
+
+  // --- Helper: decide if we should break the chunk before next token ---
+  const shouldBreakBetweenTokens = (
+    prevLang: string,
+    nextToken: { cleaned:string },
+    baseLang: string,
+    modeLocal: string,
+    cache: React.MutableRefObject<Record<string,{lang:string;confidence:number}>>,
+    threshold: number
+  ): boolean => {
+    if (!nextToken) return true;
+    if (modeLocal !== 'auto-multi') return false; // language change only matters in auto-multi
+    const result = detectTokenLanguage(nextToken.cleaned, baseLang, modeLocal, cache, threshold);
+    return result.lang !== prevLang; // break if language differs
+  };
+
+  // --- Helper: compute per-token durations and total ---
+  const calculateChunkDurations = (slice: { token:string; end:boolean; short:boolean }[], ttsRate: number, lang: string) => {
+    // D: 言語別 1 文字(もしくは word char) あたりの目安 ms
+    const charBase = /ja|zh|ko/.test(lang) ? 105 : 90; // 簡易係数
+    const store = useTTSStore.getState();
+    const { pauseSentenceMs, pauseShortMs } = store;
+    const adaptive = adaptiveSpeedRef.current; // A: 前チャンク実測補正
+    const invRate = 1 / ttsRate;
+    const durations = slice.map((tok, idx) => {
+      const base = Math.max(80, tok.token.length * charBase * invRate);
+      // B: 句読点ウェイト (チャンク内のみ / 最終トークンは外部ディレイで補完するので控えめ)
+      let extra = 0;
+      if (idx < slice.length - 1) { // 最終以外
+        if (tok.end) extra = pauseSentenceMs * 0.6 * invRate; else if (tok.short) extra = pauseShortMs * 0.5 * invRate;
+      }
+      return (base + extra) * adaptive;
+    });
+    const total = durations.reduce((a,b)=> a+b,0);
+    return { durations, total };
+  };
+
+  // --- Main: build chunk starting at startIdx ---
   const computeChunk = (startIdx: number) => {
     const { chunkMaxWords, detectionConfidenceThreshold } = useTTSStore.getState();
     const tokens = tokensRef.current;
     if (startIdx >= tokens.length) return null;
     const baseLang = baseLangRef.current;
-    const out: { token:string; raw:string; lang:string; end:boolean; short:boolean }[] = [];
+    const built: { token:string; raw:string; lang:string; end:boolean; short:boolean }[] = [];
     let i = startIdx;
-    while (i < tokens.length && out.length < chunkMaxWords) {
+    while (i < tokens.length && built.length < chunkMaxWords) {
       const tk = tokens[i];
-      let lang = baseLang;
-      if (mode === 'auto-multi') {
-        const k = tk.cleaned.toLowerCase();
-        let det = langCacheRef.current[k];
-        if (!det) {
-          const d = detectLanguage(tk.cleaned);
-            det = { lang: mapToSpeechCode(d.code), confidence: d.confidence };
-            langCacheRef.current[k] = det;
-        }
-        let thr = detectionConfidenceThreshold;
-        if (/-(JP|CN)|ja|zh/.test(det.lang)) thr = Math.min(1, thr + 0.1);
-        lang = det.confidence >= thr ? det.lang : baseLang;
-      }
-      const end = /[.!?。！？]$/.test(tk.raw); const short = /[,;、，]$/.test(tk.raw);
-      out.push({ token: tk.cleaned, raw: tk.raw, lang, end, short });
-      if (out.length >= chunkMaxWords) break;
-      const next = tokens[i+1]; if (!next) break;
-      if (mode !== 'auto-multi') { i++; continue; }
-      const nk = next.cleaned.toLowerCase();
-      let detN = langCacheRef.current[nk];
-      if (!detN) { const d2 = detectLanguage(next.cleaned); detN = { lang: mapToSpeechCode(d2.code), confidence: d2.confidence }; langCacheRef.current[nk]=detN; }
-      let thrN = detectionConfidenceThreshold; if (/-(JP|CN)|ja|zh/.test(detN.lang)) thrN = Math.min(1, thrN + 0.1);
-      const nLang = detN.confidence >= thrN ? detN.lang : baseLang;
-      if (nLang !== out[0].lang) break; // 言語変化
+      const det = detectTokenLanguage(tk.cleaned, baseLang, mode, langCacheRef, detectionConfidenceThreshold);
+      const end = /[.!?。！？]$/.test(tk.raw);
+      const short = /[,;、，]$/.test(tk.raw);
+      built.push({ token: tk.cleaned, raw: tk.raw, lang: det.lang, end, short });
+      if (built.length >= chunkMaxWords) break;
+      const next = tokens[i+1];
+      if (!next) break;
+      if (shouldBreakBetweenTokens(built[0].lang, next, baseLang, mode, langCacheRef, detectionConfidenceThreshold)) break;
       i++;
     }
-    // durations estimation
-    const { ttsRate } = useTTSStore.getState();
-    const speedFactor = 1 / ttsRate;
-    const durations = out.map(x=> Math.max(60, x.token.length * 45 * speedFactor));
-    const total = durations.reduce((a,b)=> a+b,0);
-    chunkPlanRef.current = { start:startIdx, length: out.length, durations, total };
-    return out;
+  const { ttsRate: rateLocal } = useTTSStore.getState();
+  const { durations, total } = calculateChunkDurations(built, rateLocal, built[0].lang);
+    chunkPlanRef.current = { start: startIdx, length: built.length, durations, total };
+    return built;
   };
 
   const clearTimers = () => {
@@ -255,11 +304,14 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
     setCurrentWordIdx(startIdx);
     // progress-driven waveform + highlight
     clearTimers();
-    const plan = chunkPlanRef.current!; // not null
-    const startTime = Date.now();
+  const plan = chunkPlanRef.current!; // not null
+  const startTime = Date.now();
+  chunkStartTimeRef.current = startTime;
     const phases = [0, Math.PI/2, Math.PI, 3*Math.PI/2];
-    progressTimerRef.current = setInterval(()=> {
-      if (cancelRef.current || !speaking) return; 
+  if (progressTimerRef.current) { clearInterval(progressTimerRef.current); progressTimerRef.current = null; }
+  progressTimerRef.current = setInterval(()=> {
+  // stale closure 問題を回避: speakingRef.current を参照
+  if (cancelRef.current || !speakingRef.current) return; 
       const elapsed = Date.now() - startTime;
       // highlight progression
       let acc=0; let local=0;
@@ -284,11 +336,28 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
       pitch: Math.min(2, Math.max(0.5, ttsPitch)),
       onDone: () => {
         if (cancelRef.current) return;
+        // A: 実測時間計測 → 予測との差分でスケール補正 (次チャンクから反映)
+        try {
+          const actual = Date.now() - chunkStartTimeRef.current;
+          const predicted = plan.total;
+            if (predicted > 0) {
+              const ratio = actual / predicted;
+              // 極端な揺れを避けるため平滑化 (0.3 学習率)
+              adaptiveSpeedRef.current = Math.max(0.5, Math.min(2, adaptiveSpeedRef.current * 0.7 + ratio * 0.3));
+            }
+        } catch {}
         const baseDelay = last.end ? pauseSentenceMs : last.short ? pauseShortMs : pauseWordMs;
         const delay = Math.max(20, baseDelay / ttsRate);
         setTimeout(()=> speakChunkFrom(startIdx + chunk.length), delay);
       },
-      onError: () => speakChunkFrom(startIdx + chunk.length),
+      onError: (err: any) => {
+        try {
+          console.error('[TTS] chunk error', { postId, startIdx, chunkLength: chunk.length, lang: chunkLang, error: err });
+        } catch {}
+        // ユーザー通知（過剰表示を避けるなら将来的にデバウンス検討）
+        Alert.alert('TTSエラー', '一部の読み上げに失敗しました。続行します。');
+        speakChunkFrom(startIdx + chunk.length);
+      },
       onStopped: () => {/* manual stop */}
     });
   };
@@ -324,11 +393,19 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
   const resumeFrom = useCallback((wordIndex: number) => {
     stopPlayback();
     startPlayback(wordIndex);
-  }, [buildTokens]);
+  }, [stopPlayback, startPlayback]);
+  // コンポーネント unmount 時に残存タイマーを破棄
+  useEffect(() => {
+    return () => {
+      if (progressTimerRef.current) { clearInterval(progressTimerRef.current); progressTimerRef.current = null; }
+    };
+  }, []);
   // 外部停止 (他の投稿再生開始など) を検知
   React.useEffect(()=> {
     if (currentPostId !== postId && speaking) {
-      setSpeaking(false);
+  // 外部で別ポスト再生開始など → 状態更新 + タイマー停止
+  setSpeaking(false);
+  clearTimers();
     }
   }, [currentPostId, postId, speaking]);
   return (
@@ -338,12 +415,12 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
       <View style={styles.dateRow}>
         <Text style={[styles.time,{ color: secondaryColor }]}>{new Date(item.createdAt).toLocaleString()}</Text>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel={speaking ? '音声停止' : '読み上げ'} onPress={onPressSpeak} style={styles.ttsBtn}>
-          <Text style={[styles.ttsBtnText,{ color: speaking ? '#fff' : accentColor, backgroundColor: speaking ? accentColor : 'transparent', borderColor: accentColor }]}>{speaking ? '■' : '▶'}</Text>
           {speaking && (
             <View style={styles.waveWrap} accessibilityLabel="再生中インジケータ">
               {[0,1,2,3].map(b => <AnimatedBar key={b} delay={b * 90} />)}
             </View>
           )}
+          <Text style={[styles.ttsBtnText,{ color: speaking ? '#fff' : accentColor, backgroundColor: speaking ? accentColor : 'transparent', borderColor: accentColor }]}>{speaking ? '■' : '▶'}</Text>
         </TouchableOpacity>
       </View>
     </View>

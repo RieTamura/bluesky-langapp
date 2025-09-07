@@ -129,6 +129,9 @@ export const SettingsScreen: React.FC = () => {
               onValueChange={(v)=> setTtsRate(v)}
               minimumTrackTintColor="#007aff"
               maximumTrackTintColor="#ccc"
+              accessibilityLabel="Text-to-speech rate"
+              accessibilityHint="Adjusts the speech playback speed from slow to fast"
+              accessibilityValue={{ min: 0.1, max: 2, now: ttsRate }}
             />
           </View>
           <View style={{ marginTop: 12 }}>
@@ -141,6 +144,11 @@ export const SettingsScreen: React.FC = () => {
               onValueChange={(v)=> setTtsPitch(v)}
               minimumTrackTintColor="#007aff"
               maximumTrackTintColor="#ccc"
+              accessibilityLabel="Pitch"
+              accessibilityHint="Adjusts text-to-speech pitch"
+              accessibilityRole="adjustable"
+              accessibilityValue={{ min: 0.5, max: 2, now: ttsPitch }}
+              accessible={true}
             />
           </View>
         </View>
