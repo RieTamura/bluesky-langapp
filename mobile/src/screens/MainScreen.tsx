@@ -9,6 +9,9 @@ import { useUserPosts, useFollowingFeed, useDiscoverFeed } from '../hooks/usePos
 import { useFeedStore } from '../stores/feed';
 import { WordDetailModal } from '../components/WordDetailModal';
 
+// チャンク毎エラーによる Alert スパム防止: 投稿単位で一度だけ通知
+const ttsErrorAlertedPerPost = new Set<string>();
+
 // メイン画面: 1) フィード 2) クイズ 3) 進捗
 export const MainScreen: React.FC = () => {
   const { identifier } = useAuth();
@@ -169,14 +172,14 @@ const styles = StyleSheet.create({
   waveBar: { width:3, marginHorizontal:1, borderRadius:1, backgroundColor:'#007aff' }
 });
 
-// Waveform 初期値 (再利用/調整しやすく定数化)
-const DEFAULT_WAVE_AMPS: number[] = [6, 10, 14, 8];
+// (以前: Waveform 用の内部 state DEFAULT_WAVE_AMPS / waveAmps を使用していたが
+//  UI で未参照かつ高頻度 re-render を招いていたため削除)
 
 // --- Feed Item with TTS ---
 const FeedItem: React.FC<{ item: any; index: number; accentColor: string; secondaryColor: string; borderColor: string }> = ({ item, index, accentColor, secondaryColor, borderColor }) => {
   const [speaking, setSpeaking] = useState(false);
   const [currentWordIdx, setCurrentWordIdx] = useState<number | null>(null);
-  const [waveAmps, setWaveAmps] = useState<number[]>(DEFAULT_WAVE_AMPS);
+  // waveAmps state は UI で未使用のため削除（AnimatedBar 内部で独自アニメ制御）
   // speaking の最新値を interval 内で参照するための ref（stale closure 回避）
   const speakingRef = React.useRef(speaking);
   React.useEffect(()=> { speakingRef.current = speaking; }, [speaking]);
@@ -286,8 +289,10 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
       if (shouldBreakBetweenTokens(built[0].lang, next, baseLang, mode, langCacheRef, detectionConfidenceThreshold)) break;
       i++;
     }
-  const { ttsRate: rateLocal } = useTTSStore.getState();
-  const { durations, total } = calculateChunkDurations(built, rateLocal, built[0].lang);
+  const { ttsRate: rateLocalRaw } = useTTSStore.getState();
+  // 再生時と同じクランプ (0.1 - 2) を適用して予測精度を一致させる
+  const clampedRate = Math.min(2, Math.max(0.1, rateLocalRaw));
+  const { durations, total } = calculateChunkDurations(built, clampedRate, built[0].lang);
     chunkPlanRef.current = { start: startIdx, length: built.length, durations, total };
     return built;
   };
@@ -307,20 +312,21 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
   const plan = chunkPlanRef.current!; // not null
   const startTime = Date.now();
   chunkStartTimeRef.current = startTime;
-    const phases = [0, Math.PI/2, Math.PI, 3*Math.PI/2];
   if (progressTimerRef.current) { clearInterval(progressTimerRef.current); progressTimerRef.current = null; }
   progressTimerRef.current = setInterval(()=> {
-  // stale closure 問題を回避: speakingRef.current を参照
-  if (cancelRef.current || !speakingRef.current) return; 
+      // stale closure 問題を回避: speakingRef.current を参照
+      if (cancelRef.current || !speakingRef.current) {
+        if (progressTimerRef.current) {
+          clearInterval(progressTimerRef.current);
+          progressTimerRef.current = null;
+        }
+        return;
+      }
       const elapsed = Date.now() - startTime;
       // highlight progression
       let acc=0; let local=0;
       for (; local < plan.durations.length; local++) { acc += plan.durations[local]; if (elapsed < acc) break; }
       if (local !== plan.durations.length && startIdx + local !== currentWordIdx) setCurrentWordIdx(startIdx + Math.min(local, plan.durations.length-1));
-      // waveform amplitude (0-1 progress)
-      const prog = Math.min(1, elapsed / plan.total);
-      const energy = 0.6 + 0.4 * Math.sin(prog * Math.PI);
-      setWaveAmps(phases.map(p => 6 + Math.abs(Math.sin(prog * 4 * Math.PI + p))*14*energy));
       if (elapsed >= plan.total) {
         clearTimers();
       }
@@ -354,8 +360,10 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
         try {
           console.error('[TTS] chunk error', { postId, startIdx, chunkLength: chunk.length, lang: chunkLang, error: err });
         } catch {}
-        // ユーザー通知（過剰表示を避けるなら将来的にデバウンス検討）
-        Alert.alert('TTSエラー', '一部の読み上げに失敗しました。続行します。');
+        if (!ttsErrorAlertedPerPost.has(postId)) {
+          Alert.alert('TTSエラー', '一部の読み上げに失敗しました。続行します。');
+          ttsErrorAlertedPerPost.add(postId);
+        }
         speakChunkFrom(startIdx + chunk.length);
       },
       onStopped: () => {/* manual stop */}
@@ -367,6 +375,8 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
     setSpeaking(false);
     setCurrentWordIdx(null);
     setCurrentPostId(null);
+  // 再生完了 / 停止時にエラーフラグを解除して次回再生時に再度 1 回のみ通知可能に
+  ttsErrorAlertedPerPost.delete(postId);
   };
 
   const startPlayback = (startIdx=0) => {
@@ -406,6 +416,9 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
   // 外部で別ポスト再生開始など → 状態更新 + タイマー停止
   setSpeaking(false);
   clearTimers();
+  // 即時に TTS を停止しハイライトを解除
+  try { Speech.stop(); } catch {}
+  setCurrentWordIdx(null);
     }
   }, [currentPostId, postId, speaking]);
   return (
