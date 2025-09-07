@@ -2,6 +2,8 @@ import React from 'react';
 import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/rootNavigation';
 import { useTheme } from '../stores/theme';
 
 interface Props {
@@ -12,7 +14,7 @@ interface Props {
 export const SettingsMenu: React.FC<Props> = ({ visible, onClose }) => {
   const { identifier, logout } = useAuth();
   const { mode, toggle, resolved } = useTheme();
-  const navigation: any = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
@@ -26,13 +28,15 @@ export const SettingsMenu: React.FC<Props> = ({ visible, onClose }) => {
           <Text style={styles.value}>{identifier}</Text>
         </View>
         <View style={[styles.section,{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }]}> 
-          <Text style={styles.label}>テーマ ({resolved})</Text>
-          <Pressable onPress={toggle} style={{ paddingVertical:6, paddingHorizontal:12, backgroundColor:'#eef2f5', borderRadius:16 }} accessibilityLabel="テーマ切替" accessibilityHint="ライト→ダーク→自動の順に切替">
+          {(() => { const map = (m: string) => m === 'light' ? 'ライト' : m === 'dark' ? 'ダーク' : '自動'; return (
+            <Text style={styles.label}>テーマ ({map(resolved)})</Text>
+          ); })()}
+          <Pressable onPress={toggle} accessibilityRole="button" style={{ paddingVertical:6, paddingHorizontal:12, backgroundColor:'#eef2f5', borderRadius:16 }} accessibilityLabel="テーマ切替" accessibilityHint="ライト→ダーク→自動の順に切替">
             <Text style={{ fontWeight:'600' }}>{mode === 'light' ? 'ライト' : mode === 'dark' ? 'ダーク' : '自動'}</Text>
           </Pressable>
         </View>
-        <Pressable style={styles.logoutBtn} onPress={() => { onClose(); navigation.navigate('Settings'); }} accessibilityLabel="設定画面へ">
-          <Text style={styles.logoutText}>設定画面へ</Text>
+        <Pressable style={styles.navBtn} onPress={() => { onClose(); navigation.navigate('Settings'); }} accessibilityLabel="設定画面へ">
+          <Text style={styles.navText}>設定画面へ</Text>
         </Pressable>
         <View style={{ height:12 }} />
         <Pressable style={[styles.logoutBtn,{backgroundColor:'#e53935'}]} onPress={logout} accessibilityLabel="ログアウト">
@@ -55,6 +59,8 @@ const styles = StyleSheet.create({
   value: { fontSize: 14, fontWeight: '600' },
   logoutBtn: { backgroundColor: '#e53935', paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
   logoutText: { color: '#fff', fontWeight: '700' },
+  navBtn: { backgroundColor: '#f0f2f5', paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
+  navText: { color: '#222', fontWeight: '700' },
   closeBtn: { marginTop: 12, paddingVertical: 8, alignItems: 'center' },
   closeText: { color: '#333', fontWeight: '600' }
 });

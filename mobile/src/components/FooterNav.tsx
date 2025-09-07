@@ -6,7 +6,9 @@ import { Home, BookOpen, Pencil, BarChart3 } from 'lucide-react-native';
 import { navigationRef, navigate, getCurrentRouteName } from '../navigation/rootNavigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-interface Item { key: string; target: string; accessibilityLabel: string; Icon: React.ComponentType<any>; }
+// Lucide React Native icons受け取り props を最小限に絞った型 (size/color + a11y ラベル程度)
+type IconComponent = React.ComponentType<{ size?: number; color?: string; accessibilityLabel?: string }>;
+interface Item { key: string; target: string; accessibilityLabel: string; Icon: IconComponent; }
 // ホームボタンを含め、ラベルテキストは表示せずアイコンのみ
 const items: Item[] = [
   { key: 'home', target: 'Main', accessibilityLabel: 'ホーム', Icon: Home },
@@ -41,11 +43,7 @@ export const FooterNav: React.FC = () => {
             onPress={() => navigate(it.target)}
             style={[styles.item, active && styles.activeItem]}
           >
-            <it.Icon
-              size={24}
-              color={active ? '#007aff' : '#333'}
-              accessibilityLabel={it.accessibilityLabel}
-            />
+            <it.Icon size={24} color={active ? '#007aff' : '#333'} />
           </Pressable>
         );
       })}

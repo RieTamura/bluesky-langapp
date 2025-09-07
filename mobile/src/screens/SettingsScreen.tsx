@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import Slider from '@react-native-community/slider';
 import { useTTSStore } from '../stores/tts';
 import { useQuery } from '@tanstack/react-query';
@@ -26,6 +27,7 @@ async function fetchProgress() {
 }
 
 export const SettingsScreen: React.FC = () => {
+  const navigation = useNavigation();
   const { identifier, logout } = useAuth();
   const profileQ = useQuery({ queryKey: ['profile', identifier], queryFn: () => fetchProfile(identifier) });
   const progressQ = useQuery({ queryKey: ['progress-mini'], queryFn: () => fetchProgress() });
@@ -83,7 +85,7 @@ export const SettingsScreen: React.FC = () => {
             );
           })}
         </View>
-        <Text style={styles.help}>現在適用: {resolved} / 明るさ: {brightness === null ? '未取得' : brightness.toFixed(2)}</Text>
+  <Text style={styles.help}>現在適用: {resolved} / 明るさ: {typeof brightness !== 'number' || !Number.isFinite(brightness) ? '未取得' : brightness.toFixed(2)}</Text>
         <Text style={[styles.help,{marginTop:4}]}>自動: デバイス輝度 &lt; 0.35 でダークに切替</Text>
         <Text style={[styles.help,{color:'#007aff',marginTop:4}]} onPress={refreshBrightness}>明るさを再取得</Text>
       </View>
@@ -140,10 +142,10 @@ export const SettingsScreen: React.FC = () => {
         <View style={{ marginTop: 16 }}>
           <Text style={styles.label}>ポーズ (ms)</Text>
           <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
-            <View style={styles.pauseBox}><Text style={styles.pauseLabel}>文末</Text><TextInput value={String(pauseSentenceMs)} onChangeText={(v)=> { const n = parseInt(v); if(!isNaN(n)) setPauseSentenceMs(n); }} style={styles.pauseInput} keyboardType='number-pad' /></View>
-            <View style={styles.pauseBox}><Text style={styles.pauseLabel}>区切り</Text><TextInput value={String(pauseShortMs)} onChangeText={(v)=> { const n = parseInt(v); if(!isNaN(n)) setPauseShortMs(n); }} style={styles.pauseInput} keyboardType='number-pad' /></View>
-            <View style={styles.pauseBox}><Text style={styles.pauseLabel}>単語</Text><TextInput value={String(pauseWordMs)} onChangeText={(v)=> { const n = parseInt(v); if(!isNaN(n)) setPauseWordMs(n); }} style={styles.pauseInput} keyboardType='number-pad' /></View>
-            <View style={styles.pauseBox}><Text style={styles.pauseLabel}>Chunk</Text><TextInput value={String(chunkMaxWords)} onChangeText={(v)=> { const n = parseInt(v); if(!isNaN(n)) setChunkMaxWords(Math.max(1, n)); }} style={styles.pauseInput} keyboardType='number-pad' /></View>
+            <View style={styles.pauseBox}><Text style={styles.pauseLabel}>文末</Text><TextInput value={String(pauseSentenceMs)} onChangeText={(v)=> { const n = parseInt(v, 10); if(!Number.isNaN(n)) setPauseSentenceMs(n); }} style={styles.pauseInput} keyboardType='number-pad' /></View>
+            <View style={styles.pauseBox}><Text style={styles.pauseLabel}>区切り</Text><TextInput value={String(pauseShortMs)} onChangeText={(v)=> { const n = parseInt(v, 10); if(!Number.isNaN(n)) setPauseShortMs(n); }} style={styles.pauseInput} keyboardType='number-pad' /></View>
+            <View style={styles.pauseBox}><Text style={styles.pauseLabel}>単語</Text><TextInput value={String(pauseWordMs)} onChangeText={(v)=> { const n = parseInt(v, 10); if(!Number.isNaN(n)) setPauseWordMs(n); }} style={styles.pauseInput} keyboardType='number-pad' /></View>
+            <View style={styles.pauseBox}><Text style={styles.pauseLabel}>Chunk</Text><TextInput value={String(chunkMaxWords)} onChangeText={(v)=> { const n = parseInt(v, 10); if(!Number.isNaN(n)) setChunkMaxWords(Math.max(1, n)); }} style={styles.pauseInput} keyboardType='number-pad' /></View>
           </View>
         </View>
         <View style={{ marginTop: 16 }}>
@@ -188,13 +190,10 @@ export const SettingsScreen: React.FC = () => {
       </View>
       <View style={[styles.section, { backgroundColor: '#f9f9f9' }]}> 
         <Text style={styles.licenseTitle}>ライセンス / 使用ライブラリ</Text>
-        <Text style={styles.licenseItem}>アイコン: Lucide Icons (lucide.dev)</Text>
-        <Text style={styles.licenseBody}>
-          Lucide IconsはISC Licenseの下で提供されています。Copyright (c) 2022 Lucide Contributors
-          許諾: このソフトウェアおよび関連文書ファイル(以下 "ソフトウェア")のコピーを取得する者に対し、ソフトウェアを無制限に扱う権利(使用、コピー、変更、マージ、公開、配布、サブライセンス、および/または販売を含む)を無償で許可します。
-          上記著作権表示および本許諾表示をソフトウェアの全てのコピーまたは重要な部分に記載するものとします。
-          免責: ソフトウェアは「現状のまま」提供され、明示黙示を問わず、商品性、特定目的適合性および非侵害の保証を含むいかなる保証も行われません。
-        </Text>
+        <Text style={styles.licenseItem}>アイコン: Lucide Icons (ISC)</Text>
+        <TouchableOpacity accessibilityRole='button' accessibilityLabel='ライセンス全文を表示' onPress={()=> (navigation as any).navigate('License')} style={styles.licenseBtn}>
+          <Text style={styles.licenseBtnText}>ライセンスを表示</Text>
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
@@ -231,11 +230,13 @@ const styles = StyleSheet.create({
   modeBtnTextActive: { color: '#fff' },
   label: { fontSize: 12, fontWeight: '600', marginBottom: 4, color: '#444' },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
-  help: { marginTop: 8, fontSize: 12, color: '#666' }
-  ,pauseBox: { width: 90 },
+  help: { marginTop: 8, fontSize: 12, color: '#666' },
+  pauseBox: { width: 90 },
   pauseLabel: { fontSize: 11, fontWeight: '600', marginBottom: 4 },
   pauseInput: { borderWidth: 1, borderColor: '#ccc', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4, fontSize: 13, textAlign: 'center' },
   licenseTitle: { fontSize: 14, fontWeight: '700', marginBottom: 8 },
   licenseItem: { fontSize: 12, fontWeight: '600', marginBottom: 4 },
-  licenseBody: { fontSize: 10, lineHeight: 14, color: '#555' }
+  licenseBody: { fontSize: 10, lineHeight: 14, color: '#555' },
+  licenseBtn: { marginTop: 8, backgroundColor:'#007aff', paddingVertical:8, paddingHorizontal:12, borderRadius:6, alignSelf:'flex-start' },
+  licenseBtnText: { color:'#fff', fontWeight:'700', fontSize:12 }
 });

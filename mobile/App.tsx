@@ -14,6 +14,7 @@ import { MainScreen } from './src/screens/MainScreen';
 import { AppHeader, SettingsMenu, FooterNav } from './src/components';
 import { navigationRef } from './src/navigation/rootNavigation';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { LicenseScreen } from './src/screens/LicenseScreen';
 
 const Stack = createNativeStackNavigator();
 const queryClient = new QueryClient();
@@ -22,11 +23,24 @@ export default function App() {
   const { hydrate, refreshBrightness } = useTheme();
   useEffect(()=> {
     hydrate();
-    let timer: any;
+    let timer: number | null = null;
+    let stopped = false;
     // 30秒毎に明るさを再取得 (permission が拒否された場合は noop)
-    const loop = async () => { await refreshBrightness(); timer = setTimeout(loop, 30000); };
+    const loop = async () => {
+      try {
+        await refreshBrightness();
+      } catch (e) {
+        // 予期しない例外は握りつぶし (ログ追加するならここ)
+      }
+      if (!stopped) {
+        timer = setTimeout(loop, 30000) as unknown as number; // React Native は number 戻り値
+      }
+    };
     loop();
-    return ()=> { if (timer) clearTimeout(timer); };
+    return () => {
+      stopped = true;
+      if (timer !== null) clearTimeout(timer);
+    };
   }, [hydrate, refreshBrightness]);
   return (
     <SafeAreaProvider>
@@ -58,6 +72,7 @@ function AuthedStack() {
           <Stack.Screen name="Quiz" component={QuizScreen} options={{ header: () => <AppHeader onOpenMenu={() => setMenuOpen(true)} /> }} />
           <Stack.Screen name="Progress" component={ProgressScreen} options={{ header: () => <AppHeader onOpenMenu={() => setMenuOpen(true)} /> }} />
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="License" component={LicenseScreen} options={{ title: 'ライセンス' }} />
         </Stack.Navigator>
         <FooterNav />
       </View>
