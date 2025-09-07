@@ -5,6 +5,7 @@ import { useTTSStore } from '../stores/tts';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../stores/theme';
 
 // Placeholder Bluesky profile fetch (should map to real endpoint later)
 async function fetchProfile(identifier: string | null | undefined) {
@@ -65,10 +66,27 @@ export const SettingsScreen: React.FC = () => {
   const p: any = profileQ.data || {};
   const prog: any = progressQ.data || {};
   const history: number[] = (prog?.recentAccuracies || prog?.accuracyHistory || []).slice(-10);
+  const { mode: themeMode, setMode: setThemeMode, resolved, brightness, refreshBrightness } = useTheme();
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
       <Text style={styles.title}>設定</Text>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>テーマ</Text>
+        <View style={styles.row}>
+          {(['light','dark','auto'] as const).map(m => {
+            const active = themeMode === m;
+            return (
+              <TouchableOpacity key={m} style={[styles.modeBtn, active && styles.modeBtnActive]} onPress={()=> setThemeMode(m)} accessibilityRole="button" accessibilityState={{ selected: active }}>
+                <Text style={[styles.modeBtnText, active && styles.modeBtnTextActive]}>{m === 'light' ? 'ライト' : m === 'dark' ? 'ダーク' : '自動'}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <Text style={styles.help}>現在適用: {resolved} / 明るさ: {brightness === null ? '未取得' : brightness.toFixed(2)}</Text>
+        <Text style={[styles.help,{marginTop:4}]}>自動: デバイス輝度 &lt; 0.35 でダークに切替</Text>
+        <Text style={[styles.help,{color:'#007aff',marginTop:4}]} onPress={refreshBrightness}>明るさを再取得</Text>
+      </View>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Bluesky プロフィール</Text>
         <Text style={styles.handle}>@{p.handle}</Text>
@@ -168,6 +186,16 @@ export const SettingsScreen: React.FC = () => {
       <View style={styles.section}>
         <Text style={styles.logout} onPress={logout}>ログアウト</Text>
       </View>
+      <View style={[styles.section, { backgroundColor: '#f9f9f9' }]}> 
+        <Text style={styles.licenseTitle}>ライセンス / 使用ライブラリ</Text>
+        <Text style={styles.licenseItem}>アイコン: Lucide Icons (lucide.dev)</Text>
+        <Text style={styles.licenseBody}>
+          Lucide IconsはISC Licenseの下で提供されています。Copyright (c) 2022 Lucide Contributors
+          許諾: このソフトウェアおよび関連文書ファイル(以下 "ソフトウェア")のコピーを取得する者に対し、ソフトウェアを無制限に扱う権利(使用、コピー、変更、マージ、公開、配布、サブライセンス、および/または販売を含む)を無償で許可します。
+          上記著作権表示および本許諾表示をソフトウェアの全てのコピーまたは重要な部分に記載するものとします。
+          免責: ソフトウェアは「現状のまま」提供され、明示黙示を問わず、商品性、特定目的適合性および非侵害の保証を含むいかなる保証も行われません。
+        </Text>
+      </View>
     </ScrollView>
   );
 };
@@ -206,5 +234,8 @@ const styles = StyleSheet.create({
   help: { marginTop: 8, fontSize: 12, color: '#666' }
   ,pauseBox: { width: 90 },
   pauseLabel: { fontSize: 11, fontWeight: '600', marginBottom: 4 },
-  pauseInput: { borderWidth: 1, borderColor: '#ccc', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4, fontSize: 13, textAlign: 'center' }
+  pauseInput: { borderWidth: 1, borderColor: '#ccc', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4, fontSize: 13, textAlign: 'center' },
+  licenseTitle: { fontSize: 14, fontWeight: '700', marginBottom: 8 },
+  licenseItem: { fontSize: 12, fontWeight: '600', marginBottom: 4 },
+  licenseBody: { fontSize: 10, lineHeight: 14, color: '#555' }
 });

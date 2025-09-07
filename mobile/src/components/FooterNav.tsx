@@ -1,17 +1,18 @@
 import React from 'react';
 import { View, Pressable, Text, StyleSheet } from 'react-native';
+import { Home, BookOpen, Pencil, BarChart3 } from 'lucide-react-native';
 // useNavigation は本コンポーネントが Stack.Navigator 外にあるため利用できない。
 // 代わりに navigationRef を使用。
 import { navigationRef, navigate, getCurrentRouteName } from '../navigation/rootNavigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-interface Item { key: string; icon: string; target: string; accessibilityLabel: string; }
+interface Item { key: string; target: string; accessibilityLabel: string; Icon: React.ComponentType<any>; }
 // ホームボタンを含め、ラベルテキストは表示せずアイコンのみ
 const items: Item[] = [
-  { key: 'home', icon: '🏠', target: 'Main', accessibilityLabel: 'ホーム' },
-  { key: 'words', icon: '📘', target: 'Words', accessibilityLabel: '単語' },
-  { key: 'quiz', icon: '📝', target: 'Quiz', accessibilityLabel: 'クイズ' },
-  { key: 'progress', icon: '📊', target: 'Progress', accessibilityLabel: '進捗' }
+  { key: 'home', target: 'Main', accessibilityLabel: 'ホーム', Icon: Home },
+  { key: 'words', target: 'Words', accessibilityLabel: '単語', Icon: BookOpen },
+  { key: 'quiz', target: 'Quiz', accessibilityLabel: 'クイズ', Icon: Pencil },
+  { key: 'progress', target: 'Progress', accessibilityLabel: '進捗', Icon: BarChart3 }
 ];
 
 export const FooterNav: React.FC = () => {
@@ -40,7 +41,11 @@ export const FooterNav: React.FC = () => {
             onPress={() => navigate(it.target)}
             style={[styles.item, active && styles.activeItem]}
           >
-            <Text style={[styles.icon, active && styles.activeText]}>{it.icon}</Text>
+            <it.Icon
+              size={24}
+              color={active ? '#007aff' : '#333'}
+              accessibilityLabel={it.accessibilityLabel}
+            />
           </Pressable>
         );
       })}

@@ -11,7 +11,7 @@ interface Props {
 
 export const SettingsMenu: React.FC<Props> = ({ visible, onClose }) => {
   const { identifier, logout } = useAuth();
-  const { mode, toggle } = useTheme();
+  const { mode, toggle, resolved } = useTheme();
   const navigation: any = useNavigation();
 
   return (
@@ -26,9 +26,9 @@ export const SettingsMenu: React.FC<Props> = ({ visible, onClose }) => {
           <Text style={styles.value}>{identifier}</Text>
         </View>
         <View style={[styles.section,{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }]}> 
-          <Text style={styles.label}>テーマ</Text>
-          <Pressable onPress={toggle} style={{ paddingVertical:6, paddingHorizontal:12, backgroundColor:'#eef2f5', borderRadius:16 }} accessibilityLabel="テーマ切替">
-            <Text style={{ fontWeight:'600' }}>{mode === 'light' ? 'ライト' : 'ダーク'}</Text>
+          <Text style={styles.label}>テーマ ({resolved})</Text>
+          <Pressable onPress={toggle} style={{ paddingVertical:6, paddingHorizontal:12, backgroundColor:'#eef2f5', borderRadius:16 }} accessibilityLabel="テーマ切替" accessibilityHint="ライト→ダーク→自動の順に切替">
+            <Text style={{ fontWeight:'600' }}>{mode === 'light' ? 'ライト' : mode === 'dark' ? 'ダーク' : '自動'}</Text>
           </Pressable>
         </View>
         <Pressable style={styles.logoutBtn} onPress={() => { onClose(); navigation.navigate('Settings'); }} accessibilityLabel="設定画面へ">

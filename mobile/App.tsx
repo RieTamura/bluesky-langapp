@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -9,7 +9,7 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import { useAuth } from './src/hooks/useAuth';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Text, View } from 'react-native';
-import { useThemeColors } from './src/stores/theme';
+import { useThemeColors, useTheme } from './src/stores/theme';
 import { MainScreen } from './src/screens/MainScreen';
 import { AppHeader, SettingsMenu, FooterNav } from './src/components';
 import { navigationRef } from './src/navigation/rootNavigation';
@@ -19,6 +19,15 @@ const Stack = createNativeStackNavigator();
 const queryClient = new QueryClient();
 
 export default function App() {
+  const { hydrate, refreshBrightness } = useTheme();
+  useEffect(()=> {
+    hydrate();
+    let timer: any;
+    // 30秒毎に明るさを再取得 (permission が拒否された場合は noop)
+    const loop = async () => { await refreshBrightness(); timer = setTimeout(loop, 30000); };
+    loop();
+    return ()=> { if (timer) clearTimeout(timer); };
+  }, [hydrate, refreshBrightness]);
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
