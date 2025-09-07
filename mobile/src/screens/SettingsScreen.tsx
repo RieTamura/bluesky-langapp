@@ -70,7 +70,6 @@ export const SettingsScreen: React.FC = () => {
   const prog: any = progressQ.data || {};
   const history: number[] = (prog?.recentAccuracies || prog?.accuracyHistory || []).slice(-10);
 
-  // colors も最初の useTheme 呼び出しで取得 (早期 return 分岐前に hook 回数を確定させる)
   return (
     <ScrollView style={[styles.container,{ backgroundColor: colors.background }]} contentContainerStyle={{ paddingBottom: 40 }}>
   <Text style={[styles.title,{ color: colors.text }]}>設定</Text>
@@ -177,7 +176,7 @@ export const SettingsScreen: React.FC = () => {
         </View>
       </View>
   <View style={[styles.section,{ backgroundColor: colors.surface, borderColor: colors.border }] }>
-    <Text style={[styles.logout,{ color: '#e53935' }]} onPress={logout}>ログアウト</Text>
+    <Text style={[styles.logout,{ color: colors.error || '#e53935' }]} onPress={logout}>ログアウト</Text>
       </View>
   <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
     <Text style={[styles.licenseTitle,{ color: colors.text }]}>ライセンス / 使用ライブラリ</Text>
@@ -212,7 +211,8 @@ const styles = StyleSheet.create({
   display: { fontSize: 18, fontWeight: '700', marginTop: 4 },
   desc: { marginTop: 8, lineHeight: 18 },
   muted: { fontSize: 12 },
-  logout: { color: '#e53935', fontWeight: '700', textAlign: 'center' },
+  // color は動的にテーマ (colors.error) から適用し fallback (#e53935)
+  logout: { fontWeight: '700', textAlign: 'center' },
   chartRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 80, marginTop: 8 },
   chartBar: { flex: 1, borderRadius: 3 },
   row: { flexDirection: 'row', gap: 8 },

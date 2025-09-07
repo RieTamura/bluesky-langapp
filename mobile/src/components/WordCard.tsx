@@ -32,7 +32,7 @@ export const WordCard: React.FC<Props> = ({ word, onStatusChange, onPress, loadi
             onPress={() => onStatusChange?.(word.id, nextStatus[word.status])}
           >
             {loading
-              ? <ActivityIndicator size="small" color={word.status === 'known' ? c.badgeKnown : c.surface } />
+              ? <ActivityIndicator size="small" color={word.status === 'known' ? c.badgeKnown : '#fff'} />
               : <Text style={[styles.badgeText, { color: word.status === 'known' ? c.badgeKnown : '#fff' }]}>{word.status}</Text>}
           </TouchableOpacity>
         </View>

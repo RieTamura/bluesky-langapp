@@ -74,7 +74,7 @@ export const WordsScreen: React.FC = () => {
           if (item.type === 'header') {
             return (
               <View style={styles.sectionHeader}> 
-                <Text style={styles.sectionHeaderText}>{item.label}</Text>
+                <Text style={[styles.sectionHeaderText,{ color: c.text }]}>{item.label}</Text>
               </View>
             );
           }

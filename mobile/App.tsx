@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useColorScheme } from 'react-native';
-import { type ThemeMode } from './src/stores/theme';
-type ThemeState = { hydrate: () => Promise<void>; resolved: 'light'|'dark'; colors: any; syncAutoResolution: () => void };
+import { useColorScheme, Appearance } from 'react-native';
+import { type ThemeState, type ThemeColors } from './src/stores/theme';
 import { NavigationContainer, DarkTheme as NavDarkTheme, DefaultTheme as NavLightTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -25,11 +24,11 @@ const queryClient = new QueryClient();
 
 export default function App() {
   // 必要プロパティのみ購読 (再レンダー効率化 & 一貫性向上)
-  const hydrate = useTheme((s: ThemeState) => s.hydrate);
-  const resolved = useTheme((s: ThemeState) => s.resolved);
-  const colors = useTheme((s: ThemeState) => s.colors);
+  const hydrate = useTheme((state: ThemeState) => state.hydrate);
+  const resolved = useTheme((state: ThemeState) => state.resolved);
+  const colors: ThemeColors = useTheme((state: ThemeState) => state.colors);
   const systemScheme = useColorScheme();
-  const syncAutoResolution = useTheme((s: ThemeState) => s.syncAutoResolution);
+  const syncAutoResolution = useTheme((state: ThemeState) => state.syncAutoResolution);
   useEffect(()=> {
     hydrate();
   }, [hydrate]);
@@ -37,12 +36,22 @@ export default function App() {
   useEffect(()=> {
     syncAutoResolution();
   }, [systemScheme, syncAutoResolution]);
+  // 公式リスナー (クリーンアップ付き) — Fast Refresh でも多重登録を避ける
+  useEffect(()=> {
+    const sub = Appearance.addChangeListener(() => {
+      syncAutoResolution();
+    });
+    return () => {
+      try { (sub as any).remove?.(); } catch {}
+    };
+  }, [syncAutoResolution]);
   // 明るさポーリング削除 (adaptive 廃止)
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
-        <View style={{ flex:1, backgroundColor: colors.background }}>
-        <NavigationContainer
+  <StatusBar barStyle={resolved === 'dark' ? 'light-content' : 'dark-content'} />
+  <View style={{ flex:1, backgroundColor: colors.background }}>
+  <NavigationContainer
           ref={navigationRef}
           theme={useMemo(()=> {
             if (resolved === 'dark') return {
@@ -57,7 +66,6 @@ export default function App() {
         >
           <AuthGate />
         </NavigationContainer>
-  <StatusBar barStyle={resolved === 'dark' ? 'light-content' : 'dark-content'} />
         </View>
       </QueryClientProvider>
     </SafeAreaProvider>

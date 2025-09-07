@@ -120,6 +120,24 @@ export const MainScreen: React.FC = () => {
 // 共通: トークン前処理（前後句読点除去）
 const stripEdgePunct = (tok: string) => tok.replace(/^[.,!?;:()"'`\[\]{}<>…。、，！？：；（）「」『』]+|[.,!?;:()"'`\[\]{}<>…。、，！？：；（）「」『』]+$/g, '');
 
+// 動的トークンスタイル計算ヘルパー (可読性向上 & 重複排除)
+const getTokenStyles = (params: {
+  noBg: boolean;
+  playing: boolean;
+  resolved: string;
+  tokenBg: string;
+  tokenPlayingBg: string;
+  colors: { text: string };
+}) => {
+  const { noBg, playing, resolved, tokenBg, tokenPlayingBg, colors } = params;
+  const dynamic: any[] = [styles.token];
+  if (noBg) dynamic.push(styles.tokenNoBg);
+  if (!noBg && !playing) dynamic.push({ backgroundColor: tokenBg });
+  if (playing) dynamic.push({ backgroundColor: tokenPlayingBg });
+  if (playing && resolved === 'dark') dynamic.push({ color: colors.text });
+  return dynamic;
+};
+
 const SelectableText: React.FC<{ text: string; highlightWordIndex?: number; onLongPressWord?: (wordIndex: number)=>void; knownWords: Set<string>; }> = ({ text, highlightWordIndex, onLongPressWord, knownWords }) => {
   // Pass selectedWord setter through closure by attaching to each token via captured function from outer component (prop drilling alternative).
   // For simplicity we rely on a temporary global setter injection replaced just-in-time below.
@@ -145,12 +163,7 @@ const SelectableText: React.FC<{ text: string; highlightWordIndex?: number; onLo
         const isKnown = knownWords.has(lw);
         const noBg = isKnown || isHashtag || isUrl;
         // known / hashtag / URL は背景無し
-        const dynamicStyles: any[] = [styles.token];
-        if (noBg) dynamicStyles.push(styles.tokenNoBg);
-        if (!noBg && !playing) dynamicStyles.push({ backgroundColor: tokenBg });
-        if (playing) dynamicStyles.push({ backgroundColor: tokenPlayingBg });
-        // 再生中は文字色もコントラスト確保 (ライト背景は既存で OK / ダークは少し明るめテキスト)
-        if (playing && resolved === 'dark') dynamicStyles.push({ color: colors.text });
+  const dynamicStyles = getTokenStyles({ noBg, playing, resolved, tokenBg, tokenPlayingBg, colors });
         return (
           <Text
             key={i}
@@ -301,6 +314,8 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
   };
 
   // --- Main: build chunk starting at startIdx ---
+  // 速度クランプ共通化 (0.1 - 2)
+  const clampTTSRate = (rate: number) => Math.min(2, Math.max(0.1, rate));
   const computeChunk = (startIdx: number) => {
     const { chunkMaxWords, detectionConfidenceThreshold } = useTTSStore.getState();
     const tokens = tokensRef.current;
@@ -321,8 +336,7 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
       i++;
     }
   const { ttsRate: rateLocalRaw } = useTTSStore.getState();
-  // 再生時と同じクランプ (0.1 - 2) を適用して予測精度を一致させる
-  const clampedRate = Math.min(2, Math.max(0.1, rateLocalRaw));
+  const clampedRate = clampTTSRate(rateLocalRaw);
   const { durations, total } = calculateChunkDurations(built, clampedRate, built[0].lang);
     chunkPlanRef.current = { start: startIdx, length: built.length, durations, total };
     return built;
@@ -369,7 +383,7 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
     Speech.stop();
     Speech.speak(chunkText, {
       language: chunkLang,
-      rate: Math.min(2, Math.max(0.1, ttsRate)),
+  rate: clampTTSRate(ttsRate),
       pitch: Math.min(2, Math.max(0.5, ttsPitch)),
       onDone: () => {
         if (cancelRef.current) return;
@@ -476,11 +490,20 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
 // 簡易アニメーションバー (擬似): setInterval で高さを揺らす
 const AnimatedBar: React.FC<{ delay:number; color:string }> = ({ delay, color }) => {
   const [h, setH] = React.useState(6);
+  // useRef でマウント状態を保持し stale closure を防止
+  const mountedRef = React.useRef(true);
   React.useEffect(()=> {
-    let mounted = true;
-    const tick = () => { if(!mounted) return; setH(6 + Math.round(Math.random()*10)); };
-    const id = setInterval(tick, 250 + delay);
-    return () => { mounted = false; clearInterval(id); };
+    mountedRef.current = true;
+    const tick = () => {
+      if (!mountedRef.current) return; // アンマウント後 setState 防止
+      setH(6 + Math.round(Math.random()*10));
+    };
+    const intervalMs = 250 + delay;
+    const id = setInterval(tick, intervalMs);
+    return () => {
+      mountedRef.current = false;
+      clearInterval(id);
+    };
   }, [delay]);
   return <View style={[styles.waveBar,{ height: h, backgroundColor: color }]} />;
 };

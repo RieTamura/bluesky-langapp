@@ -120,6 +120,32 @@
       "definition": "稼ぐ、得る",
       "exampleSentence": "You need to earn their trust first.",
       "languageCode": "en"
+    },
+    {
+      "id": "word_1757233883278_eb468wfrp",
+      "word": "new",
+      "status": "known",
+      "userId": "connectobasan.com",
+      "languageCode": "en",
+      "definition": "Things that are new.",
+      "exampleSentence": "Out with the old, in with the new.",
+      "reviewCount": 0,
+      "correctCount": 0,
+      "date": "2025-09-07T08:31:55.037Z",
+      "lastReviewedAt": "2025-09-07T08:31:55.035Z"
+    },
+    {
+      "id": "word_1757233888219_l71nrrgan",
+      "word": "service",
+      "status": "known",
+      "userId": "connectobasan.com",
+      "languageCode": "en",
+      "definition": "An act of being of assistance to someone.",
+      "exampleSentence": "I say I did him a service by ending our relationship – now he can freely pursue his career.",
+      "reviewCount": 0,
+      "correctCount": 0,
+      "date": "2025-09-07T08:31:58.433Z",
+      "lastReviewedAt": "2025-09-07T08:31:58.431Z"
     }
   ],
   "version": "1.0.0"

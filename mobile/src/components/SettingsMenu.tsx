@@ -5,6 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/rootNavigation';
 import { useTheme } from '../stores/theme';
+import type { ThemeState } from '../stores/theme';
 
 interface Props {
   visible: boolean;
@@ -13,8 +14,8 @@ interface Props {
 
 export const SettingsMenu: React.FC<Props> = ({ visible, onClose }) => {
   const { identifier, logout } = useAuth();
-  const resolved = useTheme((s:any) => s.resolved);
-  const colors = useTheme((s:any) => s.colors);
+  const resolved = useTheme((s: ThemeState) => s.resolved);
+  const colors = useTheme((s: ThemeState) => s.colors);
   // debug removed
   const subtleBg = resolved === 'dark' ? '#1d252b' : '#eef2f5';
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -37,7 +38,7 @@ export const SettingsMenu: React.FC<Props> = ({ visible, onClose }) => {
           <Text style={[styles.navText,{ color: colors.text }]}>設定画面へ</Text>
         </Pressable>
         <View style={{ height:12 }} />
-        <Pressable style={[styles.logoutBtn,{backgroundColor:'#e53935'}]} onPress={logout} accessibilityLabel="ログアウト">
+  <Pressable style={[styles.logoutBtn,{ backgroundColor: colors.error }]} onPress={logout} accessibilityLabel="ログアウト">
           <Text style={styles.logoutText}>ログアウト</Text>
         </Pressable>
         <Pressable style={styles.closeBtn} onPress={onClose}>
@@ -55,7 +56,7 @@ const styles = StyleSheet.create({
   section: { marginBottom: 16 },
   label: { fontSize: 12, marginBottom: 4 },
   value: { fontSize: 14, fontWeight: '600' },
-  logoutBtn: { backgroundColor: '#e53935', paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
+  logoutBtn: { paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
   logoutText: { color: '#fff', fontWeight: '700' },
   navBtn: { paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
   navText: { fontWeight: '700' },
