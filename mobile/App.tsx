@@ -12,6 +12,7 @@ import { Text, View } from 'react-native';
 import { useThemeColors } from './src/stores/theme';
 import { MainScreen } from './src/screens/MainScreen';
 import { AppHeader, SettingsMenu, FooterNav } from './src/components';
+import { navigationRef } from './src/navigation/rootNavigation';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 
 const Stack = createNativeStackNavigator();
@@ -21,7 +22,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
-        <NavigationContainer>
+  <NavigationContainer ref={navigationRef}>
           <AuthGate />
         </NavigationContainer>
       </QueryClientProvider>
