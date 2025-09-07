@@ -32,8 +32,8 @@ export const WordCard: React.FC<Props> = ({ word, onStatusChange, onPress, loadi
             onPress={() => onStatusChange?.(word.id, nextStatus[word.status])}
           >
             {loading
-              ? <ActivityIndicator size="small" color={word.status === 'known' ? c.badgeKnown : '#fff'} />
-              : <Text style={[styles.badgeText, word.status === 'known' && { color: c.badgeKnown }]}>{word.status}</Text>}
+              ? <ActivityIndicator size="small" color={word.status === 'known' ? c.badgeKnown : c.surface } />
+              : <Text style={[styles.badgeText, { color: word.status === 'known' ? c.badgeKnown : '#fff' }]}>{word.status}</Text>}
           </TouchableOpacity>
         </View>
         {!!word.definition && <Text style={[styles.def, { color: c.secondaryText }]} numberOfLines={2}>{word.definition}</Text>}
@@ -58,5 +58,5 @@ const styles = StyleSheet.create({
   def: { marginTop: 4 },
   example: { marginTop: 4, fontStyle: 'italic' },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 14 },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '600', textTransform: 'uppercase' }
+  badgeText: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase' }
 });

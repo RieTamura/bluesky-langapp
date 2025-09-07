@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Pressable, Text, StyleSheet } from 'react-native';
+import { useTheme } from '../stores/theme';
 import { Home, BookOpen, Pencil, BarChart3 } from 'lucide-react-native';
 // useNavigation は本コンポーネントが Stack.Navigator 外にあるため利用できない。
 // 代わりに navigationRef を使用。
@@ -19,6 +20,7 @@ const items: Item[] = [
 
 export const FooterNav: React.FC = () => {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const [routeName, setRouteName] = React.useState<string | undefined>(() => getCurrentRouteName());
 
   // 画面遷移イベントを購読してアクティブ表示を更新
@@ -32,7 +34,7 @@ export const FooterNav: React.FC = () => {
   }, []);
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom > 8 ? insets.bottom : 12 }]}> 
+  <View style={[styles.container, { paddingBottom: insets.bottom > 8 ? insets.bottom : 12, backgroundColor: colors.surface, borderColor: colors.border }]}> 
       {items.map(it => {
         const active = routeName === it.target;
         return (
@@ -43,7 +45,7 @@ export const FooterNav: React.FC = () => {
             onPress={() => navigate(it.target)}
             style={[styles.item, active && styles.activeItem]}
           >
-            <it.Icon size={24} color={active ? '#007aff' : '#333'} />
+            <it.Icon size={24} color={active ? colors.accent : colors.secondaryText} />
           </Pressable>
         );
       })}
@@ -52,7 +54,8 @@ export const FooterNav: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: StyleSheet.hairlineWidth, borderColor: '#ddd', justifyContent: 'space-around', paddingTop: 10 },
+  // 背景 / 境界線色は動的注入 (inline) するためここでは固定値を指定しない
+  container: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, justifyContent: 'space-around', paddingTop: 10 },
   item: { alignItems: 'center', paddingHorizontal: 18, paddingVertical: 6 },
   icon: { fontSize: 22 },
   activeItem: { },

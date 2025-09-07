@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   // 余白拡大: ヘッダー直下に明確なスペースを設ける
   container: { flex: 1, paddingHorizontal: 12, paddingBottom: 140, paddingTop: 48 },
   sectionHeader: { paddingTop: 18, paddingBottom: 6 },
-  sectionHeaderText: { fontSize: 12, fontWeight: '700', color: '#6b7280' }
+  sectionHeaderText: { fontSize: 12, fontWeight: '700' }
 });
 
 // ソートタブコンポーネント

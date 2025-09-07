@@ -1,8 +1,11 @@
 import { create } from 'zustand';
-import * as Brightness from 'expo-brightness';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Appearance } from 'react-native';
 
-export type ThemeMode = 'light' | 'dark' | 'auto';
+// シンプル化: システム追随 or 手動 (light/dark)
+// 永続化に残っている 'auto' / 'adaptive' は 'system' へマイグレーション
+// system のみ (ユーザー選択肢を廃止)
+export type ThemeMode = 'system';
 
 interface ThemeColors {
   background: string;
@@ -17,17 +20,11 @@ interface ThemeColors {
 }
 
 interface ThemeState {
-  mode: ThemeMode;                 // ユーザー選択値
-  resolved: 'light' | 'dark';      // 実際に適用されているテーマ (auto の場合に決定)
-  brightness: number | null;      // 0..1 デバイス明るさ (Permission が得られない場合 null)
-  brightnessThreshold: number;     // ダーク判定用閾値 (0-1)
-  setMode: (m: ThemeMode) => Promise<void>;
-  toggle: () => Promise<void>;
-  refreshBrightness: () => Promise<void>;
+  mode: ThemeMode;            // 常に 'system'
+  resolved: 'light' | 'dark'; // システムから解決
+  colors: ThemeColors;        // resolved に依存して都度更新
   syncAutoResolution: () => void;
-  colors: ThemeColors;
   hydrate: () => Promise<void>;
-  setBrightnessThreshold: (v: number) => Promise<void>;
 }
 
 const palette = (mode: 'light' | 'dark'): ThemeColors => {
@@ -58,106 +55,61 @@ const palette = (mode: 'light' | 'dark'): ThemeColors => {
 };
 
 const STORAGE_KEY = 'app.theme.mode';
-const STORAGE_KEY_THRESHOLD = 'app.theme.brightnessThreshold';
-export const DEFAULT_BRIGHTNESS_DARK_THRESHOLD = 0.35;
+export const DEFAULT_BRIGHTNESS_DARK_THRESHOLD = 0.35; // unused (kept for migration safety)
+export const DEFAULT_HYSTERESIS = 0.12; // unused
 
-async function readStoredMode(): Promise<ThemeMode | null> {
+async function readStoredMode(): Promise<ThemeMode> {
   try {
     const v = await AsyncStorage.getItem(STORAGE_KEY);
-    if (v === 'light' || v === 'dark' || v === 'auto') return v;
+    if (v === 'auto' || v === 'adaptive' || v === 'light' || v === 'dark' || v === 'system') {
+      if (v !== 'system') console.log('[theme:migrate] -> system (legacy value:', v, ')');
+    }
   } catch (err) {
-    // 永続化読み込み失敗は致命的ではないため null を返しフォールバック。
     console.error('[theme] failed to read stored theme mode', err);
   }
-  return null;
+  return 'system';
 }
-async function writeStoredMode(mode: ThemeMode) {
-  try {
-    await AsyncStorage.setItem(STORAGE_KEY, mode);
-  } catch (err) {
-    console.error('[theme] failed to write stored theme mode', mode, err);
-  }
+// 永続化は過去互換のために一応 system を書く (失敗しても影響無し)
+async function writeStoredMode() {
+  try { await AsyncStorage.setItem(STORAGE_KEY, 'system'); } catch {}
 }
-async function readThreshold(): Promise<number | null> {
-  try {
-    const v = await AsyncStorage.getItem(STORAGE_KEY_THRESHOLD);
-    if (v != null) {
-      const num = parseFloat(v);
-      if (Number.isFinite(num) && num >= 0 && num <= 1) return num;
-    }
-  } catch (err) {
-    console.error('[theme] failed to read brightness threshold', err);
-  }
-  return null;
-}
-async function writeThreshold(v: number) {
-  try { await AsyncStorage.setItem(STORAGE_KEY_THRESHOLD, String(v)); } catch (err) { console.error('[theme] failed to write brightness threshold', v, err); }
-}
+// threshold / hysteresis persistence removed
 
 export const useTheme = create<ThemeState>((set, get) => ({
-  mode: 'auto',
-  resolved: 'light',
-  brightness: null,
-  brightnessThreshold: DEFAULT_BRIGHTNESS_DARK_THRESHOLD,
-  async setMode(m: ThemeMode) {
-    set({ mode: m });
-    await writeStoredMode(m);
-    if (m !== 'auto') {
-      set({ resolved: m });
-    } else {
-      get().syncAutoResolution();
-    }
-  },
-  async setBrightnessThreshold(v: number) {
-    // clamp 0..1, 最低差分 0.01 で冗長な更新を避ける
-    const nv = Math.min(1, Math.max(0, Number.isFinite(v) ? v : DEFAULT_BRIGHTNESS_DARK_THRESHOLD));
-    set({ brightnessThreshold: nv });
-    await writeThreshold(nv);
-    if (get().mode === 'auto') get().syncAutoResolution();
-  },
-  async toggle() {
-    const order: ThemeMode[] = ['light','dark','auto'];
-    const cur = get().mode;
-    const next = order[(order.indexOf(cur) + 1) % order.length];
-    await get().setMode(next);
-  },
-  async refreshBrightness() {
-    try {
-      const { status } = await Brightness.requestPermissionsAsync();
-      if (status === 'granted') {
-        const b = await Brightness.getBrightnessAsync(); // 0..1
-        set({ brightness: b });
-        if (get().mode === 'auto') get().syncAutoResolution();
-      }
-    } catch {
-      set({ brightness: null });
-    }
-  },
+  mode: 'system',
+  resolved: (Appearance.getColorScheme?.() === 'dark') ? 'dark' : 'light',
+  colors: palette((Appearance.getColorScheme?.() === 'dark') ? 'dark' : 'light'),
   syncAutoResolution() {
-    const s = get();
-    if (s.mode === 'auto') {
-      const b = s.brightness;
-      // 閾値: 設定値 (既定 0.35) 未満をダークとみなす
-      const threshold = s.brightnessThreshold ?? DEFAULT_BRIGHTNESS_DARK_THRESHOLD;
-      const resolved = b !== null && b < threshold ? 'dark' : 'light';
-      set({ resolved });
-    } else {
-      set({ resolved: s.mode });
-    }
+    const sys = Appearance.getColorScheme();
+    const next = sys === 'dark' ? 'dark' : 'light';
+    set({ resolved: next, colors: palette(next) });
+  // production: silent; enable console.log here if debugging theme issues
   },
   async hydrate() {
-    const stored = await readStoredMode();
-    if (stored) set({ mode: stored });
-    const th = await readThreshold();
-    if (th !== null) set({ brightnessThreshold: th });
-    await get().refreshBrightness();
+  await readStoredMode(); // legacy value consume (ignored)
     get().syncAutoResolution();
-  },
-  get colors() { return palette(get().resolved); }
-}) as any);
+    writeStoredMode();
+  }
+})) as any;
+
+// -----------------------------
+// System appearance change listener (once)
+// -----------------------------
+let appearanceListenerAttached = false;
+if (!appearanceListenerAttached) {
+  try {
+  Appearance.addChangeListener(({ colorScheme }) => {
+      const { syncAutoResolution } = useTheme.getState();
+      syncAutoResolution();
+    });
+    appearanceListenerAttached = true;
+  } catch (err) {
+    console.warn('[theme] failed to attach appearance listener', err);
+  }
+}
 
 // 直接 colors を購読するためのヘルパー
-export function useThemeColors(): ThemeColors { return useTheme(s => s.colors); }
+export function useThemeColors(): ThemeColors { return useTheme((s: ThemeState) => s.colors); }
 
-export function useResolvedTheme(): 'light' | 'dark' { return useTheme(s => s.resolved); }
-export function useBrightnessThreshold(): number { return useTheme(s => s.brightnessThreshold); }
+export function useResolvedTheme(): 'light' | 'dark' { return useTheme((s: ThemeState) => s.resolved); }
+// removed: brightness threshold hook

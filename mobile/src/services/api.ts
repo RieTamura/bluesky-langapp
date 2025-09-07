@@ -82,6 +82,12 @@ async function request<T>(path: string, init: RequestInit = {}, attempt = 0): Pr
 
   let res: Response;
   try {
+    if (__DEV__ && attempt === 0) {
+      // Minimal debug logging to help diagnose network issues (e.g. wrong IP / port)
+      // Avoid logging sensitive headers.
+      // eslint-disable-next-line no-console
+      console.log('[api] fetch', BASE_URL + path);
+    }
     res = await fetch(BASE_URL + path, { ...init, headers });
   } catch (e) {
     // network level (fetch threw before getting a response)
@@ -161,3 +167,6 @@ export const postsApi = {
   following: (limit = 20) => api.get<any>(`/api/posts/following?limit=${limit}`),
   discover: (limit = 20) => api.get<any>(`/api/posts/discover?limit=${limit}`)
 };
+
+// Expose resolved base URL for diagnostics / UI (e.g., show in a dev settings screen)
+export const API_BASE_URL = BASE_URL;

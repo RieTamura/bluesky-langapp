@@ -1,5 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useColorScheme } from 'react-native';
+import { type ThemeMode } from './src/stores/theme';
+type ThemeState = { hydrate: () => Promise<void>; resolved: 'light'|'dark'; colors: any; syncAutoResolution: () => void };
+import { NavigationContainer, DarkTheme as NavDarkTheme, DefaultTheme as NavLightTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WordsScreen } from './src/screens/WordsScreen';
@@ -10,6 +13,7 @@ import { useAuth } from './src/hooks/useAuth';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Text, View } from 'react-native';
 import { useThemeColors, useTheme } from './src/stores/theme';
+import { StatusBar } from 'react-native';
 import { MainScreen } from './src/screens/MainScreen';
 import { AppHeader, SettingsMenu, FooterNav } from './src/components';
 import { navigationRef } from './src/navigation/rootNavigation';
@@ -20,34 +24,41 @@ const Stack = createNativeStackNavigator();
 const queryClient = new QueryClient();
 
 export default function App() {
-  const { hydrate, refreshBrightness } = useTheme();
+  // 必要プロパティのみ購読 (再レンダー効率化 & 一貫性向上)
+  const hydrate = useTheme((s: ThemeState) => s.hydrate);
+  const resolved = useTheme((s: ThemeState) => s.resolved);
+  const colors = useTheme((s: ThemeState) => s.colors);
+  const systemScheme = useColorScheme();
+  const syncAutoResolution = useTheme((s: ThemeState) => s.syncAutoResolution);
   useEffect(()=> {
     hydrate();
-    let timer: number | null = null;
-    let stopped = false;
-    // 30秒毎に明るさを再取得 (permission が拒否された場合は noop)
-    const loop = async () => {
-      try {
-        await refreshBrightness();
-      } catch (e) {
-        // 予期しない例外は握りつぶし (ログ追加するならここ)
-      }
-      if (!stopped) {
-        timer = setTimeout(loop, 30000) as unknown as number; // React Native は number 戻り値
-      }
-    };
-    loop();
-    return () => {
-      stopped = true;
-      if (timer !== null) clearTimeout(timer);
-    };
-  }, [hydrate, refreshBrightness]);
+  }, [hydrate]);
+  // フォールバック: Appearance listener が片方向で失敗する端末向けに hook の値で再同期
+  useEffect(()=> {
+    syncAutoResolution();
+  }, [systemScheme, syncAutoResolution]);
+  // 明るさポーリング削除 (adaptive 廃止)
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
-  <NavigationContainer ref={navigationRef}>
+        <View style={{ flex:1, backgroundColor: colors.background }}>
+        <NavigationContainer
+          ref={navigationRef}
+          theme={useMemo(()=> {
+            if (resolved === 'dark') return {
+              ...NavDarkTheme,
+              colors: { ...NavDarkTheme.colors, background: colors.background, card: colors.surface, text: colors.text, border: colors.border, primary: colors.accent }
+            };
+            return {
+              ...NavLightTheme,
+              colors: { ...NavLightTheme.colors, background: colors.background, card: colors.surface, text: colors.text, border: colors.border, primary: colors.accent }
+            };
+          }, [resolved, colors.background, colors.surface, colors.text, colors.border, colors.accent])}
+        >
           <AuthGate />
         </NavigationContainer>
+  <StatusBar barStyle={resolved === 'dark' ? 'light-content' : 'dark-content'} />
+        </View>
       </QueryClientProvider>
     </SafeAreaProvider>
   );

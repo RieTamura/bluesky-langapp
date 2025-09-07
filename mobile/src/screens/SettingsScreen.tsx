@@ -50,6 +50,7 @@ export const SettingsScreen: React.FC = () => {
   const ttsPitch = useTTSStore(s => s.ttsPitch);
   const setTtsPitch = (useTTSStore as any).getState().setTtsPitch as (v: number)=>void;
   const hydrate = useTTSStore(s => s.hydrate);
+  const { resolved, colors } = useTheme();
   React.useEffect(()=> { hydrate(); }, [hydrate]);
 
   // Slider: iOS/Android ネイティブ側で 0.1 / 0.05 などの浮動小数ステップが精度警告を出すケースがあるため
@@ -68,59 +69,47 @@ export const SettingsScreen: React.FC = () => {
   const p: any = profileQ.data || {};
   const prog: any = progressQ.data || {};
   const history: number[] = (prog?.recentAccuracies || prog?.accuracyHistory || []).slice(-10);
-  const { mode: themeMode, setMode: setThemeMode, resolved, brightness, refreshBrightness } = useTheme();
 
+  // colors も最初の useTheme 呼び出しで取得 (早期 return 分岐前に hook 回数を確定させる)
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
-      <Text style={styles.title}>設定</Text>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>テーマ</Text>
-        <View style={styles.row}>
-          {(['light','dark','auto'] as const).map(m => {
-            const active = themeMode === m;
-            return (
-              <TouchableOpacity key={m} style={[styles.modeBtn, active && styles.modeBtnActive]} onPress={()=> setThemeMode(m)} accessibilityRole="button" accessibilityState={{ selected: active }}>
-                <Text style={[styles.modeBtnText, active && styles.modeBtnTextActive]}>{m === 'light' ? 'ライト' : m === 'dark' ? 'ダーク' : '自動'}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-  <Text style={styles.help}>現在適用: {resolved} / 明るさ: {typeof brightness !== 'number' || !Number.isFinite(brightness) ? '未取得' : brightness.toFixed(2)}</Text>
-        <Text style={[styles.help,{marginTop:4}]}>自動: デバイス輝度 &lt; 0.35 でダークに切替</Text>
-        <Text style={[styles.help,{color:'#007aff',marginTop:4}]} onPress={refreshBrightness}>明るさを再取得</Text>
+    <ScrollView style={[styles.container,{ backgroundColor: colors.background }]} contentContainerStyle={{ paddingBottom: 40 }}>
+  <Text style={[styles.title,{ color: colors.text }]}>設定</Text>
+  <View style={[styles.section,{ backgroundColor: colors.surface, borderColor: colors.border }] }>
+    <Text style={[styles.sectionTitle,{ color: colors.text }]}>テーマ (システム固定)</Text>
+  <Text style={[styles.help,{ color: colors.secondaryText }]}>現在適用: {resolved}. 端末の外観設定を変更すると自動で切替わります。</Text>
       </View>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Bluesky プロフィール</Text>
-        <Text style={styles.handle}>@{p.handle}</Text>
-        <Text style={styles.display}>{p.displayName}</Text>
-        {!!p.description && <Text style={styles.desc}>{p.description}</Text>}
+  <View style={[styles.section,{ backgroundColor: colors.surface, borderColor: colors.border }] }>
+        <Text style={[styles.sectionTitle,{ color: colors.text }]}>Bluesky プロフィール</Text>
+        <Text style={[styles.handle,{ color: colors.accent }]}>@{p.handle}</Text>
+        <Text style={[styles.display,{ color: colors.text }]}>{p.displayName}</Text>
+        {!!p.description && <Text style={[styles.desc,{ color: colors.secondaryText }]}>{p.description}</Text>}
       </View>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>進捗 (Accuracy)</Text>
+  <View style={[styles.section,{ backgroundColor: colors.surface, borderColor: colors.border }] }>
+        <Text style={[styles.sectionTitle,{ color: colors.text }]}>進捗 (Accuracy)</Text>
         {progressQ.isLoading && <ActivityIndicator />}
-        {!progressQ.isLoading && history.length === 0 && <Text style={styles.muted}>データなし</Text>}
+        {!progressQ.isLoading && history.length === 0 && <Text style={[styles.muted,{ color: colors.secondaryText }]}>データなし</Text>}
         {!progressQ.isLoading && history.length > 0 && <MiniChart data={history} />}
       </View>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>読み上げ (TTS)</Text>
+  <View style={[styles.section,{ backgroundColor: colors.surface, borderColor: colors.border }] }>
+        <Text style={[styles.sectionTitle,{ color: colors.text }]}>読み上げ (TTS)</Text>
         <View style={styles.row}> 
           {(['auto','auto-multi','manual'] as const).map(m => {
             const active = ttsMode === m;
             return (
-              <TouchableOpacity key={m} style={[styles.modeBtn, active && styles.modeBtnActive]} onPress={()=> setMode(m)} accessibilityRole="button" accessibilityState={{ selected: active }}>
-                <Text style={[styles.modeBtnText, active && styles.modeBtnTextActive]}>{m === 'auto' ? '自動' : '手動'}</Text>
+              <TouchableOpacity key={m} style={[styles.modeBtn, { borderColor: active ? colors.accent : colors.border }, active && { backgroundColor: colors.accent }]} onPress={()=> setMode(m)} accessibilityRole="button" accessibilityState={{ selected: active }}>
+                <Text style={[styles.modeBtnText, { color: active ? '#fff' : colors.accent }]}>{m === 'auto' ? '自動' : '手動'}</Text>
               </TouchableOpacity>
             );
           })}
         </View>
         {ttsMode === 'manual' && (
           <View style={{ marginTop: 12 }}>
-            <Text style={styles.label}>言語コード (例: en-US, ja-JP)</Text>
+            <Text style={[styles.label,{ color: colors.text }]}>言語コード (例: en-US, ja-JP)</Text>
             <TextInput
               value={manualLanguage}
               onChangeText={setManualLanguage}
               placeholder="en-US"
-              style={styles.input}
+              style={[styles.input,{ borderColor: colors.border, color: colors.text }]}
               autoCapitalize='none'
               autoCorrect={false}
               accessibilityLabel='TTS manual language code'
@@ -128,71 +117,73 @@ export const SettingsScreen: React.FC = () => {
           </View>
         )}
         {ttsMode === 'auto' && (
-          <Text style={styles.help}>自動: 投稿全体で主要言語を 1 つ判定します。</Text>
+          <Text style={[styles.help,{ color: colors.secondaryText }]}>自動: 投稿全体で主要言語を 1 つ判定します。</Text>
         )}
         {ttsMode === 'auto-multi' && (
-          <Text style={styles.help}>複数: 単語ごとに文字種を見て最適な言語へ切替えます (精度は簡易)。</Text>
+          <Text style={[styles.help,{ color: colors.secondaryText }]}>複数: 単語ごとに文字種を見て最適な言語へ切替えます (精度は簡易)。</Text>
         )}
         <View style={{ marginTop: 16 }}>
-          <Text style={styles.label}>言語判定信頼度しきい値 (0-1)</Text>
+          <Text style={[styles.label,{ color: colors.text }]}>言語判定信頼度しきい値 (0-1)</Text>
           <TextInput value={String(detectionConfidenceThreshold)} onChangeText={(v)=> {
             const num = parseFloat(v); if (!isNaN(num)) setDetectionConfidenceThreshold(Math.max(0, Math.min(1, num)));
-          }} style={styles.input} keyboardType='decimal-pad' accessibilityLabel='Detection confidence threshold' />
+          }} style={[styles.input,{ borderColor: colors.border, color: colors.text }]} keyboardType='decimal-pad' accessibilityLabel='Detection confidence threshold' />
         </View>
         <View style={{ marginTop: 16 }}>
-          <Text style={styles.label}>ポーズ (ms)</Text>
+          <Text style={[styles.label,{ color: colors.text }]}>ポーズ (ms)</Text>
           <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
-            <View style={styles.pauseBox}><Text style={styles.pauseLabel}>文末</Text><TextInput value={String(pauseSentenceMs)} onChangeText={(v)=> { const n = parseInt(v, 10); if(!Number.isNaN(n)) setPauseSentenceMs(n); }} style={styles.pauseInput} keyboardType='number-pad' /></View>
-            <View style={styles.pauseBox}><Text style={styles.pauseLabel}>区切り</Text><TextInput value={String(pauseShortMs)} onChangeText={(v)=> { const n = parseInt(v, 10); if(!Number.isNaN(n)) setPauseShortMs(n); }} style={styles.pauseInput} keyboardType='number-pad' /></View>
-            <View style={styles.pauseBox}><Text style={styles.pauseLabel}>単語</Text><TextInput value={String(pauseWordMs)} onChangeText={(v)=> { const n = parseInt(v, 10); if(!Number.isNaN(n)) setPauseWordMs(n); }} style={styles.pauseInput} keyboardType='number-pad' /></View>
-            <View style={styles.pauseBox}><Text style={styles.pauseLabel}>Chunk</Text><TextInput value={String(chunkMaxWords)} onChangeText={(v)=> { const n = parseInt(v, 10); if(!Number.isNaN(n)) setChunkMaxWords(Math.max(1, n)); }} style={styles.pauseInput} keyboardType='number-pad' /></View>
+            <View style={styles.pauseBox}><Text style={[styles.pauseLabel,{ color: colors.secondaryText }]}>文末</Text><TextInput value={String(pauseSentenceMs)} onChangeText={(v)=> { const n = parseInt(v, 10); if(!Number.isNaN(n)) setPauseSentenceMs(n); }} style={[styles.pauseInput,{ borderColor: colors.border, color: colors.text }]} keyboardType='number-pad' /></View>
+            <View style={styles.pauseBox}><Text style={[styles.pauseLabel,{ color: colors.secondaryText }]}>区切り</Text><TextInput value={String(pauseShortMs)} onChangeText={(v)=> { const n = parseInt(v, 10); if(!Number.isNaN(n)) setPauseShortMs(n); }} style={[styles.pauseInput,{ borderColor: colors.border, color: colors.text }]} keyboardType='number-pad' /></View>
+            <View style={styles.pauseBox}><Text style={[styles.pauseLabel,{ color: colors.secondaryText }]}>単語</Text><TextInput value={String(pauseWordMs)} onChangeText={(v)=> { const n = parseInt(v, 10); if(!Number.isNaN(n)) setPauseWordMs(n); }} style={[styles.pauseInput,{ borderColor: colors.border, color: colors.text }]} keyboardType='number-pad' /></View>
+            <View style={styles.pauseBox}><Text style={[styles.pauseLabel,{ color: colors.secondaryText }]}>Chunk</Text><TextInput value={String(chunkMaxWords)} onChangeText={(v)=> { const n = parseInt(v, 10); if(!Number.isNaN(n)) setChunkMaxWords(Math.max(1, n)); }} style={[styles.pauseInput,{ borderColor: colors.border, color: colors.text }]} keyboardType='number-pad' /></View>
           </View>
         </View>
         <View style={{ marginTop: 16 }}>
-          <Text style={styles.label}>速度 / ピッチ</Text>
+          <Text style={[styles.label,{ color: colors.text }]}>速度 / ピッチ</Text>
           <View style={{ marginTop: 8 }}>
-            <Text style={styles.pauseLabel}>Rate: {ttsRate.toFixed(2)}</Text>
+            <Text style={[styles.pauseLabel,{ color: colors.secondaryText }]}>Rate: {ttsRate.toFixed(2)}</Text>
             <Slider
               minimumValue={10}
               maximumValue={200}
               step={5}
               value={rateScaled}
               onValueChange={(v)=> setTtsRate(v/100)}
-              minimumTrackTintColor="#007aff"
-              maximumTrackTintColor="#ccc"
+              minimumTrackTintColor={colors.accent}
+              maximumTrackTintColor={colors.border}
               accessibilityLabel="読み上げ速度"
               accessibilityHint="読み上げの再生速度を遅くから速くへ調整します"
               accessibilityRole="adjustable"
-              accessibilityValue={{ min: 0.1, max: 2.0, now: parseFloat(clampedRate.toFixed(2)) }}
+              // NOTE: Slider の min/max/value は 10-200 の整数スケールを使用しているため
+              // accessibilityValue も同一スケールに合わせる (以前は 0.1-2.0 で変換ミス -> 精度警告発生)
+              accessibilityValue={{ min: 10, max: 200, now: rateScaled, text: `速度 ${clampedRate.toFixed(2)}` }}
             />
           </View>
           <View style={{ marginTop: 12 }}>
-            <Text style={styles.pauseLabel}>Pitch: {ttsPitch.toFixed(2)}</Text>
+            <Text style={[styles.pauseLabel,{ color: colors.secondaryText }]}>Pitch: {ttsPitch.toFixed(2)}</Text>
             <Slider
               minimumValue={50}
               maximumValue={200}
               step={5}
               value={pitchScaled}
               onValueChange={(v)=> setTtsPitch(v/100)}
-              minimumTrackTintColor="#007aff"
-              maximumTrackTintColor="#ccc"
+              minimumTrackTintColor={colors.accent}
+              maximumTrackTintColor={colors.border}
               accessibilityLabel="ピッチ"
               accessibilityHint="テキスト読み上げのピッチを調整します"
               accessibilityRole="adjustable"
-              accessibilityValue={{ min: 0.5, max: 2.0, now: parseFloat(clampedPitch.toFixed(2)) }}
+              accessibilityValue={{ min: 50, max: 200, now: pitchScaled, text: `ピッチ ${clampedPitch.toFixed(2)}` }}
               accessible={true}
             />
           </View>
         </View>
       </View>
-      <View style={styles.section}>
-        <Text style={styles.logout} onPress={logout}>ログアウト</Text>
+  <View style={[styles.section,{ backgroundColor: colors.surface, borderColor: colors.border }] }>
+    <Text style={[styles.logout,{ color: '#e53935' }]} onPress={logout}>ログアウト</Text>
       </View>
-      <View style={[styles.section, { backgroundColor: '#f9f9f9' }]}> 
-        <Text style={styles.licenseTitle}>ライセンス / 使用ライブラリ</Text>
-        <Text style={styles.licenseItem}>アイコン: Lucide Icons (ISC)</Text>
-        <TouchableOpacity accessibilityRole='button' accessibilityLabel='ライセンス全文を表示' onPress={()=> (navigation as any).navigate('License')} style={styles.licenseBtn}>
-          <Text style={styles.licenseBtnText}>ライセンスを表示</Text>
+  <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+    <Text style={[styles.licenseTitle,{ color: colors.text }]}>ライセンス / 使用ライブラリ</Text>
+    <Text style={[styles.licenseItem,{ color: colors.secondaryText }]}>アイコン: Lucide Icons (ISC)</Text>
+    <TouchableOpacity accessibilityRole='button' accessibilityLabel='ライセンス全文を表示' onPress={()=> (navigation as any).navigate('License')} style={[styles.licenseBtn,{ backgroundColor: colors.accent }]}>
+      <Text style={styles.licenseBtnText}>ライセンスを表示</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -200,11 +191,12 @@ export const SettingsScreen: React.FC = () => {
 };
 
 const MiniChart: React.FC<{ data: number[] }> = ({ data }) => {
+  const { colors } = useTheme();
   const max = Math.max(...data, 1);
   return (
     <View style={styles.chartRow}>
       {data.map((v, i) => (
-        <View key={i} style={[styles.chartBar, { height: 60 * (v / max) + 4 }]} />
+        <View key={i} style={[styles.chartBar, { height: 60 * (v / max) + 4, backgroundColor: colors.accent }]} />
       ))}
     </View>
   );
@@ -214,29 +206,27 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 24, fontWeight: '700', marginBottom: 16 },
-  section: { backgroundColor: '#fff', padding: 16, borderRadius: 12, marginBottom: 16 },
+  section: { padding: 16, borderRadius: 12, marginBottom: 16, borderWidth: StyleSheet.hairlineWidth },
   sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
   handle: { fontWeight: '600', fontSize: 14 },
   display: { fontSize: 18, fontWeight: '700', marginTop: 4 },
   desc: { marginTop: 8, lineHeight: 18 },
-  muted: { color: '#666', fontSize: 12 },
+  muted: { fontSize: 12 },
   logout: { color: '#e53935', fontWeight: '700', textAlign: 'center' },
   chartRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 80, marginTop: 8 },
-  chartBar: { flex: 1, backgroundColor: '#007aff', borderRadius: 3 },
+  chartBar: { flex: 1, borderRadius: 3 },
   row: { flexDirection: 'row', gap: 8 },
-  modeBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#ccc' },
-  modeBtnActive: { backgroundColor: '#007aff', borderColor: '#007aff' },
-  modeBtnText: { fontSize: 13, fontWeight: '600', color: '#007aff' },
-  modeBtnTextActive: { color: '#fff' },
-  label: { fontSize: 12, fontWeight: '600', marginBottom: 4, color: '#444' },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
-  help: { marginTop: 8, fontSize: 12, color: '#666' },
+  modeBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
+  modeBtnText: { fontSize: 13, fontWeight: '600' },
+  label: { fontSize: 12, fontWeight: '600', marginBottom: 4 },
+  input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
+  help: { marginTop: 8, fontSize: 12 },
   pauseBox: { width: 90 },
   pauseLabel: { fontSize: 11, fontWeight: '600', marginBottom: 4 },
-  pauseInput: { borderWidth: 1, borderColor: '#ccc', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4, fontSize: 13, textAlign: 'center' },
+  pauseInput: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4, fontSize: 13, textAlign: 'center' },
   licenseTitle: { fontSize: 14, fontWeight: '700', marginBottom: 8 },
   licenseItem: { fontSize: 12, fontWeight: '600', marginBottom: 4 },
-  licenseBody: { fontSize: 10, lineHeight: 14, color: '#555' },
-  licenseBtn: { marginTop: 8, backgroundColor:'#007aff', paddingVertical:8, paddingHorizontal:12, borderRadius:6, alignSelf:'flex-start' },
+  licenseBody: { fontSize: 10, lineHeight: 14 },
+  licenseBtn: { marginTop: 8, paddingVertical:8, paddingHorizontal:12, borderRadius:6, alignSelf:'flex-start' },
   licenseBtnText: { color:'#fff', fontWeight:'700', fontSize:12 }
 });

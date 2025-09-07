@@ -4,12 +4,13 @@
     "slug": "bluesky-langapp",
     "version": "0.1.0",
     "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
     "updates": {
       "fallbackToCacheTimeout": 0
     },
     "assetBundlePatterns": ["**/*"],
-    "ios": { "supportsTablet": true },
-  "android": { "adaptiveIcon": { "backgroundColor": "#ffffff" } },
+    "ios": { "supportsTablet": true, "userInterfaceStyle": "automatic" },
+  "android": { "adaptiveIcon": { "backgroundColor": "#ffffff" }, "userInterfaceStyle": "automatic" },
   "web": {},
     "extra": {
       "apiUrl": "http://192.168.11.27:3000"

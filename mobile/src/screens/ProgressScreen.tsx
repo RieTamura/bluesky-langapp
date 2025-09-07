@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, FlatList } from 'react-native';
+import { useThemeColors } from '../stores/theme';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
 
@@ -10,13 +11,14 @@ interface AdvancedStats {
 }
 
 export const ProgressScreen: React.FC = () => {
+  const c = useThemeColors();
   const { data, isLoading, error } = useQuery({
     queryKey: ['advanced-stats'],
     queryFn: () => api.get<AdvancedStats>('/api/learning/advanced-stats')
   });
 
-  if (isLoading) return <View style={styles.center}><ActivityIndicator /></View>;
-  if (error) return <View style={styles.center}><Text>エラー</Text></View>;
+  if (isLoading) return <View style={[styles.center,{ backgroundColor: c.background }]}><ActivityIndicator /></View>;
+  if (error) return <View style={[styles.center,{ backgroundColor: c.background }]}><Text style={{ color: c.text }}>エラー</Text></View>;
 
   const stats: any = data?.data || (data as any);
 
@@ -39,11 +41,11 @@ export const ProgressScreen: React.FC = () => {
 
   return (
     <FlatList
-      contentContainerStyle={styles.container}
+      contentContainerStyle={[styles.container,{ backgroundColor: c.background }]}
       data={items}
       keyExtractor={i => i.k}
       renderItem={({ item }) => (
-        <View style={styles.row}><Text style={styles.key}>{item.k}</Text><Text style={styles.val}>{item.v}</Text></View>
+        <View style={[styles.row,{ borderColor: c.border }]}><Text style={[styles.key,{ color: c.text }]}>{item.k}</Text><Text style={[styles.val,{ color: c.text }]}>{item.v}</Text></View>
       )}
     />
   );
@@ -52,7 +54,7 @@ export const ProgressScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: { paddingHorizontal: 16, paddingBottom: 140, paddingTop: 24 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#ccc' },
+  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
   key: { fontWeight: '600' },
   val: { fontVariant: ['tabular-nums'] }
 });

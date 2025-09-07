@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpa
 import * as Speech from 'expo-speech';
 import { useTTSStore } from '../stores/tts';
 import { detectLanguage, mapToSpeechCode } from '../utils/langDetect';
-import { useThemeColors } from '../stores/theme';
+import { useThemeColors, useResolvedTheme } from '../stores/theme';
 import { useAuth } from '../hooks/useAuth';
 import { useUserPosts, useFollowingFeed, useDiscoverFeed } from '../hooks/usePosts';
 import { useFeedStore } from '../stores/feed';
@@ -124,6 +124,11 @@ const SelectableText: React.FC<{ text: string; highlightWordIndex?: number; onLo
   // Pass selectedWord setter through closure by attaching to each token via captured function from outer component (prop drilling alternative).
   // For simplicity we rely on a temporary global setter injection replaced just-in-time below.
   const setWord = (MainScreen as any)._setWord as (w: string)=>void;
+  const colors = useThemeColors();
+  const resolved = useResolvedTheme();
+  // ダーク/ライト別のチップ背景と再生中ハイライト背景
+  const tokenBg = resolved === 'dark' ? '#1d252b' : '#eef2f7';
+  const tokenPlayingBg = resolved === 'dark' ? 'rgba(255,200,80,0.25)' : '#ffe7b3';
   let wordCounter = -1; // counts only non-space tokens
   return (
     <View style={styles.tokensWrap}>
@@ -139,12 +144,19 @@ const SelectableText: React.FC<{ text: string; highlightWordIndex?: number; onLo
         const lw = cleaned.toLowerCase();
         const isKnown = knownWords.has(lw);
         const noBg = isKnown || isHashtag || isUrl;
+        // known / hashtag / URL は背景無し
+        const dynamicStyles: any[] = [styles.token];
+        if (noBg) dynamicStyles.push(styles.tokenNoBg);
+        if (!noBg && !playing) dynamicStyles.push({ backgroundColor: tokenBg });
+        if (playing) dynamicStyles.push({ backgroundColor: tokenPlayingBg });
+        // 再生中は文字色もコントラスト確保 (ライト背景は既存で OK / ダークは少し明るめテキスト)
+        if (playing && resolved === 'dark') dynamicStyles.push({ color: colors.text });
         return (
           <Text
             key={i}
             onPress={() => setWord && setWord(cleaned)}
             onLongPress={() => currentIdx !== null && onLongPressWord && onLongPressWord(currentIdx)}
-            style={[styles.token, noBg && styles.tokenNoBg, playing && styles.tokenPlaying]}
+            style={[dynamicStyles,{ color: colors.text }]}
           >{tok}</Text>
         );
       })}
@@ -161,13 +173,13 @@ const styles = StyleSheet.create({
   handle: { fontWeight: '600', marginBottom: 6 },
   postText: { fontSize: 15, lineHeight: 20 },
   tokensWrap: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start' },
-  token: { fontSize: 15, lineHeight: 20, paddingHorizontal: 6, paddingVertical: 2, marginRight: 4, marginBottom: 4, borderRadius: 6, backgroundColor: '#eef2f7' },
+  token: { fontSize: 15, lineHeight: 20, paddingHorizontal: 6, paddingVertical: 2, marginRight: 4, marginBottom: 4, borderRadius: 6 },
   // known 単語: 背景無し (透明) + 余白を維持するため padding はそのまま
   tokenKnown: { backgroundColor: 'transparent' },
   // hashtag / URL / known 共通利用 (将来 tokenKnown と統合予定)
   tokenNoBg: { backgroundColor: 'transparent' },
   space: { fontSize: 15, lineHeight: 20 },
-  time: { marginTop: 8, fontSize: 11, color: '#555' },
+  time: { marginTop: 8, fontSize: 11 },
   feedDivider: { fontSize: 16, fontWeight: '600', marginTop: 8 }, // (legacy not used, keep for potential reuse)
   feedHeader: { fontSize: 18, fontWeight: '700', marginBottom: 4, marginTop: 4 }, // (obsolete, kept for potential reuse)
   // quiz / progress styles 削除
@@ -184,9 +196,9 @@ const styles = StyleSheet.create({
   dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
   ttsBtn: { marginLeft: 12, flexDirection: 'row', alignItems: 'center' },
   ttsBtnText: { fontSize: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
-  tokenPlaying: { backgroundColor: '#ffe7b3' },
+  // 再生中トークン背景は動的適用 (tokenPlaying スタイルは削除)
   waveWrap: { flexDirection:'row', alignItems:'center', marginRight:8 },
-  waveBar: { width:3, marginHorizontal:1, borderRadius:1, backgroundColor:'#007aff' }
+  waveBar: { width:3, marginHorizontal:1, borderRadius:1 }
 });
 
 // (以前: Waveform 用の内部 state DEFAULT_WAVE_AMPS / waveAmps を使用していたが
@@ -440,8 +452,10 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
   setCurrentWordIdx(null);
     }
   }, [currentPostId, postId, speaking]);
+  const resolved = useResolvedTheme();
+  const highlightBg = resolved === 'dark' ? 'rgba(51,145,255,0.14)' : 'rgba(0,122,255,0.08)';
   return (
-    <View style={[styles.feedRow,{ borderColor, backgroundColor: currentPostId === postId ? 'rgba(0,122,255,0.08)' : 'transparent' }]}> 
+    <View style={[styles.feedRow,{ borderColor, backgroundColor: currentPostId === postId ? highlightBg : 'transparent' }]}> 
       <Text style={[styles.handle,{ color: accentColor }]}>@{item.author?.handle}</Text>
   <SelectableText text={item.text} highlightWordIndex={currentWordIdx ?? undefined} onLongPressWord={resumeFrom} knownWords={knownWords} />
       <View style={styles.dateRow}>
@@ -449,7 +463,7 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
         <TouchableOpacity accessibilityRole="button" accessibilityLabel={speaking ? '音声停止' : '読み上げ'} onPress={onPressSpeak} style={styles.ttsBtn}>
           {speaking && (
             <View style={styles.waveWrap} accessibilityLabel="再生中インジケータ">
-              {[0,1,2,3].map(b => <AnimatedBar key={b} delay={b * 90} />)}
+              {[0,1,2,3].map(b => <AnimatedBar key={b} delay={b * 90} color={accentColor} />)}
             </View>
           )}
           <Text style={[styles.ttsBtnText,{ color: speaking ? '#fff' : accentColor, backgroundColor: speaking ? accentColor : 'transparent', borderColor: accentColor }]}>{speaking ? '■' : '▶'}</Text>
@@ -460,7 +474,7 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
 };
 
 // 簡易アニメーションバー (擬似): setInterval で高さを揺らす
-const AnimatedBar: React.FC<{ delay:number }> = ({ delay }) => {
+const AnimatedBar: React.FC<{ delay:number; color:string }> = ({ delay, color }) => {
   const [h, setH] = React.useState(6);
   React.useEffect(()=> {
     let mounted = true;
@@ -468,6 +482,6 @@ const AnimatedBar: React.FC<{ delay:number }> = ({ delay }) => {
     const id = setInterval(tick, 250 + delay);
     return () => { mounted = false; clearInterval(id); };
   }, [delay]);
-  return <View style={[styles.waveBar,{ height: h }]} />;
+  return <View style={[styles.waveBar,{ height: h, backgroundColor: color }]} />;
 };
 

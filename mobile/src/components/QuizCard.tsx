@@ -17,7 +17,7 @@ export const QuizCard: React.FC<Props> = ({ question, questionType, word, onAnsw
       <Text style={[styles.type,{ color: c.accent }]}>{questionType.toUpperCase()}</Text>
       <Text style={[styles.question,{ color: c.text }]}>{question}</Text>
       <View style={styles.actions}>
-        <TouchableOpacity style={[styles.btn, { backgroundColor: '#6b7280' }]} disabled={disabled} onPress={() => onAnswer('')}><Text style={styles.btnText}>SKIP</Text></TouchableOpacity>
+  <TouchableOpacity style={[styles.btn, { backgroundColor: c.badgeUnknown }]} disabled={disabled} onPress={() => onAnswer('')}><Text style={styles.btnText}>SKIP</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btn, { backgroundColor: c.badgeKnown }]} disabled={disabled} onPress={() => onAnswer(word)}><Text style={styles.btnText}>I KNOW</Text></TouchableOpacity>
       </View>
     </View>
