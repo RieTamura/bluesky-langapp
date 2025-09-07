@@ -12,6 +12,8 @@ export interface TTSState {
   pauseShortMs: number;
   pauseWordMs: number;
   chunkMaxWords: number;
+  ttsRate: number; // 0.1 - 2.0 (expo-speech generally 0..1 on some platforms, keep clamp when using)
+  ttsPitch: number; // 0.5 - 2.0
   setMode: (m: 'auto' | 'manual' | 'auto-multi') => void;
   setManualLanguage: (code: string) => void;
   setCurrentPostId: (id: string | null) => void;
@@ -33,6 +35,8 @@ export const useTTSStore = create<TTSState>((set, get) => ({
   pauseShortMs: 120,
   pauseWordMs: 10,
   chunkMaxWords: 10,
+  ttsRate: 1.0,
+  ttsPitch: 1.0,
   hydrated: false,
   setMode: (mode) => { set({ mode }); persist(); },
   setManualLanguage: (manualLanguage) => { set({ manualLanguage }); persist(); },
@@ -42,6 +46,8 @@ export const useTTSStore = create<TTSState>((set, get) => ({
   setPauseShortMs: (pauseShortMs) => { set({ pauseShortMs }); persist(); },
   setPauseWordMs: (pauseWordMs) => { set({ pauseWordMs }); persist(); },
   setChunkMaxWords: (chunkMaxWords) => { set({ chunkMaxWords }); persist(); },
+  setTtsRate: (ttsRate: number) => { set({ ttsRate }); persist(); },
+  setTtsPitch: (ttsPitch: number) => { set({ ttsPitch }); persist(); },
   hydrate: async () => {
     if (get().hydrated) return;
     try {
@@ -60,8 +66,8 @@ export const useTTSStore = create<TTSState>((set, get) => ({
 
 async function persist() {
   try {
-  const { mode, manualLanguage, detectionConfidenceThreshold, pauseSentenceMs, pauseShortMs, pauseWordMs, chunkMaxWords } = useTTSStore.getState();
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ mode, manualLanguage, detectionConfidenceThreshold, pauseSentenceMs, pauseShortMs, pauseWordMs, chunkMaxWords }));
+  const { mode, manualLanguage, detectionConfidenceThreshold, pauseSentenceMs, pauseShortMs, pauseWordMs, chunkMaxWords, ttsRate, ttsPitch } = useTTSStore.getState();
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ mode, manualLanguage, detectionConfidenceThreshold, pauseSentenceMs, pauseShortMs, pauseWordMs, chunkMaxWords, ttsRate, ttsPitch }));
   } catch {/* ignore */}
 }
 

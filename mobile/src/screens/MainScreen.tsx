@@ -113,7 +113,7 @@ export const MainScreen: React.FC = () => {
 // 共通: トークン前処理（前後句読点除去）
 const stripEdgePunct = (tok: string) => tok.replace(/^[.,!?;:()"'`\[\]{}<>…。、，！？：；（）「」『』]+|[.,!?;:()"'`\[\]{}<>…。、，！？：；（）「」『』]+$/g, '');
 
-const SelectableText: React.FC<{ text: string; highlightWordIndex?: number }> = ({ text, highlightWordIndex }) => {
+const SelectableText: React.FC<{ text: string; highlightWordIndex?: number; onLongPressWord?: (wordIndex: number)=>void }> = ({ text, highlightWordIndex, onLongPressWord }) => {
   // Pass selectedWord setter through closure by attaching to each token via captured function from outer component (prop drilling alternative).
   // For simplicity we rely on a temporary global setter injection replaced just-in-time below.
   const setWord = (MainScreen as any)._setWord as (w: string)=>void;
@@ -129,7 +129,8 @@ const SelectableText: React.FC<{ text: string; highlightWordIndex?: number }> = 
         }
         wordCounter += 1;
         const playing = highlightWordIndex === wordCounter;
-        return <Text key={i} onPress={() => setWord && setWord(cleaned)} style={[styles.token, playing && styles.tokenPlaying]}>{tok}</Text>;
+  const currentIdx = wordCounter;
+  return <Text key={i} onPress={() => setWord && setWord(cleaned)} onLongPress={() => onLongPressWord && onLongPressWord(currentIdx)} style={[styles.token, playing && styles.tokenPlaying]}>{tok}</Text>;
       })}
     </View>
   );
@@ -163,7 +164,9 @@ const styles = StyleSheet.create({
   dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
   ttsBtn: { marginLeft: 12 },
   ttsBtnText: { fontSize: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
-  tokenPlaying: { backgroundColor: '#ffe7b3' }
+  tokenPlaying: { backgroundColor: '#ffe7b3' },
+  waveWrap: { flexDirection:'row', alignItems:'center', marginLeft:8 },
+  waveBar: { width:3, marginHorizontal:1, borderRadius:1, backgroundColor:'#007aff' }
 });
 
 // --- Feed Item with TTS ---
@@ -287,8 +290,11 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
             }
         }, 60);
       }
+      const { ttsRate, ttsPitch } = useTTSStore.getState();
       Speech.speak(chunkText, {
         language: chunkLang,
+        rate: Math.min(2, Math.max(0.1, ttsRate)),
+        pitch: Math.min(2, Math.max(0.5, ttsPitch)),
         onDone: () => {
           if (cancelRef.current) return;
           const delay = last.end ? pauseSentenceMs : last.short ? pauseShortMs : pauseWordMs;
@@ -300,6 +306,37 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
     };
     speakSeq(0);
   }, [speaking, item, mode, manualLanguage, postId, setCurrentPostId]);
+
+  // 単語長押しでその位置から再生再開
+  const resumeFrom = useCallback((wordIndex: number) => {
+    const text = item?.text || '';
+    if (!text.trim()) return;
+    const rawTokens: string[] = text.split(/\s+/);
+    const tokens: { raw: string; cleaned: string }[] = rawTokens
+      .map((t: string) => ({ raw: t, cleaned: stripEdgePunct(t) }))
+      .filter((t: { raw: string; cleaned: string }) => t.cleaned.length > 0);
+    if (wordIndex < 0 || wordIndex >= tokens.length) return;
+    cancelRef.current = true; // 既存停止
+    Speech.stop();
+    cancelRef.current = false;
+    setSpeaking(true);
+    setCurrentPostId(postId);
+    const baseLanguage = ( () => {
+      if (mode === 'manual') return manualLanguage || 'en-US';
+      if (mode === 'auto' || mode === 'auto-multi') {
+        const det = detectLanguage(text); return mapToSpeechCode(det.code);
+      }
+      return 'en-US';
+    })();
+    const speakSeq = (idx: number) => {
+      if (cancelRef.current) return;
+      if (idx >= tokens.length) { setSpeaking(false); setCurrentWordIdx(null); setCurrentPostId(null); return; }
+      setCurrentWordIdx(idx);
+  const { ttsRate, ttsPitch } = useTTSStore.getState();
+  Speech.speak(tokens[idx].cleaned, { language: baseLanguage, rate: Math.min(2, Math.max(0.1, ttsRate)), pitch: Math.min(2, Math.max(0.5, ttsPitch)), onDone: () => speakSeq(idx+1), onError: () => speakSeq(idx+1), onStopped: () => {} });
+    };
+    speakSeq(wordIndex);
+  }, [item, mode, manualLanguage, postId, setCurrentPostId]);
   // 外部停止 (他の投稿再生開始など) を検知
   React.useEffect(()=> {
     if (currentPostId !== postId && speaking) {
@@ -309,14 +346,31 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
   return (
     <View style={[styles.feedRow,{ borderColor, backgroundColor: currentPostId === postId ? 'rgba(0,122,255,0.08)' : 'transparent' }]}> 
       <Text style={[styles.handle,{ color: accentColor }]}>@{item.author?.handle}</Text>
-  <SelectableText text={item.text} highlightWordIndex={currentWordIdx ?? undefined} />
+      <SelectableText text={item.text} highlightWordIndex={currentWordIdx ?? undefined} onLongPressWord={resumeFrom} />
       <View style={styles.dateRow}>
         <Text style={[styles.time,{ color: secondaryColor }]}>{new Date(item.createdAt).toLocaleString()}</Text>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel={speaking ? '音声停止' : '読み上げ'} onPress={onPressSpeak} style={styles.ttsBtn}>
           <Text style={[styles.ttsBtnText,{ color: speaking ? '#fff' : accentColor, backgroundColor: speaking ? accentColor : 'transparent', borderColor: accentColor }]}>{speaking ? '■' : '▶'}</Text>
+          {speaking && (
+            <View style={styles.waveWrap} accessibilityLabel="再生中インジケータ">
+              {[0,1,2,3].map(b => <AnimatedBar key={b} delay={b * 90} />)}
+            </View>
+          )}
         </TouchableOpacity>
       </View>
     </View>
   );
+};
+
+// 簡易アニメーションバー (擬似): setInterval で高さを揺らす
+const AnimatedBar: React.FC<{ delay:number }> = ({ delay }) => {
+  const [h, setH] = React.useState(6);
+  React.useEffect(()=> {
+    let mounted = true;
+    const tick = () => { if(!mounted) return; setH(6 + Math.round(Math.random()*10)); };
+    const id = setInterval(tick, 250 + delay);
+    return () => { mounted = false; clearInterval(id); };
+  }, [delay]);
+  return <View style={[styles.waveBar,{ height: h }]} />;
 };
 

@@ -41,6 +41,10 @@ export const SettingsScreen: React.FC = () => {
   const setPauseWordMs = useTTSStore(s => s.setPauseWordMs);
   const chunkMaxWords = useTTSStore(s => s.chunkMaxWords);
   const setChunkMaxWords = useTTSStore(s => s.setChunkMaxWords);
+  const ttsRate = useTTSStore(s => s.ttsRate);
+  const setTtsRate = (useTTSStore as any).getState().setTtsRate as (v: number)=>void;
+  const ttsPitch = useTTSStore(s => s.ttsPitch);
+  const setTtsPitch = (useTTSStore as any).getState().setTtsPitch as (v: number)=>void;
   const hydrate = useTTSStore(s => s.hydrate);
   React.useEffect(()=> { hydrate(); }, [hydrate]);
 
@@ -110,6 +114,19 @@ export const SettingsScreen: React.FC = () => {
             <View style={styles.pauseBox}><Text style={styles.pauseLabel}>区切り</Text><TextInput value={String(pauseShortMs)} onChangeText={(v)=> { const n = parseInt(v); if(!isNaN(n)) setPauseShortMs(n); }} style={styles.pauseInput} keyboardType='number-pad' /></View>
             <View style={styles.pauseBox}><Text style={styles.pauseLabel}>単語</Text><TextInput value={String(pauseWordMs)} onChangeText={(v)=> { const n = parseInt(v); if(!isNaN(n)) setPauseWordMs(n); }} style={styles.pauseInput} keyboardType='number-pad' /></View>
             <View style={styles.pauseBox}><Text style={styles.pauseLabel}>Chunk</Text><TextInput value={String(chunkMaxWords)} onChangeText={(v)=> { const n = parseInt(v); if(!isNaN(n)) setChunkMaxWords(Math.max(1, n)); }} style={styles.pauseInput} keyboardType='number-pad' /></View>
+          </View>
+        </View>
+        <View style={{ marginTop: 16 }}>
+          <Text style={styles.label}>速度 / ピッチ</Text>
+          <View style={{ flexDirection:'row', gap:12 }}>
+            <View style={{ flex:1 }}>
+              <Text style={styles.pauseLabel}>Rate</Text>
+              <TextInput value={String(ttsRate)} onChangeText={(v)=> { const n = parseFloat(v); if(!isNaN(n)) setTtsRate(Math.min(2, Math.max(0.1, n))); }} style={styles.input} keyboardType='decimal-pad' />
+            </View>
+            <View style={{ flex:1 }}>
+              <Text style={styles.pauseLabel}>Pitch</Text>
+              <TextInput value={String(ttsPitch)} onChangeText={(v)=> { const n = parseFloat(v); if(!isNaN(n)) setTtsPitch(Math.min(2, Math.max(0.5, n))); }} style={styles.input} keyboardType='decimal-pad' />
+            </View>
           </View>
         </View>
       </View>
