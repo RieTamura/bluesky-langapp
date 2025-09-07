@@ -49,6 +49,11 @@ export const SettingsScreen: React.FC = () => {
   const hydrate = useTTSStore(s => s.hydrate);
   React.useEffect(()=> { hydrate(); }, [hydrate]);
 
+  // Slider: iOS/Android ネイティブ側で 0.1 / 0.05 などの浮動小数ステップが精度警告を出すケースがあるため
+  // 内部的に 100 倍した整数スケール (rate 10-200, pitch 50-200) に変換して扱う。
+  const rateScaled = Math.round(ttsRate * 100);   // 10 - 200
+  const pitchScaled = Math.round(ttsPitch * 100); // 50 - 200
+
   if (profileQ.isLoading) return <View style={styles.center}><ActivityIndicator /></View>;
 
   const p: any = profileQ.data || {};
@@ -122,33 +127,33 @@ export const SettingsScreen: React.FC = () => {
           <View style={{ marginTop: 8 }}>
             <Text style={styles.pauseLabel}>Rate: {ttsRate.toFixed(2)}</Text>
             <Slider
-              minimumValue={0.1}
-              maximumValue={2}
-              step={0.05}
-              value={ttsRate}
-              onValueChange={(v)=> setTtsRate(v)}
+              minimumValue={10}
+              maximumValue={200}
+              step={5}
+              value={rateScaled}
+              onValueChange={(v)=> setTtsRate(v/100)}
               minimumTrackTintColor="#007aff"
               maximumTrackTintColor="#ccc"
               accessibilityLabel="読み上げ速度"
               accessibilityHint="読み上げの再生速度を遅くから速くへ調整します"
               accessibilityRole="adjustable"
-              accessibilityValue={{ min: 0.1, max: 2, now: ttsRate }}
+              accessibilityValue={{ min: 10, max: 200, now: rateScaled }}
             />
           </View>
           <View style={{ marginTop: 12 }}>
             <Text style={styles.pauseLabel}>Pitch: {ttsPitch.toFixed(2)}</Text>
             <Slider
-              minimumValue={0.5}
-              maximumValue={2}
-              step={0.05}
-              value={ttsPitch}
-              onValueChange={(v)=> setTtsPitch(v)}
+              minimumValue={50}
+              maximumValue={200}
+              step={5}
+              value={pitchScaled}
+              onValueChange={(v)=> setTtsPitch(v/100)}
               minimumTrackTintColor="#007aff"
               maximumTrackTintColor="#ccc"
               accessibilityLabel="ピッチ"
               accessibilityHint="テキスト読み上げのピッチを調整します"
               accessibilityRole="adjustable"
-              accessibilityValue={{ min: 0.5, max: 2, now: ttsPitch }}
+              accessibilityValue={{ min: 50, max: 200, now: pitchScaled }}
               accessible={true}
             />
           </View>
