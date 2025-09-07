@@ -51,8 +51,14 @@ export const SettingsScreen: React.FC = () => {
 
   // Slider: iOS/Android ネイティブ側で 0.1 / 0.05 などの浮動小数ステップが精度警告を出すケースがあるため
   // 内部的に 100 倍した整数スケール (rate 10-200, pitch 50-200) に変換して扱う。
-  const rateScaled = Math.round(ttsRate * 100);   // 10 - 200
-  const pitchScaled = Math.round(ttsPitch * 100); // 50 - 200
+  // 防御: NaN / 非有限 / 範囲外値をここで補正 (UI 表示用)。ストア側でもクランプ済みだが二重防御。
+  const safeRate = Number.isFinite(ttsRate) ? ttsRate : 1.0;
+  const safePitch = Number.isFinite(ttsPitch) ? ttsPitch : 1.0;
+  const clampedRate = Math.min(2.0, Math.max(0.1, safeRate));
+  const clampedPitch = Math.min(2.0, Math.max(0.5, safePitch));
+  const rateScaled = Math.round(clampedRate * 100);   // 10 - 200
+  const pitchScaled = Math.round(clampedPitch * 100); // 50 - 200
+  // NOTE: ストア setTtsRate / setTtsPitch でもクランプ + NaN 防御を実施し、persist 前に不正値を排除。
 
   if (profileQ.isLoading) return <View style={styles.center}><ActivityIndicator /></View>;
 
@@ -137,7 +143,7 @@ export const SettingsScreen: React.FC = () => {
               accessibilityLabel="読み上げ速度"
               accessibilityHint="読み上げの再生速度を遅くから速くへ調整します"
               accessibilityRole="adjustable"
-              accessibilityValue={{ min: 10, max: 200, now: rateScaled }}
+              accessibilityValue={{ min: 0.1, max: 2.0, now: parseFloat(clampedRate.toFixed(2)) }}
             />
           </View>
           <View style={{ marginTop: 12 }}>
@@ -153,7 +159,7 @@ export const SettingsScreen: React.FC = () => {
               accessibilityLabel="ピッチ"
               accessibilityHint="テキスト読み上げのピッチを調整します"
               accessibilityRole="adjustable"
-              accessibilityValue={{ min: 50, max: 200, now: pitchScaled }}
+              accessibilityValue={{ min: 0.5, max: 2.0, now: parseFloat(clampedPitch.toFixed(2)) }}
               accessible={true}
             />
           </View>

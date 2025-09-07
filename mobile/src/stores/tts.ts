@@ -46,15 +46,33 @@ export const useTTSStore = create<TTSState>((set, get) => ({
   setPauseShortMs: (pauseShortMs) => { set({ pauseShortMs }); persist(); },
   setPauseWordMs: (pauseWordMs) => { set({ pauseWordMs }); persist(); },
   setChunkMaxWords: (chunkMaxWords) => { set({ chunkMaxWords }); persist(); },
-  setTtsRate: (ttsRate: number) => { set({ ttsRate }); persist(); },
-  setTtsPitch: (ttsPitch: number) => { set({ ttsPitch }); persist(); },
+  setTtsRate: (ttsRate: number) => {
+    let v = Number.isFinite(ttsRate) ? ttsRate : 1.0;
+    v = Math.min(2.0, Math.max(0.1, v));
+    set({ ttsRate: v });
+    persist();
+  },
+  setTtsPitch: (ttsPitch: number) => {
+    let v = Number.isFinite(ttsPitch) ? ttsPitch : 1.0;
+    v = Math.min(2.0, Math.max(0.5, v));
+    set({ ttsPitch: v });
+    persist();
+  },
   hydrate: async () => {
     if (get().hydrated) return;
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        set({ ...parsed, hydrated: true, currentPostId: null });
+        // defensive clamp in case stored JSON was manually edited / corrupted
+        const cleaned: Partial<TTSState> = { ...parsed };
+        if (typeof cleaned.ttsRate === 'number') {
+          if (!Number.isFinite(cleaned.ttsRate)) cleaned.ttsRate = 1.0; else cleaned.ttsRate = Math.min(2.0, Math.max(0.1, cleaned.ttsRate));
+        }
+        if (typeof cleaned.ttsPitch === 'number') {
+          if (!Number.isFinite(cleaned.ttsPitch)) cleaned.ttsPitch = 1.0; else cleaned.ttsPitch = Math.min(2.0, Math.max(0.5, cleaned.ttsPitch));
+        }
+        set({ ...cleaned, hydrated: true, currentPostId: null });
       } else {
         set({ hydrated: true });
       }
