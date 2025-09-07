@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { useTTSStore } from '../stores/tts';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
@@ -118,15 +119,29 @@ export const SettingsScreen: React.FC = () => {
         </View>
         <View style={{ marginTop: 16 }}>
           <Text style={styles.label}>速度 / ピッチ</Text>
-          <View style={{ flexDirection:'row', gap:12 }}>
-            <View style={{ flex:1 }}>
-              <Text style={styles.pauseLabel}>Rate</Text>
-              <TextInput value={String(ttsRate)} onChangeText={(v)=> { const n = parseFloat(v); if(!isNaN(n)) setTtsRate(Math.min(2, Math.max(0.1, n))); }} style={styles.input} keyboardType='decimal-pad' />
-            </View>
-            <View style={{ flex:1 }}>
-              <Text style={styles.pauseLabel}>Pitch</Text>
-              <TextInput value={String(ttsPitch)} onChangeText={(v)=> { const n = parseFloat(v); if(!isNaN(n)) setTtsPitch(Math.min(2, Math.max(0.5, n))); }} style={styles.input} keyboardType='decimal-pad' />
-            </View>
+          <View style={{ marginTop: 8 }}>
+            <Text style={styles.pauseLabel}>Rate: {ttsRate.toFixed(2)}</Text>
+            <Slider
+              minimumValue={0.1}
+              maximumValue={2}
+              step={0.05}
+              value={ttsRate}
+              onValueChange={(v)=> setTtsRate(v)}
+              minimumTrackTintColor="#007aff"
+              maximumTrackTintColor="#ccc"
+            />
+          </View>
+          <View style={{ marginTop: 12 }}>
+            <Text style={styles.pauseLabel}>Pitch: {ttsPitch.toFixed(2)}</Text>
+            <Slider
+              minimumValue={0.5}
+              maximumValue={2}
+              step={0.05}
+              value={ttsPitch}
+              onValueChange={(v)=> setTtsPitch(v)}
+              minimumTrackTintColor="#007aff"
+              maximumTrackTintColor="#ccc"
+            />
           </View>
         </View>
       </View>

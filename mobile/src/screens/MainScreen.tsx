@@ -173,170 +173,158 @@ const styles = StyleSheet.create({
 const FeedItem: React.FC<{ item: any; index: number; accentColor: string; secondaryColor: string; borderColor: string }> = ({ item, index, accentColor, secondaryColor, borderColor }) => {
   const [speaking, setSpeaking] = useState(false);
   const [currentWordIdx, setCurrentWordIdx] = useState<number | null>(null);
+  const [waveAmps, setWaveAmps] = useState<number[]>([6,10,14,8]);
   const mode = useTTSStore(s => s.mode);
   const manualLanguage = useTTSStore(s => s.manualLanguage);
   const currentPostId = useTTSStore(s => s.currentPostId);
   const setCurrentPostId = useTTSStore(s => s.setCurrentPostId);
   const postId = item?.uri || item?.cid || `idx_${index}`;
   const cancelRef = React.useRef(false);
-  // 言語キャッシュ (投稿単位でリセット)
   const langCacheRef = React.useRef<Record<string, { lang: string; confidence: number }>>({});
-  const chunkHighlightTimer = React.useRef<any>(null);
-  const onPressSpeak = useCallback(() => {
-    if (speaking) {
-      cancelRef.current = true;
-      Speech.stop();
-      setSpeaking(false);
-      setCurrentPostId(null);
-      setCurrentWordIdx(null);
-      return;
-    }
-    const text = item?.text || '';
-    if (!text.trim()) return;
-    // 元トークン保持（ハイライト用 index 一致のためクリーン後で空になるものは除外）
-  const rawTokens: string[] = text.split(/\s+/);
-  const tokens: { raw: string; cleaned: string }[] = rawTokens
-      .map((t: string) => ({ raw: t, cleaned: stripEdgePunct(t) }))
-      .filter((t: { raw: string; cleaned: string }) => t.cleaned.length > 0); // 空 (句読点のみ) は除外
-    cancelRef.current = false;
-    Speech.stop();
-    let baseLanguage = 'en-US';
-    if (mode === 'manual') {
-      baseLanguage = manualLanguage || 'en-US';
-    } else if (mode === 'auto') {
-      const det = detectLanguage(text);
-      baseLanguage = mapToSpeechCode(det.code);
-    } else if (mode === 'auto-multi') {
-      // base fallback (first detection or default)
-      const det = detectLanguage(text);
-      baseLanguage = mapToSpeechCode(det.code);
-    }
-    setSpeaking(true);
-    setCurrentPostId(postId);
-  const speakSeq = (idx: number) => {
-      if (cancelRef.current) return;
-      if (idx >= tokens.length) {
-        setSpeaking(false);
-        setCurrentWordIdx(null);
-        setCurrentPostId(null);
-        return;
-      }
-      // チャンク化: 連続同一言語(閾値下ならフォールバック言語)をまとめて一度に speak
-      let start = idx;
-      const toSpeak: { token: string; raw: string; lang: string; end: boolean; short: boolean }[] = [];
-      const { chunkMaxWords, detectionConfidenceThreshold, pauseSentenceMs, pauseShortMs, pauseWordMs } = useTTSStore.getState();
-      while (start < tokens.length && toSpeak.length < chunkMaxWords) {
-        const t = tokens[start];
-        let langForToken = baseLanguage;
-        if (mode === 'auto-multi') {
-            const cacheKey = t.cleaned.toLowerCase();
-            const cached = langCacheRef.current[cacheKey];
-            let detTok = cached;
-            if (!detTok) {
-              const det = detectLanguage(t.cleaned);
-              detTok = { lang: mapToSpeechCode(det.code), confidence: det.confidence };
-              langCacheRef.current[cacheKey] = detTok;
-            }
-            // 言語別しきい値補正 (漢字系は信頼度過大推定のため少し上乗せ)
-            let dynamicThreshold = detectionConfidenceThreshold;
-            if (/-(JP|CN)|ja|zh/.test(detTok.lang)) dynamicThreshold = Math.min(1, dynamicThreshold + 0.1);
-            if (detTok.confidence >= dynamicThreshold) langForToken = detTok.lang; else langForToken = baseLanguage;
-        }
-        const sentenceEnd = /[.!?。！？]$/.test(t.raw);
-        const shortPause = /[,;、，]$/.test(t.raw);
-        toSpeak.push({ token: t.cleaned, raw: t.raw, lang: langForToken, end: sentenceEnd, short: shortPause });
-        // 次トークンが同じ言語なら継続、それ以外で break
-        const next = tokens[start + 1];
-        if (!next) break;
-        let nextLang = baseLanguage;
-        if (mode === 'auto-multi') {
-          const nk = next.cleaned.toLowerCase();
-          const cachedNext = langCacheRef.current[nk] || (()=>{
-            const det2 = detectLanguage(next.cleaned);
-            const entry = { lang: mapToSpeechCode(det2.code), confidence: det2.confidence };
-            langCacheRef.current[nk] = entry; return entry; })();
-          let dynamicThresholdNext = detectionConfidenceThreshold;
-          if (/-(JP|CN)|ja|zh/.test(cachedNext.lang)) dynamicThresholdNext = Math.min(1, dynamicThresholdNext + 0.1);
-          nextLang = cachedNext.confidence >= dynamicThresholdNext ? cachedNext.lang : baseLanguage;
-        }
-        if (nextLang !== toSpeak[0].lang) break; // 言語変化でチャンク終了
-        start++;
-      }
-      // speak this chunk
-      setCurrentWordIdx(idx); // ハイライトはチャンク先頭語
-      const chunkText = toSpeak.map(x => x.token).join(' ');
-      const chunkLang = toSpeak[0].lang;
-      const last = toSpeak[toSpeak.length - 1];
-      // チャンク内逐次ハイライト (推定時間: トークン長さ / 合計長で均等割)
-      if (chunkHighlightTimer.current) clearInterval(chunkHighlightTimer.current as any);
-      if (toSpeak.length > 1) {
-        const totalLen = toSpeak.reduce((s,x)=> s + x.token.length, 0) || 1;
-        let localIdx = 0;
-        const startTime = Date.now();
-        // 粗い推定: 単語長に比例した相対時間で更新 (50ms * 長さ)
-        const durations = toSpeak.map(x => Math.max(80, x.token.length * 50));
-        const sumDur = durations.reduce((a,b)=> a+b,0);
-        chunkHighlightTimer.current = setInterval(() => {
-          if (cancelRef.current) { clearInterval(chunkHighlightTimer.current as any); return; }
-          const elapsed = Date.now() - startTime;
-          let acc = 0; let idxTok = 0;
-          for (; idxTok < durations.length; idxTok++) { acc += durations[idxTok]; if (elapsed < acc) break; }
-            if (idxTok !== localIdx && idxTok < toSpeak.length) {
-              setCurrentWordIdx(idx + idxTok);
-              localIdx = idxTok;
-            }
-            if (elapsed >= sumDur) {
-              clearInterval(chunkHighlightTimer.current as any);
-            }
-        }, 60);
-      }
-      const { ttsRate, ttsPitch } = useTTSStore.getState();
-      Speech.speak(chunkText, {
-        language: chunkLang,
-        rate: Math.min(2, Math.max(0.1, ttsRate)),
-        pitch: Math.min(2, Math.max(0.5, ttsPitch)),
-        onDone: () => {
-          if (cancelRef.current) return;
-          const delay = last.end ? pauseSentenceMs : last.short ? pauseShortMs : pauseWordMs;
-          setTimeout(() => speakSeq(idx + toSpeak.length), delay);
-        },
-        onStopped: () => { /* manual stop */ },
-        onError: () => speakSeq(idx + toSpeak.length)
-      });
-    };
-    speakSeq(0);
-  }, [speaking, item, mode, manualLanguage, postId, setCurrentPostId]);
+  const progressTimerRef = React.useRef<any>(null);
+  const tokensRef = React.useRef<{ raw:string; cleaned:string }[]>([]);
+  const baseLangRef = React.useRef<string>('en-US');
+  const chunkPlanRef = React.useRef<{ start:number; length:number; durations:number[]; total:number }|null>(null);
 
-  // 単語長押しでその位置から再生再開
-  const resumeFrom = useCallback((wordIndex: number) => {
+  const buildTokens = useCallback(() => {
+    const text = item?.text || '';
+    const rawTokens: string[] = text.split(/\s+/);
+    tokensRef.current = rawTokens.map((t:string)=> ({ raw:t, cleaned: stripEdgePunct(t) }))
+      .filter(t=> t.cleaned.length>0);
+    // base language
+    if (mode === 'manual') baseLangRef.current = manualLanguage || 'en-US';
+    else {
+      const det = detectLanguage(text);
+      baseLangRef.current = mapToSpeechCode(det.code);
+    }
+  }, [item, mode, manualLanguage]);
+
+  const computeChunk = (startIdx: number) => {
+    const { chunkMaxWords, detectionConfidenceThreshold } = useTTSStore.getState();
+    const tokens = tokensRef.current;
+    if (startIdx >= tokens.length) return null;
+    const baseLang = baseLangRef.current;
+    const out: { token:string; raw:string; lang:string; end:boolean; short:boolean }[] = [];
+    let i = startIdx;
+    while (i < tokens.length && out.length < chunkMaxWords) {
+      const tk = tokens[i];
+      let lang = baseLang;
+      if (mode === 'auto-multi') {
+        const k = tk.cleaned.toLowerCase();
+        let det = langCacheRef.current[k];
+        if (!det) {
+          const d = detectLanguage(tk.cleaned);
+            det = { lang: mapToSpeechCode(d.code), confidence: d.confidence };
+            langCacheRef.current[k] = det;
+        }
+        let thr = detectionConfidenceThreshold;
+        if (/-(JP|CN)|ja|zh/.test(det.lang)) thr = Math.min(1, thr + 0.1);
+        lang = det.confidence >= thr ? det.lang : baseLang;
+      }
+      const end = /[.!?。！？]$/.test(tk.raw); const short = /[,;、，]$/.test(tk.raw);
+      out.push({ token: tk.cleaned, raw: tk.raw, lang, end, short });
+      if (out.length >= chunkMaxWords) break;
+      const next = tokens[i+1]; if (!next) break;
+      if (mode !== 'auto-multi') { i++; continue; }
+      const nk = next.cleaned.toLowerCase();
+      let detN = langCacheRef.current[nk];
+      if (!detN) { const d2 = detectLanguage(next.cleaned); detN = { lang: mapToSpeechCode(d2.code), confidence: d2.confidence }; langCacheRef.current[nk]=detN; }
+      let thrN = detectionConfidenceThreshold; if (/-(JP|CN)|ja|zh/.test(detN.lang)) thrN = Math.min(1, thrN + 0.1);
+      const nLang = detN.confidence >= thrN ? detN.lang : baseLang;
+      if (nLang !== out[0].lang) break; // 言語変化
+      i++;
+    }
+    // durations estimation
+    const { ttsRate } = useTTSStore.getState();
+    const speedFactor = 1 / ttsRate;
+    const durations = out.map(x=> Math.max(60, x.token.length * 45 * speedFactor));
+    const total = durations.reduce((a,b)=> a+b,0);
+    chunkPlanRef.current = { start:startIdx, length: out.length, durations, total };
+    return out;
+  };
+
+  const clearTimers = () => {
+    if (progressTimerRef.current) { clearInterval(progressTimerRef.current); progressTimerRef.current=null; }
+  };
+
+  const speakChunkFrom = (startIdx: number) => {
+    const tokens = tokensRef.current;
+    if (startIdx >= tokens.length) { finishPlayback(); return; }
+    const chunk = computeChunk(startIdx);
+    if (!chunk) { finishPlayback(); return; }
+    setCurrentWordIdx(startIdx);
+    // progress-driven waveform + highlight
+    clearTimers();
+    const plan = chunkPlanRef.current!; // not null
+    const startTime = Date.now();
+    const phases = [0, Math.PI/2, Math.PI, 3*Math.PI/2];
+    progressTimerRef.current = setInterval(()=> {
+      if (cancelRef.current || !speaking) return; 
+      const elapsed = Date.now() - startTime;
+      // highlight progression
+      let acc=0; let local=0;
+      for (; local < plan.durations.length; local++) { acc += plan.durations[local]; if (elapsed < acc) break; }
+      if (local !== plan.durations.length && startIdx + local !== currentWordIdx) setCurrentWordIdx(startIdx + Math.min(local, plan.durations.length-1));
+      // waveform amplitude (0-1 progress)
+      const prog = Math.min(1, elapsed / plan.total);
+      const energy = 0.6 + 0.4 * Math.sin(prog * Math.PI);
+      setWaveAmps(phases.map(p => 6 + Math.abs(Math.sin(prog * 4 * Math.PI + p))*14*energy));
+      if (elapsed >= plan.total) {
+        clearTimers();
+      }
+    }, 60);
+    const chunkText = chunk.map(x=> x.token).join(' ');
+    const chunkLang = chunk[0].lang;
+    const last = chunk[chunk.length-1];
+    const { ttsRate, ttsPitch, pauseSentenceMs, pauseShortMs, pauseWordMs } = useTTSStore.getState();
+    Speech.stop();
+    Speech.speak(chunkText, {
+      language: chunkLang,
+      rate: Math.min(2, Math.max(0.1, ttsRate)),
+      pitch: Math.min(2, Math.max(0.5, ttsPitch)),
+      onDone: () => {
+        if (cancelRef.current) return;
+        const baseDelay = last.end ? pauseSentenceMs : last.short ? pauseShortMs : pauseWordMs;
+        const delay = Math.max(20, baseDelay / ttsRate);
+        setTimeout(()=> speakChunkFrom(startIdx + chunk.length), delay);
+      },
+      onError: () => speakChunkFrom(startIdx + chunk.length),
+      onStopped: () => {/* manual stop */}
+    });
+  };
+
+  const finishPlayback = () => {
+    clearTimers();
+    setSpeaking(false);
+    setCurrentWordIdx(null);
+    setCurrentPostId(null);
+  };
+
+  const startPlayback = (startIdx=0) => {
     const text = item?.text || '';
     if (!text.trim()) return;
-    const rawTokens: string[] = text.split(/\s+/);
-    const tokens: { raw: string; cleaned: string }[] = rawTokens
-      .map((t: string) => ({ raw: t, cleaned: stripEdgePunct(t) }))
-      .filter((t: { raw: string; cleaned: string }) => t.cleaned.length > 0);
-    if (wordIndex < 0 || wordIndex >= tokens.length) return;
-    cancelRef.current = true; // 既存停止
-    Speech.stop();
     cancelRef.current = false;
     setSpeaking(true);
     setCurrentPostId(postId);
-    const baseLanguage = ( () => {
-      if (mode === 'manual') return manualLanguage || 'en-US';
-      if (mode === 'auto' || mode === 'auto-multi') {
-        const det = detectLanguage(text); return mapToSpeechCode(det.code);
-      }
-      return 'en-US';
-    })();
-    const speakSeq = (idx: number) => {
-      if (cancelRef.current) return;
-      if (idx >= tokens.length) { setSpeaking(false); setCurrentWordIdx(null); setCurrentPostId(null); return; }
-      setCurrentWordIdx(idx);
-  const { ttsRate, ttsPitch } = useTTSStore.getState();
-  Speech.speak(tokens[idx].cleaned, { language: baseLanguage, rate: Math.min(2, Math.max(0.1, ttsRate)), pitch: Math.min(2, Math.max(0.5, ttsPitch)), onDone: () => speakSeq(idx+1), onError: () => speakSeq(idx+1), onStopped: () => {} });
-    };
-    speakSeq(wordIndex);
-  }, [item, mode, manualLanguage, postId, setCurrentPostId]);
+    buildTokens();
+    speakChunkFrom(startIdx);
+  };
+
+  const stopPlayback = () => {
+    cancelRef.current = true;
+    Speech.stop();
+    finishPlayback();
+  };
+
+  const onPressSpeak = useCallback(() => {
+    if (speaking) { stopPlayback(); return; }
+    startPlayback(0);
+  }, [speaking, buildTokens]);
+
+  const resumeFrom = useCallback((wordIndex: number) => {
+    stopPlayback();
+    startPlayback(wordIndex);
+  }, [buildTokens]);
   // 外部停止 (他の投稿再生開始など) を検知
   React.useEffect(()=> {
     if (currentPostId !== postId && speaking) {
