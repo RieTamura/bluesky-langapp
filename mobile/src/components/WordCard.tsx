@@ -24,11 +24,16 @@ export const WordCard: React.FC<Props> = ({ word, onStatusChange, onPress, loadi
         <View style={styles.row}> 
           <Text style={[styles.word, { color: c.text }]}>{word.word}</Text>
           <TouchableOpacity
-            style={[styles.badge, { backgroundColor: statusColor(word.status, c) }]}
+            style={[styles.badge, word.status === 'known'
+              ? { backgroundColor: 'transparent' }
+              : { backgroundColor: statusColor(word.status, c) }
+            ]}
             disabled={loading}
             onPress={() => onStatusChange?.(word.id, nextStatus[word.status])}
           >
-            {loading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.badgeText}>{word.status}</Text>}
+            {loading
+              ? <ActivityIndicator size="small" color={word.status === 'known' ? c.badgeKnown : '#fff'} />
+              : <Text style={[styles.badgeText, word.status === 'known' && { color: c.badgeKnown }]}>{word.status}</Text>}
           </TouchableOpacity>
         </View>
         {!!word.definition && <Text style={[styles.def, { color: c.secondaryText }]} numberOfLines={2}>{word.definition}</Text>}

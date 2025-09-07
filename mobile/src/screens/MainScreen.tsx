@@ -8,6 +8,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useUserPosts, useFollowingFeed, useDiscoverFeed } from '../hooks/usePosts';
 import { useFeedStore } from '../stores/feed';
 import { WordDetailModal } from '../components/WordDetailModal';
+import { useWords } from '../hooks/useWords';
 
 // チャンク毎エラーによる Alert スパム防止: 投稿単位で一度だけ通知
 const ttsErrorAlertedPerPost = new Set<string>();
@@ -43,6 +44,9 @@ export const MainScreen: React.FC = () => {
   (MainScreen as any)._setWord = (w: string) => setSelectedWord(w);
 
   const c = useThemeColors();
+  // 単語学習ステータス (known 単語の背景を消すため)
+  const { words: allWords } = useWords();
+  const knownWords = useMemo(() => new Set(allWords.filter(w => w.status === 'known').map(w => w.word.toLowerCase())), [allWords]);
 
   // --- Scroll To Top Button ---
   const [showTopBtn, setShowTopBtn] = useState(false);
@@ -92,7 +96,7 @@ export const MainScreen: React.FC = () => {
       >
         {loadingFeed && <ActivityIndicator style={{ marginVertical: 12 }} />}
         {!loadingFeed && currentFeed.map((item: any, i: number) => (
-          <FeedItem key={feedTab + '-' + i} item={item} index={i} accentColor={c.accent} secondaryColor={c.secondaryText} borderColor={c.border} />
+          <FeedItem key={feedTab + '-' + i} item={item} index={i} accentColor={c.accent} secondaryColor={c.secondaryText} borderColor={c.border} knownWords={knownWords} />
         ))}
       </ScrollView>
       {showTopBtn && (
@@ -116,7 +120,7 @@ export const MainScreen: React.FC = () => {
 // 共通: トークン前処理（前後句読点除去）
 const stripEdgePunct = (tok: string) => tok.replace(/^[.,!?;:()"'`\[\]{}<>…。、，！？：；（）「」『』]+|[.,!?;:()"'`\[\]{}<>…。、，！？：；（）「」『』]+$/g, '');
 
-const SelectableText: React.FC<{ text: string; highlightWordIndex?: number; onLongPressWord?: (wordIndex: number)=>void }> = ({ text, highlightWordIndex, onLongPressWord }) => {
+const SelectableText: React.FC<{ text: string; highlightWordIndex?: number; onLongPressWord?: (wordIndex: number)=>void; knownWords: Set<string>; }> = ({ text, highlightWordIndex, onLongPressWord, knownWords }) => {
   // Pass selectedWord setter through closure by attaching to each token via captured function from outer component (prop drilling alternative).
   // For simplicity we rely on a temporary global setter injection replaced just-in-time below.
   const setWord = (MainScreen as any)._setWord as (w: string)=>void;
@@ -126,14 +130,23 @@ const SelectableText: React.FC<{ text: string; highlightWordIndex?: number; onLo
       {text.split(/(\s+)/).filter(t => t.length > 0).map((tok, i) => {
         if (tok.trim() === '') return <Text key={i} style={styles.space}>{tok}</Text>;
         const cleaned = stripEdgePunct(tok);
-        // 句読点のみのトークンはハイライト対象インデックスを進めない
-        if (!cleaned) {
-          return <Text key={i} style={styles.token}>{tok}</Text>;
-        }
-        wordCounter += 1;
-        const playing = highlightWordIndex === wordCounter;
-  const currentIdx = wordCounter;
-  return <Text key={i} onPress={() => setWord && setWord(cleaned)} onLongPress={() => onLongPressWord && onLongPressWord(currentIdx)} style={[styles.token, playing && styles.tokenPlaying]}>{tok}</Text>;
+        if (!cleaned) return <Text key={i} style={styles.token}>{tok}</Text>;
+        const isHashtag = cleaned.startsWith('#') && cleaned.length > 1;
+        const isUrl = /^(https?:\/\/\S+|www\.[^\s]+)$/i.test(cleaned);
+        let currentIdx: number | null = null;
+        if (!isHashtag && !isUrl) { wordCounter += 1; currentIdx = wordCounter; }
+        const playing = currentIdx !== null && highlightWordIndex === currentIdx;
+        const lw = cleaned.toLowerCase();
+        const isKnown = knownWords.has(lw);
+        const noBg = isKnown || isHashtag || isUrl;
+        return (
+          <Text
+            key={i}
+            onPress={() => setWord && setWord(cleaned)}
+            onLongPress={() => currentIdx !== null && onLongPressWord && onLongPressWord(currentIdx)}
+            style={[styles.token, noBg && styles.tokenNoBg, playing && styles.tokenPlaying]}
+          >{tok}</Text>
+        );
       })}
     </View>
   );
@@ -149,6 +162,10 @@ const styles = StyleSheet.create({
   postText: { fontSize: 15, lineHeight: 20 },
   tokensWrap: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start' },
   token: { fontSize: 15, lineHeight: 20, paddingHorizontal: 6, paddingVertical: 2, marginRight: 4, marginBottom: 4, borderRadius: 6, backgroundColor: '#eef2f7' },
+  // known 単語: 背景無し (透明) + 余白を維持するため padding はそのまま
+  tokenKnown: { backgroundColor: 'transparent' },
+  // hashtag / URL / known 共通利用 (将来 tokenKnown と統合予定)
+  tokenNoBg: { backgroundColor: 'transparent' },
   space: { fontSize: 15, lineHeight: 20 },
   time: { marginTop: 8, fontSize: 11, color: '#555' },
   feedDivider: { fontSize: 16, fontWeight: '600', marginTop: 8 }, // (legacy not used, keep for potential reuse)
@@ -176,7 +193,7 @@ const styles = StyleSheet.create({
 //  UI で未参照かつ高頻度 re-render を招いていたため削除)
 
 // --- Feed Item with TTS ---
-const FeedItem: React.FC<{ item: any; index: number; accentColor: string; secondaryColor: string; borderColor: string }> = ({ item, index, accentColor, secondaryColor, borderColor }) => {
+const FeedItem: React.FC<{ item: any; index: number; accentColor: string; secondaryColor: string; borderColor: string; knownWords: Set<string>; }> = ({ item, index, accentColor, secondaryColor, borderColor, knownWords }) => {
   const [speaking, setSpeaking] = useState(false);
   const [currentWordIdx, setCurrentWordIdx] = useState<number | null>(null);
   // waveAmps state は UI で未使用のため削除（AnimatedBar 内部で独自アニメ制御）
@@ -201,9 +218,11 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
   const buildTokens = useCallback(() => {
     const text = item?.text || '';
     const rawTokens: string[] = text.split(/\s+/);
-    tokensRef.current = rawTokens.map((t:string)=> ({ raw:t, cleaned: stripEdgePunct(t) }))
-      .filter(t=> t.cleaned.length>0);
-    // base language
+    const isHashtag = (s: string) => /^#[\p{L}0-9_]+$/u.test(s); // ハッシュタグ (#英数字_)
+    const isUrl = (s: string) => /^(https?:\/\/\S+|www\.[^\s]+)$/i.test(s); // URL 判定
+    tokensRef.current = rawTokens
+      .map((t:string)=> ({ raw:t, cleaned: stripEdgePunct(t) }))
+      .filter(t=> t.cleaned.length>0 && !isHashtag(t.cleaned) && !isUrl(t.cleaned));
     if (mode === 'manual') baseLangRef.current = manualLanguage || 'en-US';
     else {
       const det = detectLanguage(text);
@@ -424,7 +443,7 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
   return (
     <View style={[styles.feedRow,{ borderColor, backgroundColor: currentPostId === postId ? 'rgba(0,122,255,0.08)' : 'transparent' }]}> 
       <Text style={[styles.handle,{ color: accentColor }]}>@{item.author?.handle}</Text>
-      <SelectableText text={item.text} highlightWordIndex={currentWordIdx ?? undefined} onLongPressWord={resumeFrom} />
+  <SelectableText text={item.text} highlightWordIndex={currentWordIdx ?? undefined} onLongPressWord={resumeFrom} knownWords={knownWords} />
       <View style={styles.dateRow}>
         <Text style={[styles.time,{ color: secondaryColor }]}>{new Date(item.createdAt).toLocaleString()}</Text>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel={speaking ? '音声停止' : '読み上げ'} onPress={onPressSpeak} style={styles.ttsBtn}>

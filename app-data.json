@@ -4,9 +4,9 @@
     {
       "word": "Excited",
       "status": "unknown",
-  "date": "2024-01-01T00:00:00.000Z",
+      "date": "2024-01-01T00:00:00.000Z",
       "id": "word_1757208769336_0",
-  "userId": "SAMPLE_USER_ID",
+      "userId": "SAMPLE_USER_ID",
       "definition": "興奮した、わくわくした",
       "exampleSentence": "I am so excited about the new project.",
       "languageCode": "en"
@@ -14,9 +14,9 @@
     {
       "word": "stuff",
       "status": "unknown",
-  "date": "2024-01-01T00:00:00.000Z",
+      "date": "2024-01-01T00:00:00.000Z",
       "id": "word_1757208769336_1",
-  "userId": "SAMPLE_USER_ID",
+      "userId": "SAMPLE_USER_ID",
       "definition": "物、もの、材料",
       "exampleSentence": "There's a lot of stuff in the garage.",
       "languageCode": "en"
@@ -24,9 +24,9 @@
     {
       "word": "records",
       "status": "unknown",
-  "date": "2024-01-01T00:00:00.000Z",
+      "date": "2024-01-01T00:00:00.000Z",
       "id": "word_1757208769336_2",
-  "userId": "SAMPLE_USER_ID",
+      "userId": "SAMPLE_USER_ID",
       "definition": "記録、レコード",
       "exampleSentence": "Please keep records of all transactions.",
       "languageCode": "en"
@@ -34,9 +34,9 @@
     {
       "word": "from",
       "status": "unknown",
-  "date": "2024-01-01T00:00:00.000Z",
+      "date": "2024-01-01T00:00:00.000Z",
       "id": "word_1757208769336_3",
-  "userId": "SAMPLE_USER_ID",
+      "userId": "SAMPLE_USER_ID",
       "definition": "〜から、〜より",
       "exampleSentence": "I received a letter from my friend.",
       "languageCode": "en"
@@ -44,9 +44,9 @@
     {
       "word": "backfill",
       "status": "unknown",
-  "date": "2024-01-01T00:00:00.000Z",
+      "date": "2024-01-01T00:00:00.000Z",
       "id": "word_1757208769336_4",
-  "userId": "SAMPLE_USER_ID",
+      "userId": "SAMPLE_USER_ID",
       "definition": "埋め戻し、補完",
       "exampleSentence": "We need to backfill the missing data.",
       "languageCode": "en"
@@ -54,9 +54,9 @@
     {
       "word": "provides",
       "status": "unknown",
-  "date": "2024-01-01T00:00:00.000Z",
+      "date": "2024-01-01T00:00:00.000Z",
       "id": "word_1757208769336_5",
-  "userId": "SAMPLE_USER_ID",
+      "userId": "SAMPLE_USER_ID",
       "definition": "提供する、与える",
       "exampleSentence": "This service provides excellent support.",
       "languageCode": "en"
@@ -64,9 +64,9 @@
     {
       "word": "typescript",
       "status": "unknown",
-  "date": "2024-01-01T00:00:00.000Z",
+      "date": "2024-01-01T00:00:00.000Z",
       "id": "word_1757208769336_6",
-  "userId": "SAMPLE_USER_ID",
+      "userId": "SAMPLE_USER_ID",
       "definition": "TypeScript（プログラミング言語）",
       "exampleSentence": "TypeScript helps catch errors at compile time.",
       "languageCode": "en"
@@ -74,9 +74,9 @@
     {
       "word": "client",
       "status": "unknown",
-  "date": "2024-01-01T00:00:00.000Z",
+      "date": "2024-01-01T00:00:00.000Z",
       "id": "word_1757208769336_7",
-  "userId": "SAMPLE_USER_ID",
+      "userId": "SAMPLE_USER_ID",
       "definition": "クライアント、顧客",
       "exampleSentence": "The client was very satisfied with our work.",
       "languageCode": "en"
@@ -84,9 +84,9 @@
     {
       "word": "interact",
       "status": "unknown",
-  "date": "2024-01-01T00:00:00.000Z",
+      "date": "2024-01-01T00:00:00.000Z",
       "id": "word_1757208769336_8",
-  "userId": "SAMPLE_USER_ID",
+      "userId": "SAMPLE_USER_ID",
       "definition": "相互作用する、やり取りする",
       "exampleSentence": "Users can interact with the application easily.",
       "languageCode": "en"
@@ -94,9 +94,9 @@
     {
       "word": "Celebration",
       "status": "unknown",
-  "date": "2024-01-01T00:00:00.000Z",
+      "date": "2024-01-01T00:00:00.000Z",
       "id": "word_1757208769336_9",
-  "userId": "SAMPLE_USER_ID",
+      "userId": "SAMPLE_USER_ID",
       "definition": "お祝い、祝賀",
       "exampleSentence": "We had a celebration for her birthday.",
       "languageCode": "en"
@@ -104,9 +104,9 @@
     {
       "word": "companion!",
       "status": "unknown",
-  "date": "2024-01-01T00:00:00.000Z",
+      "date": "2024-01-01T00:00:00.000Z",
       "id": "word_1757208769336_10",
-  "userId": "SAMPLE_USER_ID",
+      "userId": "SAMPLE_USER_ID",
       "definition": "仲間、相棒",
       "exampleSentence": "My dog is my faithful companion.",
       "languageCode": "en"
@@ -114,12 +114,75 @@
     {
       "word": "Earn",
       "status": "unknown",
-  "date": "2024-01-01T00:00:00.000Z",
+      "date": "2024-01-01T00:00:00.000Z",
       "id": "word_1757208769336_11",
-  "userId": "SAMPLE_USER_ID",
+      "userId": "SAMPLE_USER_ID",
       "definition": "稼ぐ、得る",
       "exampleSentence": "You need to earn their trust first.",
       "languageCode": "en"
+    },
+    {
+      "id": "word_1757221890723_pl7nkam41",
+      "word": "new",
+      "status": "known",
+      "userId": "connectobasan.com",
+      "languageCode": "en",
+      "definition": "Things that are new.",
+      "exampleSentence": "Out with the old, in with the new.",
+      "reviewCount": 0,
+      "correctCount": 0,
+      "date": "2025-09-07T05:11:30.748Z",
+      "lastReviewedAt": "2025-09-07T05:11:30.747Z"
+    },
+    {
+      "id": "word_1757221895205_72b83m1aj",
+      "word": "service",
+      "status": "known",
+      "userId": "connectobasan.com",
+      "languageCode": "en",
+      "definition": "An act of being of assistance to someone.",
+      "exampleSentence": "I say I did him a service by ending our relationship – now he can freely pursue his career.",
+      "reviewCount": 0,
+      "correctCount": 0,
+      "date": "2025-09-07T05:11:35.237Z",
+      "lastReviewedAt": "2025-09-07T05:11:35.236Z"
+    },
+    {
+      "id": "word_1757221898516_ekw7ffkjm",
+      "word": "launch",
+      "status": "known",
+      "userId": "connectobasan.com",
+      "languageCode": "en",
+      "definition": "The movement of a vessel from land into the water; especially, the sliding on ways from the stocks on which it is built. (Compare: to splash a ship.)",
+      "reviewCount": 0,
+      "correctCount": 0,
+      "date": "2025-09-07T05:14:01.776Z",
+      "lastReviewedAt": "2025-09-07T05:14:01.775Z"
+    },
+    {
+      "id": "word_1757222245600_rcs6035y0",
+      "word": "a",
+      "status": "known",
+      "userId": "connectobasan.com",
+      "languageCode": "en",
+      "definition": "The name of the Latin script letter A/a.",
+      "reviewCount": 0,
+      "correctCount": 0,
+      "date": "2025-09-07T05:17:25.630Z",
+      "lastReviewedAt": "2025-09-07T05:17:25.629Z"
+    },
+    {
+      "id": "word_1757222287638_v8qacgnje",
+      "word": "people",
+      "status": "known",
+      "userId": "connectobasan.com",
+      "languageCode": "en",
+      "definition": "Used as plural of person; a body of human beings considered generally or collectively; a group of two or more persons.",
+      "exampleSentence": "There were so many people at the restaurant last night.",
+      "reviewCount": 0,
+      "correctCount": 0,
+      "date": "2025-09-07T05:18:07.675Z",
+      "lastReviewedAt": "2025-09-07T05:18:07.674Z"
     }
   ],
   "version": "1.0.0"
