@@ -25,12 +25,12 @@ export const FooterNav: React.FC = () => {
 
   // 画面遷移イベントを購読してアクティブ表示を更新
   React.useEffect(() => {
-    const sub = navigationRef.addListener?.('state', () => {
-      setRouteName(getCurrentRouteName());
-    });
+    const handler = () => setRouteName(getCurrentRouteName());
+    // addListener returns an unsubscribe function
+    const unsub = navigationRef.addListener('state', handler);
     // 初期化遅延対策
     const id = setTimeout(() => setRouteName(getCurrentRouteName()), 300);
-    return () => { sub && (sub as any).remove?.(); clearTimeout(id); };
+    return () => { unsub(); clearTimeout(id); };
   }, []);
 
   return (
