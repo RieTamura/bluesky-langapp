@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Modal, View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { wordsApi, api } from '../services/api';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface Props {
   word: string | null;
@@ -20,6 +21,8 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
   const [info, setInfo] = useState<WordInfo | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // React Query のグローバルキャッシュ操作用
+  const qc = useQueryClient();
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +87,8 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
       const res: any = await wordsApi.create({ word: info.word, definition: info.definition, exampleSentence: info.exampleSentence });
       const created = res?.data || res;
       setInfo(s => s ? { ...s, id: created.id, status: created.status } : s);
+  // 全ての words 関連クエリを無効化して再取得 (language/status フィルタ別キーも含む)
+  qc.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'words' });
       return created.id;
     } catch (e: any) {
       Alert.alert('エラー', e?.message || '登録失敗');
@@ -104,6 +109,8 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
       if (normalized === 'known') setMessage('既知に設定しました');
       else if (normalized === 'unknown' && wasNew) setMessage('登録しました (未知)');
       else if (normalized === 'unknown') setMessage('未知に設定しました');
+  // 更新後にキャッシュをinvalidateしてフィード側 knownWords セットを更新
+  qc.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'words' });
     } catch (e: any) {
       Alert.alert('エラー', e?.message || '更新失敗');
     } finally { setSaving(false); }

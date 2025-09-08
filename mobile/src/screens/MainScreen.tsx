@@ -11,7 +11,8 @@ import { WordDetailModal } from '../components/WordDetailModal';
 import { useWords } from '../hooks/useWords';
 
 // チャンク毎エラーによる Alert スパム防止: 投稿単位で一度だけ通知
-const ttsErrorAlertedPerPost = new Set<string>();
+// (一部環境で new Set<string>() の TS ジェネリクスがパースエラーになるケースがあるため型注釈方式に変更)
+const ttsErrorAlertedPerPost: Set<string> = new Set();
 
 // メイン画面: 1) フィード 2) クイズ 3) 進捗
 export const MainScreen: React.FC = () => {
