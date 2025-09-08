@@ -108,8 +108,15 @@ export const Confetti: React.FC<Props> = ({
   for (let i = 0; i < count; i++) {
         let theta;
         if (radial) {
-          // 全方位: 自然なばらつきが出るように角度はランダムに採る
-          theta = (Math.random() * 360) * Math.PI / 180;
+          // radial モードでも spread を尊重可能にする
+          // radialSpread が 360 なら全方位、そうでなければ baseAngle ± radialSpread/2 の範囲
+          const radialSpread = sp ?? 360;
+          if (radialSpread >= 360) {
+            theta = (Math.random() * 360) * Math.PI / 180;
+          } else {
+            const startDeg = baseAngle - radialSpread / 2;
+            theta = (startDeg + Math.random() * radialSpread) * Math.PI / 180;
+          }
         } else {
           // 角度ランダム (中心±spread/2)
           theta = (baseAngle + (Math.random() - 0.5) * sp) * Math.PI / 180;
@@ -129,7 +136,7 @@ export const Confetti: React.FC<Props> = ({
         const fallDistance = height + 100; // 画面外まで
   // クラッカー位置指定: 優先順序 burst.origin(px) -> originX/originY (props) -> デフォルト
   const x0 = burstOriginX !== undefined ? burstOriginX : (originX !== undefined ? originX : (radial ? width / 2 : Math.random() * width));
-  const y0 = burstOriginY !== undefined ? burstOriginY : (originY !== undefined ? originY : (radial ? height * 0.85 : height * 0.85));
+  const y0 = burstOriginY !== undefined ? burstOriginY : (originY !== undefined ? originY : height * 0.85);
         list.push({
           left: x0,
           delay,
@@ -157,6 +164,27 @@ export const Confetti: React.FC<Props> = ({
 
   const anims = useRef<Animated.Value[]>([]);
   if (anims.current.length !== allPieces.length) {
+    // cleanup existing Animated.Value instances to avoid leaks
+    try {
+      anims.current.forEach(v => {
+        if (!v) return;
+        try {
+          // stop any running animation
+          if (typeof (v as any).stopAnimation === 'function') {
+            (v as any).stopAnimation();
+          }
+          // remove listeners if present
+          if (typeof (v as any).removeAllListeners === 'function') {
+            (v as any).removeAllListeners();
+          } else if (typeof (v as any).removeListener === 'function') {
+            // try best-effort removal by id if available
+            try { (v as any).removeAllListeners && (v as any).removeAllListeners(); } catch {};
+          }
+        } catch (_) {
+          // ignore individual errors during cleanup
+        }
+      });
+    } catch (_) {}
     anims.current = allPieces.map(() => new Animated.Value(0));
   }
 

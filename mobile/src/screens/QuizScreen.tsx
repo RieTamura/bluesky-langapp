@@ -43,10 +43,14 @@ export const QuizScreen: React.FC = () => {
             accessibilityRole="image"
             accessibilityLabel="celebration"
             onLayout={() => {
-              // measure the icon and set origin to its center in screen coordinates
-              if (!iconRef.current) return;
-              iconRef.current.measure((fx: number, fy: number, w: number, h: number, px: number, py: number) => {
-                setOrigin({ x: px + w / 2, y: py + h / 2 });
+              // defer measurement until after layout pass to get stable coordinates
+              requestAnimationFrame(() => {
+                if (!iconRef.current) return;
+                try {
+                  iconRef.current.measure((fx: number, fy: number, w: number, h: number, px: number, py: number) => {
+                    setOrigin({ x: px + w / 2, y: py + h / 2 });
+                  });
+                } catch (_) {}
               });
             }}
           >🎉</Text>

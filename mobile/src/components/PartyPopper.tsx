@@ -40,7 +40,8 @@ export const PartyPopper: React.FC<Props> = ({
   const anim = useRef(new Animated.Value(0)).current;
   const cfgRef = useRef<PieceCfg[]>([]);
 
-  if (cfgRef.current.length === 0) {
+  // generate particle configs whenever pieces or colors change to avoid stale configs
+  useEffect(() => {
     cfgRef.current = Array.from({ length: pieces }).map((_, i) => {
       const angle = (Math.random() * 70 + 55) * (Math.random() < 0.5 ? -1 : 1); // 左右に広がる (±)
       const rad = (angle * Math.PI) / 180;
@@ -58,7 +59,7 @@ export const PartyPopper: React.FC<Props> = ({
         rotateEnd: `${Math.random() * 360 + 1080}deg`
       };
     });
-  }
+  }, [pieces, colors]);
 
   useEffect(() => {
     if (!trigger) return;
