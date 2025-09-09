@@ -59,22 +59,22 @@ export const ProgressScreen: React.FC = () => {
     <FlatList
       ListHeaderComponent={() => (
         <>
-          <View style={[commonStyles.statusRow, { paddingHorizontal: 16 }]}>
-            <View style={[commonStyles.statusBox, { backgroundColor: c.surface, borderColor: c.border }]}>
-              <Text style={[commonStyles.statusLabel, { color: c.secondaryText }]}>UNKNOWN</Text>
-              <Text style={[commonStyles.statusNumber, { color: c.text }]}>{progressQ.data?.unknownWords ?? stats?.unknownWords ?? 0}</Text>
+          <View style={commonStyles.statusRow}>
+            <View style={[commonStyles.statusBox, { backgroundColor: c.badgeUnknown, borderColor: c.badgeUnknown }]}>
+              <Text style={[commonStyles.statusLabel, { color: '#fff' }]}>UNKNOWN</Text>
+              <Text style={[commonStyles.statusNumber, { color: '#fff' }]}>{progressQ.data?.unknownWords ?? stats?.unknownWords ?? 0}</Text>
             </View>
-            <View style={[commonStyles.statusBox, { backgroundColor: c.surface, borderColor: c.border }]}>
-              <Text style={[commonStyles.statusLabel, { color: c.secondaryText }]}>LEARNING</Text>
-              <Text style={[commonStyles.statusNumber, { color: c.text }]}>{progressQ.data?.learningWords ?? stats?.learningWords ?? 0}</Text>
+            <View style={[commonStyles.statusBox, { backgroundColor: c.badgeLearning, borderColor: c.badgeLearning }]}>
+              <Text style={[commonStyles.statusLabel, { color: '#fff' }]}>LEARNING</Text>
+              <Text style={[commonStyles.statusNumber, { color: '#fff' }]}>{progressQ.data?.learningWords ?? stats?.learningWords ?? 0}</Text>
             </View>
-            <View style={[commonStyles.statusBox, { backgroundColor: c.surface, borderColor: c.border }]}>
-              <Text style={[commonStyles.statusLabel, { color: c.secondaryText }]}>KNOWN</Text>
-              <Text style={[commonStyles.statusNumber, { color: c.text }]}>{progressQ.data?.knownWords ?? stats?.knownWords ?? 0}</Text>
+            <View style={[commonStyles.statusBox, { backgroundColor: c.badgeKnown, borderColor: c.badgeKnown }]}>
+              <Text style={[commonStyles.statusLabel, { color: '#fff' }]}>KNOWN</Text>
+              <Text style={[commonStyles.statusNumber, { color: '#fff' }]}>{progressQ.data?.knownWords ?? stats?.knownWords ?? 0}</Text>
             </View>
           </View>
 
-          <View style={[commonStyles.chartContainer, { paddingHorizontal: 16, backgroundColor: c.background }]}> 
+          <View style={[commonStyles.chartContainer, { backgroundColor: c.background, borderColor: c.border }]}> 
             <Text style={[commonStyles.chartTitle, { color: c.text }]}>過去14日間の回答数</Text>
             {historyQ.isLoading && <ActivityIndicator />}
             {!historyQ.isLoading && Array.isArray(historyQ.data) && historyQ.data.length > 0 && (
@@ -85,7 +85,7 @@ export const ProgressScreen: React.FC = () => {
                     return (
                       <View key={i} style={commonStyles.chartCol}>
                         <View style={[commonStyles.chartBar, { height: Math.min(MAX_BAR_HEIGHT, BASE_BAR_HEIGHT + val * BAR_HEIGHT_MULTIPLIER), backgroundColor: c.accent }]} />
-                        {/* date labels removed as requested */}
+                        <Text style={[commonStyles.chartLabel, { color: c.secondaryText }]}>{String(d.date).slice(5)}</Text>
                       </View>
                     );
                   })}
