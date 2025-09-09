@@ -1,8 +1,14 @@
 import React from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, FlatList, ScrollView } from 'react-native';
 import { useThemeColors } from '../stores/theme';
+import { commonStyles } from '../styles/commonStyles';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
+
+// Chart bar sizing constants (centralized for easy tuning)
+const MAX_BAR_HEIGHT = 120; // maximum height in pixels for a bar
+const BASE_BAR_HEIGHT = 8; // base/minimum height in pixels for a bar
+const BAR_HEIGHT_MULTIPLIER = 12; // multiplier applied to value to compute bar height
 
 interface AdvancedStats {
   totalWords: number; unknownWords: number; learningWords: number; knownWords: number;
@@ -38,9 +44,7 @@ export const ProgressScreen: React.FC = () => {
 
   const items = [
     { k: '総語彙', v: stats?.totalWords },
-    { k: '未知', v: stats?.unknownWords },
-    { k: '学習中', v: stats?.learningWords },
-    { k: '既知', v: stats?.knownWords },
+  // Removed per request: unknown/learning/known are shown in the header status boxes
     { k: '総レビュー', v: stats?.totalReviews },
     { k: '平均正答率', v: ((stats?.averageAccuracy || 0) * 100).toFixed(1) + '%' },
     { k: 'レビュー対象', v: stats?.wordsForReview },
@@ -55,33 +59,33 @@ export const ProgressScreen: React.FC = () => {
     <FlatList
       ListHeaderComponent={() => (
         <>
-          <View style={[styles.statusRow, { paddingHorizontal: 16 }]}>
-            <View style={[styles.statusBox, { backgroundColor: c.surface, borderColor: c.border }]}>
-              <Text style={[styles.statusLabel, { color: c.secondaryText }]}>未知</Text>
-              <Text style={[styles.statusNumber, { color: c.text }]}>{progressQ.data?.unknownWords ?? stats?.unknownWords ?? 0}</Text>
+          <View style={[commonStyles.statusRow, { paddingHorizontal: 16 }]}>
+            <View style={[commonStyles.statusBox, { backgroundColor: c.surface, borderColor: c.border }]}>
+              <Text style={[commonStyles.statusLabel, { color: c.secondaryText }]}>UNKNOWN</Text>
+              <Text style={[commonStyles.statusNumber, { color: c.text }]}>{progressQ.data?.unknownWords ?? stats?.unknownWords ?? 0}</Text>
             </View>
-            <View style={[styles.statusBox, { backgroundColor: c.surface, borderColor: c.border }]}>
-              <Text style={[styles.statusLabel, { color: c.secondaryText }]}>学習中</Text>
-              <Text style={[styles.statusNumber, { color: c.text }]}>{progressQ.data?.learningWords ?? stats?.learningWords ?? 0}</Text>
+            <View style={[commonStyles.statusBox, { backgroundColor: c.surface, borderColor: c.border }]}>
+              <Text style={[commonStyles.statusLabel, { color: c.secondaryText }]}>LEARNING</Text>
+              <Text style={[commonStyles.statusNumber, { color: c.text }]}>{progressQ.data?.learningWords ?? stats?.learningWords ?? 0}</Text>
             </View>
-            <View style={[styles.statusBox, { backgroundColor: c.surface, borderColor: c.border }]}>
-              <Text style={[styles.statusLabel, { color: c.secondaryText }]}>既知</Text>
-              <Text style={[styles.statusNumber, { color: c.text }]}>{progressQ.data?.knownWords ?? stats?.knownWords ?? 0}</Text>
+            <View style={[commonStyles.statusBox, { backgroundColor: c.surface, borderColor: c.border }]}>
+              <Text style={[commonStyles.statusLabel, { color: c.secondaryText }]}>KNOWN</Text>
+              <Text style={[commonStyles.statusNumber, { color: c.text }]}>{progressQ.data?.knownWords ?? stats?.knownWords ?? 0}</Text>
             </View>
           </View>
 
-          <View style={[styles.chartContainer, { paddingHorizontal: 16, backgroundColor: c.background }]}> 
-            <Text style={[styles.chartTitle, { color: c.text }]}>過去14日間の回答数</Text>
+          <View style={[commonStyles.chartContainer, { paddingHorizontal: 16, backgroundColor: c.background }]}> 
+            <Text style={[commonStyles.chartTitle, { color: c.text }]}>過去14日間の回答数</Text>
             {historyQ.isLoading && <ActivityIndicator />}
             {!historyQ.isLoading && Array.isArray(historyQ.data) && historyQ.data.length > 0 && (
               <ScrollView horizontal contentContainerStyle={{ paddingVertical: 8 }} showsHorizontalScrollIndicator={false}>
-                <View style={styles.chartRow}>
+                <View style={commonStyles.chartRow}>
                   {(historyQ.data as any[]).map((d, i) => {
                     const val = Number(d.quizzesTaken ?? d.answers ?? 0);
                     return (
-                      <View key={i} style={styles.chartCol}>
-                        <View style={[styles.chartBar, { height: Math.min(120, 8 + val * 12), backgroundColor: c.accent }]} />
-                        <Text style={[styles.chartLabel, { color: c.secondaryText }]}>{String(d.date).slice(5)}</Text>
+                      <View key={i} style={commonStyles.chartCol}>
+                        <View style={[commonStyles.chartBar, { height: Math.min(MAX_BAR_HEIGHT, BASE_BAR_HEIGHT + val * BAR_HEIGHT_MULTIPLIER), backgroundColor: c.accent }]} />
+                        {/* date labels removed as requested */}
                       </View>
                     );
                   })}
