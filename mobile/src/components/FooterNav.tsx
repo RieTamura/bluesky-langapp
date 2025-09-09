@@ -26,11 +26,39 @@ export const FooterNav: React.FC = () => {
   // 画面遷移イベントを購読してアクティブ表示を更新
   React.useEffect(() => {
     const handler = () => setRouteName(getCurrentRouteName());
-    // addListener returns an unsubscribe function
-    const unsub = navigationRef.addListener('state', handler);
-    // 初期化遅延対策
+    // navigationRef がまだ準備できていない可能性があるため安全に購読する。
+    // addListener が利用可能になるまで短い間隔で試行し、購読できたら interval を解除する。
+    let unsub: (() => void) | undefined;
+    let intervalId: any;
+
+    const trySubscribe = () => {
+      try {
+        if (navigationRef.isReady() && typeof (navigationRef as any).addListener === 'function') {
+          unsub = (navigationRef as any).addListener('state', handler);
+          return true;
+        }
+      } catch (e) {
+        // ignore and retry
+      }
+      return false;
+    };
+
+    if (!trySubscribe()) {
+      intervalId = setInterval(() => {
+        if (trySubscribe() && intervalId) {
+          clearInterval(intervalId);
+          intervalId = undefined;
+        }
+      }, 100);
+    }
+
+    // 初期化遅延対策（リスナー登録が遅れた場合にも初期のルート名を取得する）
     const id = setTimeout(() => setRouteName(getCurrentRouteName()), 300);
-    return () => { unsub(); clearTimeout(id); };
+    return () => {
+      try { unsub && unsub(); } catch {}
+      try { if (intervalId) clearInterval(intervalId); } catch {}
+      clearTimeout(id);
+    };
   }, []);
 
   return (

@@ -9,22 +9,36 @@ import { navigate } from '../navigation/rootNavigation';
 
 export const QuizScreen: React.FC = () => {
   const { start, answer, current, completed, isLoading, accuracy, answered, totalQuestions, lastResult } = useQuiz(5);
+  const [lastAck, setLastAck] = React.useState(true);
   const [origin, setOrigin] = useState<{ x: number; y: number } | null>(null);
   const iconRef = useRef<any>(null);
 
   useEffect(() => { start(); }, [start]);
   const c = useThemeColors();
 
+  // keep a reference to the last shown question so we can display the answer
+  const lastShownQuestionRef = React.useRef(current);
+  React.useEffect(() => {
+    if (current) lastShownQuestionRef.current = current;
+  }, [current]);
+
+  // If quiz is completed, don't show the QuizCard even if we have a last question—show completed screen only
+  const questionToShow = completed ? undefined : ((!lastAck && lastResult) ? lastShownQuestionRef.current : (current ?? (lastResult ? lastShownQuestionRef.current : undefined)));
+
   return (
   <SafeAreaView style={[styles.container,{ backgroundColor: c.background }]}> 
       {isLoading && !current && !completed && <ActivityIndicator />}
-      {current && (
+  {questionToShow && !completed && (
         <QuizCard
-          question={current.question}
-            questionType={current.questionType}
-            word={current.word}
-            onAnswer={answer}
-            disabled={isLoading}
+          question={questionToShow.question}
+          questionType={questionToShow.questionType}
+          word={questionToShow.word}
+          onAnswer={(text: string) => { setLastAck(false); answer(text); }}
+          onNext={() => { setLastAck(true); }}
+          disabled={isLoading}
+          lastResult={lastResult}
+          answered={typeof answered === 'number' ? answered + 1 : answered}
+          totalQuestions={totalQuestions}
         />
       )}
       {completed && (
@@ -54,8 +68,8 @@ export const QuizScreen: React.FC = () => {
               });
             }}
           >🎉</Text>
-          <Text style={styles.resultTitle}>Great Job!</Text>
-          <Text style={styles.resultText}>Accuracy: {Math.round((accuracy || 0) * 100)}%</Text>
+          <Text style={[styles.resultTitle, { color: c.text }]}>Great Job!</Text>
+          <Text style={[styles.resultText, { color: c.text }]}>Accuracy: {Math.round((accuracy || 0) * 100)}%</Text>
           <View style={styles.resultButtons}>
             <TouchableOpacity style={[styles.actionBtn,{ backgroundColor: c.accent }]} onPress={() => start()} accessibilityRole="button" accessibilityLabel="もう一度プレイ">
               <Text style={styles.actionBtnText}>もう一度プレイ</Text>
@@ -66,12 +80,8 @@ export const QuizScreen: React.FC = () => {
           </View>
         </View>
       )}
-      {lastResult && !completed && (
-        <Text style={styles.feedback}>{lastResult.correct ? '✔ Correct' : `✖ ${lastResult.correctAnswer}`}</Text>
-      )}
-      {!!totalQuestions && (
-        <Text style={styles.meta}>{answered}/{totalQuestions}</Text>
-      )}
+  {/* lastResult is now handled inside QuizCard; remove duplicate bottom feedback text */}
+  {/* progress badge moved into QuizCard */}
     </SafeAreaView>
   );
 };
@@ -88,5 +98,5 @@ const styles = StyleSheet.create({
   actionBtn: { paddingVertical: 14, borderRadius: 10, marginBottom: 12, alignItems: 'center' },
   actionBtnText: { fontSize: 16, fontWeight: '600', color: '#fff' },
   feedback: { marginTop: 12, fontSize: 16, fontWeight: '600' },
-  meta: { position: 'absolute', top: 12, right: 16, fontWeight: '600' }
+  meta: { position: 'absolute', top: 22, right: 28, fontWeight: '600' }
 });

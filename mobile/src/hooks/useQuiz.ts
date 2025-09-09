@@ -46,6 +46,8 @@ export function useQuiz(initialCount = 5) {
     setState(s => ({ ...s, isLoading: true }));
     const res = await quizApi.answer(state.sessionId!, text, Math.round(responseTimeMs));
     const d = res.data;
+  // debug: log server response for troubleshooting
+  try { console.log('useQuiz.answer response', d); } catch (_) {}
     let next: QuizQuestion | undefined = d.nextQuestion;
     setState(s => ({
       ...s,

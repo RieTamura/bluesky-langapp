@@ -57,12 +57,13 @@ export const Confetti: React.FC<Props> = ({
   style,
   angle = 90,
   spread = 360,
-  velocity = 20,
+  // lowered default velocity to make particles overall slower
+  velocity = 10,
   gravity = 0.2,
   drift = 0,
   scalar = 1,
   bursts,
-  duration = 3200,
+  duration = 5200,
   originX,
   originY,
   radial = true
@@ -124,7 +125,8 @@ export const Confetti: React.FC<Props> = ({
         // 物理上向き: 角度90で真上 => y方向負
         const dirX = Math.cos(theta);
         const dirY = -Math.sin(theta);
-        const speed = vel * (0.6 + Math.random() * 0.8); // 0.6 - 1.4 倍
+  // reduce per-particle speed multiplier to slow overall motion
+  const speed = vel * 0.8 * (0.6 + Math.random() * 0.8); // slightly reduced base
         const size = (6 + Math.random() * 10) * scl;
         const delay = (b.delay || 0) + Math.random() * 120; // バースト内微調整
         // 全方位バーストはやや速めに終わるように調整
@@ -135,8 +137,9 @@ export const Confetti: React.FC<Props> = ({
           : baseDuration * (0.85 + Math.random() * 0.3); // 個別ゆらぎ
         const fallDistance = height + 100; // 画面外まで
   // クラッカー位置指定: 優先順序 burst.origin(px) -> originX/originY (props) -> デフォルト
+  // For radial bursts default origin should be screen center for a symmetric explosion
   const x0 = burstOriginX !== undefined ? burstOriginX : (originX !== undefined ? originX : (radial ? width / 2 : Math.random() * width));
-  const y0 = burstOriginY !== undefined ? burstOriginY : (originY !== undefined ? originY : height * 0.85);
+  const y0 = burstOriginY !== undefined ? burstOriginY : (originY !== undefined ? originY : (radial ? height / 2 : height * 0.85));
         list.push({
           left: x0,
           delay,
@@ -194,7 +197,8 @@ export const Confetti: React.FC<Props> = ({
       const v = anims.current[i];
       v.setValue(0);
       // radial のときは終盤で速度が落ちるように ease-out を使う
-      const easingFn = radial ? Easing.out(Easing.quad) : Easing.linear;
+  // radial bursts should ease out (decelerate) for a natural pop-and-slow finish
+  const easingFn = radial ? Easing.out(Easing.cubic) : Easing.linear;
       return Animated.timing(v, {
         toValue: 1,
         duration: cfg.duration,
@@ -216,34 +220,38 @@ export const Confetti: React.FC<Props> = ({
         // 全方位発射時は直線的に飛ばす
         let translateX, translateY;
         let viewOffsetStyle: any = undefined;
-        if (radial) {
+          if (radial) {
           // 直線的に遠くまで飛ばす。velocity を射程の目安に使用
-          const dist = Math.max(width, height) * 0.2 + cfg.velocity * (30 + Math.random() * 40);
+          // reduce distance multiplier so particles don't travel as far (slower feel)
+          const dist = Math.max(width, height) * 0.2 + cfg.velocity * (18 + Math.random() * 30);
           // end を原点からの差分で計算する（要素自体は発射点に固定）
           const endDX = cfg.dx * dist;
           const endDY = cfg.dy * dist;
-          const midDX = endDX / 2 + (Math.random() * 40 - 20);
-          const midDY = endDY / 2 + (Math.random() * 40 - 20);
-          translateX = t.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, midDX, endDX] });
-          translateY = t.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, midDY, endDY] });
+          // use a slightly earlier mid point so the final segment eases out and feels like deceleration
+          const midDX = endDX * 0.55 + (Math.random() * 40 - 20);
+          const midDY = endDY * 0.55 + (Math.random() * 40 - 20);
+          translateX = t.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0, midDX, endDX] });
+          translateY = t.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0, midDY, endDY] });
           // 要素の left/top を発射点にセット（transform は相対オフセットにする）
           viewOffsetStyle = { left: cfg.x0 - cfg.size / 2, top: cfg.y0 - (cfg.size * 0.6) / 2 };
         } else {
           // 既存の上昇→落下パターン
           const peakT = 0.35 + Math.random() * 0.15; // 上昇ピーク位置
-          const upDist = cfg.velocity * 12 * (0.8 + Math.random() * 0.4); // 上昇距離スケール
-          const downward = cfg.gravity * 600; // 落下距離スケール
+          // reduce vertical/horizontal multipliers for slower motion
+          const upDist = cfg.velocity * 8 * (0.8 + Math.random() * 0.4); // 上昇距離スケール
+          const downward = cfg.gravity * 480; // 落下距離スケール
           const midY = cfg.y0 - upDist; // ピーク
           const endY = cfg.y0 - upDist + downward; // 落下後
           translateY = t.interpolate({ inputRange: [0, peakT, 1], outputRange: [cfg.y0, midY, endY] });
           // X は初速 + ドリフト (線形 + ゆらぎ)
           const driftTotal = cfg.drift * 120 * (1 + Math.random());
-          const endX = cfg.x0 + cfg.dx * cfg.velocity * 18 + driftTotal;
+          const endX = cfg.x0 + cfg.dx * cfg.velocity * 12 + driftTotal;
           const midX = (cfg.x0 + endX) / 2 + (Math.random() * 40 - 20); // 若干曲線
           translateX = t.interpolate({ inputRange: [0, 0.5, 1], outputRange: [cfg.x0, midX, endX] });
         }
         const rotate = t.interpolate({ inputRange: [0, 1], outputRange: [cfg.rotateStart, cfg.rotateEnd] });
-        const opacity = t.interpolate({ inputRange: [0, 0.1, 0.85, 1], outputRange: [0, 1, 1, 0] });
+  // keep pieces visible while moving, then fade out near the end
+  const opacity = t.interpolate({ inputRange: [0, 0.05, 0.8, 1], outputRange: [0, 1, 1, 0] });
         const scale = t.interpolate({ inputRange: [0, 0.1, 1], outputRange: [0.2, cfg.scale, cfg.scale] });
         const borderRadius = Math.random() < 0.3 ? cfg.size / 2 : 2; // circle/square ミックス
         return (
