@@ -181,6 +181,30 @@
       "correctCount": 0,
       "date": "2025-09-09T00:22:25.935Z",
       "lastReviewedAt": "2025-09-09T00:22:25.934Z"
+    },
+    {
+      "id": "word_1757410381808_nrisgi6c8",
+      "word": "did",
+      "status": "known",
+      "userId": "connectobasan.com",
+      "languageCode": "en",
+      "definition": "(auxiliary) A syntactic marker.",
+      "reviewCount": 0,
+      "correctCount": 0,
+      "date": "2025-09-09T09:33:01.846Z",
+      "lastReviewedAt": "2025-09-09T09:33:01.845Z"
+    },
+    {
+      "id": "word_1757410386855_u25nvp14y",
+      "word": "you",
+      "status": "known",
+      "userId": "connectobasan.com",
+      "languageCode": "en",
+      "definition": "To address (a person) using the pronoun you (in the past, especially to use you rather than thou, when you was considered more formal).",
+      "reviewCount": 0,
+      "correctCount": 0,
+      "date": "2025-09-09T09:33:06.901Z",
+      "lastReviewedAt": "2025-09-09T09:33:06.900Z"
     }
   ],
   "version": "1.0.0"
