@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+// navigation import intentionally omitted for now
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '../stores/theme';
 import { useFeedStore } from '../stores/feed';
@@ -10,7 +10,7 @@ interface Props { onOpenMenu: () => void; showFeedTabs?: boolean; }
 // グローバルヘッダー: Feed | 単語集 | ☰
 export const AppHeader: React.FC<Props> = ({ onOpenMenu, showFeedTabs }) => {
   // navigation 参照は今後の拡張用（現状未使用）
-  const navigation: any = useNavigation();
+  // (unused) const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const c = useThemeColors();
   const feedTab = useFeedStore(s => s.feedTab);

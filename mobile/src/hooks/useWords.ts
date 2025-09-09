@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { wordsApi } from '../services/api';
-import { useOfflineQueue, OfflineTask, OfflineState } from '../stores/offlineQueue';
+import { useOfflineQueue, OfflineState } from '../stores/offlineQueue';
 
 export interface WordItem {
   id: string;

@@ -9,7 +9,7 @@ import { navigate } from '../navigation/rootNavigation';
 
 export const QuizScreen: React.FC = () => {
   const { start, answer, current, completed, isLoading, accuracy, answered, totalQuestions, lastResult } = useQuiz(5);
-  const [lastAck, setLastAck] = React.useState(true);
+  const [lastAck, setLastAck] = useState(true);
   const [origin, setOrigin] = useState<{ x: number; y: number } | null>(null);
   const iconRef = useRef<any>(null);
 
@@ -17,13 +17,27 @@ export const QuizScreen: React.FC = () => {
   const c = useThemeColors();
 
   // keep a reference to the last shown question so we can display the answer
-  const lastShownQuestionRef = React.useRef(current);
-  React.useEffect(() => {
+  const lastShownQuestionRef = useRef(current);
+  useEffect(() => {
     if (current) lastShownQuestionRef.current = current;
   }, [current]);
 
   // If quiz is completed, don't show the QuizCard even if we have a last question—show completed screen only
-  const questionToShow = completed ? undefined : ((!lastAck && lastResult) ? lastShownQuestionRef.current : (current ?? (lastResult ? lastShownQuestionRef.current : undefined)));
+  let questionToShow;
+  if (completed) {
+    questionToShow = undefined;
+  } else if (!lastAck && lastResult) {
+    // last result hasn't been acknowledged by the user; continue showing the last shown question
+    questionToShow = lastShownQuestionRef.current;
+  } else if (current) {
+    // there's a current question from the quiz state
+    questionToShow = current;
+  } else if (lastResult) {
+    // fallback: show last shown question when there's no current but we have a lastResult
+    questionToShow = lastShownQuestionRef.current;
+  } else {
+    questionToShow = undefined;
+  }
 
   return (
   <SafeAreaView style={[styles.container,{ backgroundColor: c.background }]}> 
@@ -64,7 +78,7 @@ export const QuizScreen: React.FC = () => {
                   iconRef.current.measure((fx: number, fy: number, w: number, h: number, px: number, py: number) => {
                     setOrigin({ x: px + w / 2, y: py + h / 2 });
                   });
-                } catch (_) {}
+                } catch (e) { /* ignore */ }
               });
             }}
           >🎉</Text>

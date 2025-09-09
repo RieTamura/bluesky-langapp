@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Pressable, Text, StyleSheet } from 'react-native';
+import { View, Pressable, StyleSheet } from 'react-native';
 import { useTheme } from '../stores/theme';
 import { Home, BookOpen, Pencil, BarChart3 } from 'lucide-react-native';
 // useNavigation は本コンポーネントが Stack.Navigator 外にあるため利用できない。
@@ -28,8 +28,8 @@ export const FooterNav: React.FC = () => {
     const handler = () => setRouteName(getCurrentRouteName());
     // navigationRef がまだ準備できていない可能性があるため安全に購読する。
     // addListener が利用可能になるまで短い間隔で試行し、購読できたら interval を解除する。
-    let unsub: (() => void) | undefined;
-    let intervalId: any;
+  let unsub: (() => void) | undefined;
+  let intervalId: ReturnType<typeof setInterval> | undefined;
 
     const trySubscribe = () => {
       try {
@@ -50,13 +50,20 @@ export const FooterNav: React.FC = () => {
           intervalId = undefined;
         }
       }, 100);
+
+      // In case trySubscribe becomes true immediately after assigning intervalId,
+      // re-check and clear right away to avoid an unnecessary tick.
+      if (trySubscribe() && intervalId) {
+        clearInterval(intervalId);
+        intervalId = undefined;
+      }
     }
 
     // 初期化遅延対策（リスナー登録が遅れた場合にも初期のルート名を取得する）
     const id = setTimeout(() => setRouteName(getCurrentRouteName()), 300);
     return () => {
-      try { unsub && unsub(); } catch {}
-      try { if (intervalId) clearInterval(intervalId); } catch {}
+      try { unsub && unsub(); } catch (e) { /* ignore */ }
+      try { if (intervalId !== undefined) clearInterval(intervalId); } catch (e) { /* ignore */ }
       clearTimeout(id);
     };
   }, []);

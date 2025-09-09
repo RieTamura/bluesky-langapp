@@ -42,7 +42,7 @@ export default function App() {
       syncAutoResolution();
     });
     return () => {
-      try { (sub as any).remove?.(); } catch {}
+      try { (sub as any).remove?.(); } catch (e) { /* ignore */ }
     };
   }, [syncAutoResolution]);
   // 明るさポーリング削除 (adaptive 廃止)

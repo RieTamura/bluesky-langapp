@@ -37,7 +37,7 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
           const list: any = await wordsApi.list();
           const arr = (list?.data || list) as any[];
           existing = arr?.find(w => (w.word || '').toLowerCase() === target.toLowerCase());
-        } catch {}
+        } catch (e) { /* ignore */ }
 
         // 2. 既存語があるが definition / example が空、または存在しない → 辞書定義取得
         let definition: string | undefined;

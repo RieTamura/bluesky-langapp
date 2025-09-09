@@ -122,9 +122,9 @@ export const Confetti: React.FC<Props> = ({
           // 角度ランダム (中心±spread/2)
           theta = (baseAngle + (Math.random() - 0.5) * sp) * Math.PI / 180;
         }
-        // 物理上向き: 角度90で真上 => y方向負
-        const dirX = Math.cos(theta);
-        const dirY = -Math.sin(theta);
+  // 物理上向き: 角度90で真上 => y方向負
+  const dirX = Math.cos(theta);
+  const dirY = -Math.sin(theta);
   // reduce per-particle speed multiplier to slow overall motion
   const speed = vel * 0.8 * (0.6 + Math.random() * 0.8); // slightly reduced base
         const size = (6 + Math.random() * 10) * scl;
@@ -138,8 +138,23 @@ export const Confetti: React.FC<Props> = ({
         const fallDistance = height + 100; // 画面外まで
   // クラッカー位置指定: 優先順序 burst.origin(px) -> originX/originY (props) -> デフォルト
   // For radial bursts default origin should be screen center for a symmetric explosion
-  const x0 = burstOriginX !== undefined ? burstOriginX : (originX !== undefined ? originX : (radial ? width / 2 : Math.random() * width));
-  const y0 = burstOriginY !== undefined ? burstOriginY : (originY !== undefined ? originY : (radial ? height / 2 : height * 0.85));
+  const x0 =
+    burstOriginX !== undefined
+      ? burstOriginX
+      : originX !== undefined
+      ? originX
+      : radial
+      ? width / 2
+      : Math.random() * width;
+
+  const y0 =
+    burstOriginY !== undefined
+      ? burstOriginY
+      : originY !== undefined
+      ? originY
+      : radial
+      ? height / 2
+      : height * 0.85;
         list.push({
           left: x0,
           delay,
@@ -181,13 +196,13 @@ export const Confetti: React.FC<Props> = ({
             (v as any).removeAllListeners();
           } else if (typeof (v as any).removeListener === 'function') {
             // try best-effort removal by id if available
-            try { (v as any).removeAllListeners && (v as any).removeAllListeners(); } catch {};
+            try { (v as any).removeAllListeners && (v as any).removeAllListeners(); } catch (e) { /* ignore */ }
           }
-        } catch (_) {
+        } catch (e) {
           // ignore individual errors during cleanup
         }
       });
-    } catch (_) {}
+  } catch (e) { /* ignore */ }
     anims.current = allPieces.map(() => new Animated.Value(0));
   }
 
@@ -195,8 +210,8 @@ export const Confetti: React.FC<Props> = ({
     if (!run) return;
     const timers = allPieces.map((cfg, i) => {
       const v = anims.current[i];
-      v.setValue(0);
-      // radial のときは終盤で速度が落ちるように ease-out を使う
+  v.setValue(0);
+  // radial のときは終盤で速度が落ちるように ease-out を使う
   // radial bursts should ease out (decelerate) for a natural pop-and-slow finish
   const easingFn = radial ? Easing.out(Easing.cubic) : Easing.linear;
       return Animated.timing(v, {
@@ -220,7 +235,7 @@ export const Confetti: React.FC<Props> = ({
         // 全方位発射時は直線的に飛ばす
         let translateX, translateY;
         let viewOffsetStyle: any = undefined;
-          if (radial) {
+        if (radial) {
           // 直線的に遠くまで飛ばす。velocity を射程の目安に使用
           // reduce distance multiplier so particles don't travel as far (slower feel)
           const dist = Math.max(width, height) * 0.2 + cfg.velocity * (18 + Math.random() * 30);
@@ -249,10 +264,10 @@ export const Confetti: React.FC<Props> = ({
           const midX = (cfg.x0 + endX) / 2 + (Math.random() * 40 - 20); // 若干曲線
           translateX = t.interpolate({ inputRange: [0, 0.5, 1], outputRange: [cfg.x0, midX, endX] });
         }
-        const rotate = t.interpolate({ inputRange: [0, 1], outputRange: [cfg.rotateStart, cfg.rotateEnd] });
+  const rotate = t.interpolate({ inputRange: [0, 1], outputRange: [cfg.rotateStart, cfg.rotateEnd] });
   // keep pieces visible while moving, then fade out near the end
   const opacity = t.interpolate({ inputRange: [0, 0.05, 0.8, 1], outputRange: [0, 1, 1, 0] });
-        const scale = t.interpolate({ inputRange: [0, 0.1, 1], outputRange: [0.2, cfg.scale, cfg.scale] });
+  const scale = t.interpolate({ inputRange: [0, 0.1, 1], outputRange: [0.2, cfg.scale, cfg.scale] });
         const borderRadius = Math.random() < 0.3 ? cfg.size / 2 : 2; // circle/square ミックス
         return (
           <Animated.View

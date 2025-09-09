@@ -85,7 +85,7 @@ async function readStoredMode(): Promise<ThemeMode> {
 }
 // 永続化は過去互換のために一応 system を書く (失敗しても影響無し)
 async function writeStoredMode() {
-  try { await AsyncStorage.setItem(STORAGE_KEY, 'system'); } catch {}
+  try { await AsyncStorage.setItem(STORAGE_KEY, 'system'); } catch (e) { /* ignore */ }
 }
 // threshold / hysteresis persistence removed
 

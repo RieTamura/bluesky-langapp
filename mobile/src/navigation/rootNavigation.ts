@@ -16,8 +16,7 @@ export const navigationRef = createNavigationContainerRef<any>(); // 型安全�
 // 型簡略化用ユーティリティ
 export function navigate(name: string, params?: any) {
   if (navigationRef.isReady()) {
-    // @ts-ignore - 画面名はスタック定義と一致させる
-    navigationRef.navigate(name, params);
+  (navigationRef as any).navigate(name, params);
   }
 }
 

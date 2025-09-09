@@ -41,7 +41,7 @@ try {
     // e.g. 192.168.1.5:8081
     derivedHost = hostUri.split(':')[0];
   }
-} catch {}
+} catch (e) { /* ignore */ }
 const configApiUrl = (Constants as any)?.expoConfig?.extra?.apiUrl as string | undefined;
 const BASE_URL = (configApiUrl || (__DEV__ && derivedHost ? `http://${derivedHost}:3000` : (__DEV__ ? 'http://localhost:3000' : 'https://your-api.example.com'))).replace(/\/$/, '');
 
@@ -100,7 +100,7 @@ async function request<T>(path: string, init: RequestInit = {}, attempt = 0): Pr
   }
 
   let json: any;
-  try { json = await res.json(); } catch { /* ignore parse here */ }
+  try { json = await res.json(); } catch (e) { /* ignore parse here */ }
 
   if (!res.ok) {
     const code = mapStatusToCode(res.status);

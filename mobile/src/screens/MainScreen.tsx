@@ -23,7 +23,6 @@ export const MainScreen: React.FC = () => {
   const following = useFollowingFeed(limit);
   const discover = useDiscoverFeed(limit);
   const feedTab = useFeedStore(s => s.feedTab);
-  const setFeedTab = useFeedStore(s => s.setFeedTab);
   const loadingFeed = userPosts.isLoading || following.isLoading || discover.isLoading;
   const currentFeed = useMemo(() => {
     switch (feedTab) {
@@ -119,7 +118,7 @@ export const MainScreen: React.FC = () => {
 // ProgressRow / Quiz は削除
 
 // 共通: トークン前処理（前後句読点除去）
-const stripEdgePunct = (tok: string) => tok.replace(/^[.,!?;:()"'`\[\]{}<>…。、，！？：；（）「」『』]+|[.,!?;:()"'`\[\]{}<>…。、，！？：；（）「」『』]+$/g, '');
+const stripEdgePunct = (tok: string) => tok.replace(/^[.,!?;:()"'`[\]{}<>…。、，！？：；（）「」『』]+|[.,!?;:()"'`[\]{}<>…。、，！？：；（）「」『』]+$/g, '');
 
 // 動的トークンスタイル計算ヘルパー (可読性向上 & 重複排除)
 const getTokenStyles = (params: {
@@ -397,7 +396,7 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
               // 極端な揺れを避けるため平滑化 (0.3 学習率)
               adaptiveSpeedRef.current = Math.max(0.5, Math.min(2, adaptiveSpeedRef.current * 0.7 + ratio * 0.3));
             }
-        } catch {}
+        } catch (e) { /* ignore */ }
         const baseDelay = last.end ? pauseSentenceMs : last.short ? pauseShortMs : pauseWordMs;
         const delay = Math.max(20, baseDelay / ttsRate);
         setTimeout(()=> speakChunkFrom(startIdx + chunk.length), delay);
@@ -405,7 +404,7 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
       onError: (err: any) => {
         try {
           console.error('[TTS] chunk error', { postId, startIdx, chunkLength: chunk.length, lang: chunkLang, error: err });
-        } catch {}
+        } catch (e) { /* ignore */ }
         if (!ttsErrorAlertedPerPost.has(postId)) {
           Alert.alert('TTSエラー', '一部の読み上げに失敗しました。続行します。');
           ttsErrorAlertedPerPost.add(postId);
@@ -463,7 +462,7 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
   setSpeaking(false);
   clearTimers();
   // 即時に TTS を停止しハイライトを解除
-  try { Speech.stop(); } catch {}
+  try { Speech.stop(); } catch (e) { /* ignore */ }
   setCurrentWordIdx(null);
     }
   }, [currentPostId, postId, speaking]);

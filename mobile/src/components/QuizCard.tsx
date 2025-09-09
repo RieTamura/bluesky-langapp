@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Animated, ViewStyle } from 'react-native';
 import { useThemeColors } from '../stores/theme';
 
 interface Props {
@@ -28,7 +28,7 @@ export const QuizCard: React.FC<Props> = ({ question, questionType, word, onAnsw
     setText('');
     setSubmitted(false);
   // reset flip to front when question changes
-  Animated.timing(flipAnim, { toValue: 0, duration: 250, useNativeDriver: true }).start();
+  Animated.timing(flipAnim, { toValue: 0, duration: 400, useNativeDriver: true }).start();
   }, [question]);
 
   const handleSubmit = () => {
@@ -48,11 +48,11 @@ export const QuizCard: React.FC<Props> = ({ question, questionType, word, onAnsw
   // animate when submitted changes
   useEffect(() => {
     if (submitted) {
-  Animated.timing(flipAnim, { toValue: 180, duration: 400, useNativeDriver: true }).start();
-  Animated.timing(opacityAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+      Animated.timing(flipAnim, { toValue: 180, duration: 400, useNativeDriver: true }).start();
+      Animated.timing(opacityAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
     } else {
-  Animated.timing(flipAnim, { toValue: 0, duration: 250, useNativeDriver: true }).start();
-  Animated.timing(opacityAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+      Animated.timing(flipAnim, { toValue: 0, duration: 400, useNativeDriver: true }).start();
+      Animated.timing(opacityAnim, { toValue: 0, duration: 400, useNativeDriver: true }).start();
     }
   }, [submitted, flipAnim]);
 
@@ -62,16 +62,19 @@ export const QuizCard: React.FC<Props> = ({ question, questionType, word, onAnsw
   }, [lastResult]);
 
   useEffect(() => {
-    try { console.log('QuizCard lastResult', lastResult); } catch (_) {}
+    if (__DEV__) {
+      console.log('QuizCard lastResult', lastResult);
+    }
   }, [lastResult]);
 
   // debug: log displayed answer and animation state
   const displayedAnswer = lastResult?.correctAnswer ?? word;
   useEffect(() => {
-    try {
-      const op = (opacityAnim as any).__getValue ? (opacityAnim as any).__getValue() : undefined;
+    if (__DEV__) {
+      const getValue = (opacityAnim as any).__getValue;
+      const op = typeof getValue === 'function' ? getValue.call(opacityAnim) : undefined;
       console.log('QuizCard debug', { displayedAnswer, submitted, opacity: op });
-    } catch (_) {}
+    }
   }, [displayedAnswer, submitted]);
 
   const frontInterpolate = flipAnim.interpolate({ inputRange: [0, 180], outputRange: ['0deg', '180deg'] });
@@ -162,7 +165,7 @@ export const QuizCard: React.FC<Props> = ({ question, questionType, word, onAnsw
             <Text style={[styles.answer, { color: c.text }]}>{lastResult?.correctAnswer ?? word}</Text>
             {text !== '' && <Text style={[styles.yourAnswer, { color: c.secondaryText }]}>Your answer: {text}</Text>}
               <View style={{ width: '100%', marginTop: 20, alignItems: 'center' }}>
-                <TouchableOpacity style={[styles.nextBtn, { backgroundColor: c.accent }]} onPress={() => { try { console.log('Next pressed, onNext exists:', !!onNext); } catch (_) {} if (onNext) onNext(); }} accessibilityLabel="次の問題">
+                <TouchableOpacity style={[styles.nextBtn, { backgroundColor: c.accent }]} onPress={() => { if (onNext) onNext(); }} accessibilityLabel="次の問題">
                   <Text style={styles.nextBtnText}>次の問題</Text>
                 </TouchableOpacity>
               </View>
@@ -201,8 +204,9 @@ const styles = StyleSheet.create({
   btn: { flex: 1, paddingVertical: 14, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginHorizontal: 8 },
   btnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
   // faces for flip animation
-  cardFace: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backfaceVisibility: 'hidden' as any },
-  cardBack: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backfaceVisibility: 'hidden' as any },
+  // typed separately because some TS configs don't recognize backfaceVisibility on inline literals
+  cardFace: {} as ViewStyle,
+  cardBack: {} as ViewStyle,
   answer: { fontSize: 24, fontWeight: '700', marginTop: 8 },
   yourAnswer: { marginTop: 12, fontSize: 14 },
   // ensure back content is inset from rounded corners
@@ -213,3 +217,11 @@ const styles = StyleSheet.create({
   progressBadge: { position: 'absolute', top: 12, right: 18, backgroundColor: 'transparent', fontWeight: '700' },
   resultIcon: { fontSize: 32, marginBottom: 6 },
 });
+
+// Provide properly-typed face styles so backfaceVisibility is accepted by TS
+const cardFaceStyle: ViewStyle = { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backfaceVisibility: 'hidden' };
+const cardBackStyle: ViewStyle = { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backfaceVisibility: 'hidden' };
+
+// merge typed face styles into the exported styles object at runtime
+(styles as any).cardFace = cardFaceStyle;
+(styles as any).cardBack = cardBackStyle;
