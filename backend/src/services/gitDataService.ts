@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { execSync } from 'child_process';
-import { WordData, UserData, AppData } from '../types/data.js';
+import type { WordData, UserData, AppData } from '../types/data.js';
 import DataService from './dataService.js';
 
 export interface GitDataExport {

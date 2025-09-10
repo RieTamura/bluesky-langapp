@@ -80,11 +80,10 @@ export function useWords(params: { languageCode?: string; status?: string } = {}
   // Remove punctuation/symbols from the word before registering. Keep internal apostrophes and dashes.
   const sanitizeForRegistration = (w: string) => {
     if (!w) return w;
-    // Trim and remove surrounding punctuation or symbols, but keep internal apostrophes/hyphens and letters/digits.
-    const m = w.trim().match(/^([\p{L}\p{N}'\u2019\-][\p{L}\p{N}'\u2019\-\s]*)$/u);
-    if (m) return m[1].trim();
-    // Fallback: remove punctuation from edges and collapse internal zero-widths
-    return w.replace(/^[\p{P}\p{S}]+|[\p{P}\p{S}]+$/gu, '').replace(/[\u200B\uFEFF]/g, '').trim();
+  // Mirror backend `normalizeWord`: lowercase, trim, remove zero-widths, and strip any char
+  // that is not a Unicode letter, digit or apostrophe (keep internal apostrophes)
+  const cleaned = String(w).toLowerCase().replace(/[\u200B\uFEFF]/g, '').trim().replace(/[^\p{L}0-9']/gu, '');
+  return cleaned;
   };
 
   const addWord = useCallback((word: string, lang?: string) => {

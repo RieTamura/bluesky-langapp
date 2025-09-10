@@ -98,8 +98,8 @@ class DataService {
       const appData = await this.readAppData();
       let updatedCount = 0;
 
-      // Basic definitions and example sentences for common words
-  const wordData: { [key: string]: { definition: string; exampleSentence: string } } = {
+  // Basic definitions and example sentences for common words
+  const wordDefinitionsMap: { [key: string]: { definition: string; exampleSentence: string } } = {
         'excited': {
           definition: '興奮した、わくわくした',
           exampleSentence: 'I am so excited about the new project.'
@@ -155,23 +155,23 @@ class DataService {
         const normalizedWord = word.normalizedWord || normalizeWord(word.word || '');
         let updated = false;
 
-        if (!word.definition && wordData[normalizedWord]) {
+        if (!word.definition && wordDefinitionsMap[normalizedWord]) {
           appData.words[i] = {
             ...word,
-            definition: wordData[normalizedWord].definition
+            definition: wordDefinitionsMap[normalizedWord].definition
           };
           updated = true;
         }
 
-        if (!word.exampleSentence && wordData[normalizedWord]) {
+        if (!word.exampleSentence && wordDefinitionsMap[normalizedWord]) {
           appData.words[i] = {
             ...appData.words[i],
-            exampleSentence: wordData[normalizedWord].exampleSentence
+            exampleSentence: wordDefinitionsMap[normalizedWord].exampleSentence
           };
           updated = true;
         }
 
-  if (updated) {
+        if (updated) {
           updatedCount++;
         }
       }
@@ -331,7 +331,7 @@ class DataService {
   /**
    * Save word (create or update)
    */
-  async saveWord(wordData: Omit<WordData, 'id' | 'date'> & { id?: string }): Promise<WordData> {
+  async saveWord(wordData: Omit<WordData, 'id' | 'date'> & { id?: string; word?: string }): Promise<WordData> {
     const appData = await this.readAppData();
     const now = new Date().toISOString();
     
@@ -342,7 +342,7 @@ class DataService {
         appData.words[wordIndex] = {
           ...appData.words[wordIndex],
           ...wordData,
-          normalizedWord: wordData.normalizedWord || normalizeWord((wordData as any).word || appData.words[wordIndex].word || ''),
+          normalizedWord: wordData.normalizedWord || normalizeWord(wordData.word ?? appData.words[wordIndex].word ?? ''),
           languageCode: wordData.languageCode || appData.words[wordIndex].languageCode || 'en',
           date: now
         };
@@ -355,7 +355,7 @@ class DataService {
     const newWord: WordData = {
       id: wordData.id || `word_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       word: wordData.word,
-  normalizedWord: (wordData as any).normalizedWord || normalizeWord(wordData.word || ''),
+      normalizedWord: wordData.normalizedWord || normalizeWord(wordData.word ?? ''),
       status: wordData.status,
       userId: wordData.userId || 'default_user',
   languageCode: wordData.languageCode || 'en',

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import FutureAPIService from '../services/futureAPIService.js';
-import { ApiResponse } from '../types/data.js';
+import type { ApiResponse } from '../types/data.js';
 
 const futureAPIService = new FutureAPIService();
 

@@ -1,7 +1,12 @@
 import DataService from './dataService.js';
-import type { WordData } from '../types/data.js';
+import type { WordData, LearningSessionData } from '../types/data.js';
 import { normalizeWord } from '../utils/textProcessor.js';
-import { LearningSessionData } from '../types/data.js';
+
+// Escape regex special characters in a user-provided string so it can be used
+// in a RegExp constructor to match literally.
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 export interface QuizQuestion {
   id: string;
@@ -79,7 +84,7 @@ class LearningService {
     const questionTypes: ('meaning' | 'usage' | 'pronunciation')[] = ['meaning', 'usage'];
     const questionType = questionTypes[Math.floor(Math.random() * questionTypes.length)];
     
-    const questionId = `q_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const questionId = `q_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
     console.log(`Generating quiz question for word: ${word.word}, definition: ${word.definition}`);
 
@@ -95,7 +100,8 @@ class LearningService {
       
       case 'usage':
         const exampleSentence = word.exampleSentence || `Please use "${word.word}" in a sentence.`;
-        const sentenceWithBlank = exampleSentence.replace(new RegExp(word.word, 'gi'), '___');
+        const escaped = escapeRegExp(word.word || '');
+        const sentenceWithBlank = exampleSentence.replace(new RegExp(escaped, 'gi'), '___');
         return {
           id: questionId,
           word,
@@ -285,8 +291,9 @@ class LearningService {
    * Check if user answer is correct
    */
   private checkAnswer(question: QuizQuestion, userAnswer: string): boolean {
-    const normalizedUserAnswer = userAnswer.toLowerCase().trim();
-    const normalizedCorrectAnswer = question.correctAnswer.toLowerCase().trim();
+  // Use the same normalization routine for both sides to avoid false negatives
+  const normalizedUserAnswer = normalizeWord(userAnswer || '').trim();
+  const normalizedCorrectAnswer = normalizeWord(question.correctAnswer || '').trim();
 
     // Empty answer (skip) is always incorrect
     if (normalizedUserAnswer === '') {

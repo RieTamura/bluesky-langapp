@@ -1,6 +1,16 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Modal, View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { wordsApi, api } from '../services/api';
+
+// Small, dependency-free UUID v4 generator (suitable for temporary IDs).
+// Uses Math.random; collisions are astronomically unlikely for temp ids.
+const uuidV4 = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
 import { useQueryClient } from '@tanstack/react-query';
 import { useOfflineQueue } from '../stores/offlineQueue';
 
@@ -68,7 +78,7 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
         }
 
         if (!cancelled) {
-            if (existing) {
+          if (existing) {
             setInfo({
               word: existing.word,
               definition,
@@ -106,8 +116,8 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
         // enqueue create operation for offline processing
         try {
           await enqueue({ type: 'word.create', payload: { word: info.word, definition: info.definition, exampleSentence: info.exampleSentence } });
-          // create a temp id to represent pending item
-          const tempId = `temp_${Date.now()}`;
+          // create a temp id to represent pending item (UUID-based to avoid collisions)
+          const tempId = `temp_${uuidV4()}`;
           setInfo(s => s ? { ...s, id: tempId, status: 'unknown' } : s);
           qc.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'words' });
           return tempId;
@@ -117,7 +127,7 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
       }
       Alert.alert('エラー', e?.message || '登録失敗');
     } finally { setSaving(false); }
-  }, [info]);
+  }, [info, enqueue, qc]);
 
   const setStatus = useCallback(async (status: string) => {
     if (!info) return;

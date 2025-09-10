@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import ATProtocolService, { LearningProgressPost } from '../services/atProtocolService.js';
-import { ApiResponse } from '../types/data.js';
+import type { ApiResponse } from '../types/data.js';
 
 const atProtocolService = new ATProtocolService();
 

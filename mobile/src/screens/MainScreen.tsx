@@ -252,7 +252,7 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
     const isHashtag = (s: string) => /^#[\p{L}\p{N}_]+$/u.test(s);
     const isUrl = (s: string) => /^(https?:\/\/\S+|www\.[^\s]+)$/i.test(s);
     // Find word-like runs (letters/digits and allowed internal chars) and URLs/hashtags.
-    const matches = Array.from(text.matchAll(/(https?:\/\/\S+|www\.[^\s]+)|(#?[\p{L}\p{N}'’\-]+)/gu));
+  const matches = Array.from(text.matchAll(/(https?:\/\/\S+|www\.[^\s]+)|(#?[\p{L}\p{N}'’-]+)/gu));
     tokensRef.current = matches
       .map((m:any) => {
         const raw = m[0];
@@ -328,6 +328,9 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
   // --- Main: build chunk starting at startIdx ---
   // 速度クランプ共通化 (0.1 - 2)
   const clampTTSRate = (rate: number) => Math.min(2, Math.max(0.1, rate));
+  // compute initial clamped rate once per render so the same clamped value
+  // is reused by chunk duration calculation and Speech.speak options
+  const clampedRate = clampTTSRate(useTTSStore.getState().ttsRate);
   const computeChunk = (startIdx: number) => {
     const { chunkMaxWords, detectionConfidenceThreshold } = useTTSStore.getState();
     const tokens = tokensRef.current;
@@ -347,8 +350,6 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
       if (shouldBreakBetweenTokens(built[0].lang, next, baseLang, mode, langCacheRef, detectionConfidenceThreshold)) break;
       i++;
     }
-  const { ttsRate: rateLocalRaw } = useTTSStore.getState();
-  const clampedRate = clampTTSRate(rateLocalRaw);
   const { durations, total } = calculateChunkDurations(built, clampedRate, built[0].lang);
     chunkPlanRef.current = { start: startIdx, length: built.length, durations, total };
     return built;

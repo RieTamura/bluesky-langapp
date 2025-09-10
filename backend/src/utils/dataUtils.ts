@@ -1,4 +1,4 @@
-import { WordData, UserData, AppData } from '../types/data.js';
+import type { WordData, UserData, AppData } from '../types/data.js';
 
 /**
  * Validate word data

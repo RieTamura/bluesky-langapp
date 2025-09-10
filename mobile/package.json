@@ -34,7 +34,7 @@
     "expo-secure-store": "~14.2.4",
     "expo-sharing": "~13.1.5",
     "expo-speech": "~13.1.7",
-    "lucide-react-native": "^0.542.0",
+  "lucide-react-native": "^0.542.0",
     "react": "19.0.0",
     "react-native": "0.79.5",
     "react-native-safe-area-context": "5.4.0",

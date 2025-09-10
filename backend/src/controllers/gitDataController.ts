@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import GitDataService from '../services/gitDataService.js';
-import { ApiResponse } from '../types/data.js';
+import type { ApiResponse } from '../types/data.js';
 
 const gitDataService = new GitDataService();
 

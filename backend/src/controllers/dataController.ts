@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
 import DataService from '../services/dataService.js';
 import { validateWordData, validateUserData, sanitizeWordData, sanitizeUserData } from '../utils/dataUtils.js';
-import { ApiResponse, CreateWordRequest, UpdateWordRequest, CreateUserRequest, UpdateUserRequest } from '../types/data.js';
+import { normalizeWord } from '../utils/textProcessor.js';
+import type { ApiResponse, CreateWordRequest, UpdateWordRequest, CreateUserRequest, UpdateUserRequest, UserData } from '../types/data.js';
 
 const dataService = new DataService();
 
@@ -102,8 +103,8 @@ export async function saveUser(req: Request, res: Response): Promise<void> {
       return;
     }
     
-  const sanitizedData = sanitizeUserData(userData);
-  const savedUser = await dataService.saveUser(sanitizedData as any);
+  const sanitizedData = sanitizeUserData(userData) as Omit<UserData, 'id' | 'createdAt' | 'updatedAt'>;
+  const savedUser = await dataService.saveUser(sanitizedData);
     
     const response: ApiResponse = {
       success: true,
@@ -152,8 +153,8 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    const sanitizedData = sanitizeUserData(userData);
-    const updatedUser = await dataService.saveUser({ ...existingUser, ...sanitizedData });
+  const sanitizedData = sanitizeUserData(userData) as Partial<UserData>;
+  const updatedUser = await dataService.saveUser({ ...existingUser, ...sanitizedData });
     
     const response: ApiResponse = {
       success: true,
@@ -246,6 +247,12 @@ export async function createWord(req: Request, res: Response): Promise<void> {
     }
     
   const sanitizedData = sanitizeWordData(wordData);
+    // Ensure normalizedWord is set before saving to keep behavior consistent with WordsController
+    if (typeof sanitizedData.word === 'string' && sanitizedData.word.trim().length > 0) {
+      sanitizedData.normalizedWord = normalizeWord(sanitizedData.word);
+    } else if (typeof wordData.word === 'string') {
+      sanitizedData.normalizedWord = normalizeWord(wordData.word);
+    }
   const savedWord = await dataService.saveWord(sanitizedData as any);
     
     const response: ApiResponse = {
@@ -296,7 +303,14 @@ export async function updateWord(req: Request, res: Response): Promise<void> {
     }
     
   const sanitizedData = sanitizeWordData(wordData);
-  const updatedWord = await dataService.saveWord({ ...existingWord, ...sanitizedData } as any);
+  // Ensure normalizedWord is present for updated words as well
+  if (typeof sanitizedData.word === 'string' && sanitizedData.word.trim().length > 0) {
+    sanitizedData.normalizedWord = normalizeWord(sanitizedData.word);
+  } else if (typeof existingWord.word === 'string') {
+    // fall back to existing stored word text
+    sanitizedData.normalizedWord = normalizeWord(existingWord.word);
+  }
+  const updatedWord = await dataService.saveWord({ ...existingWord, ...sanitizedData });
     
     const response: ApiResponse = {
       success: true,
