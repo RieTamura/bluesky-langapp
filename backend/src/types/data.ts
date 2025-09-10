@@ -3,6 +3,7 @@
 export interface WordData {
   id: string;
   word: string;
+  normalizedWord?: string;
   status: 'unknown' | 'learning' | 'known';
   date: string;
   userId?: string;

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Modal, View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { wordsApi, api } from '../services/api';
 import { useQueryClient } from '@tanstack/react-query';
+import { useOfflineQueue } from '../stores/offlineQueue';
 
 interface Props {
   word: string | null;
@@ -23,13 +24,21 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
   const [message, setMessage] = useState<string | null>(null);
   // React Query のグローバルキャッシュ操作用
   const qc = useQueryClient();
+  const enqueue = useOfflineQueue((s) => s.enqueue);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       if (!word) return;
       setLoading(true); setInfo(null); setMessage(null);
-      const target = word.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g,'');
+      // Unicode-aware: remove surrounding punctuation/symbol runs and zero-width chars
+      const target = (word || '').replace(/^[\p{P}\p{S}]+|[\p{P}\p{S}]+$/gu, '').replace(/[\u200B\uFEFF]/g, '').trim();
+      if (!target) {
+        // nothing meaningful to lookup/register
+        if (!cancelled) setInfo({ word: '' });
+        if (!cancelled) setLoading(false);
+        return;
+      }
       try {
         // 1. ユーザー既存語彙一覧から同一語を検索
         let existing: any;
@@ -59,7 +68,7 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
         }
 
         if (!cancelled) {
-          if (existing) {
+            if (existing) {
             setInfo({
               word: existing.word,
               definition,
@@ -87,10 +96,25 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
       const res: any = await wordsApi.create({ word: info.word, definition: info.definition, exampleSentence: info.exampleSentence });
       const created = res?.data || res;
       setInfo(s => s ? { ...s, id: created.id, status: created.status } : s);
-  // 全ての words 関連クエリを無効化して再取得 (language/status フィルタ別キーも含む)
-  qc.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'words' });
+      // invalidate words queries
+      qc.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'words' });
       return created.id;
     } catch (e: any) {
+      // Match behavior of useWords.createMutation: enqueue on offline / auth required
+      const err = e || {};
+      if (err?.error === 'NETWORK_OFFLINE' || err?.error === 'AUTH_REQUIRED') {
+        // enqueue create operation for offline processing
+        try {
+          await enqueue({ type: 'word.create', payload: { word: info.word, definition: info.definition, exampleSentence: info.exampleSentence } });
+          // create a temp id to represent pending item
+          const tempId = `temp_${Date.now()}`;
+          setInfo(s => s ? { ...s, id: tempId, status: 'unknown' } : s);
+          qc.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'words' });
+          return tempId;
+        } catch (ee) {
+          // fallthrough to alert
+        }
+      }
       Alert.alert('エラー', e?.message || '登録失敗');
     } finally { setSaving(false); }
   }, [info]);

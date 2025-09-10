@@ -34,7 +34,11 @@ export function extractWords(text: string): ProcessedWord[] {
  * Clean and normalize a word for storage/comparison
  */
 export function normalizeWord(word: string): string {
-  return word.toLowerCase().trim().replace(/[^\w]/g, '');
+  // Keep letters (Unicode), numbers and apostrophes; strip punctuation and spaces
+  return word
+    .toLowerCase()
+    .trim()
+    .replace(/[^\p{L}0-9']/gu, '');
 }
 
 /**

@@ -1,5 +1,6 @@
 import BlueskyService from './blueskyService.js';
-import DataService, { WordData, UserData } from './dataService.js';
+import DataService from './dataService.js';
+import type { WordData, UserData } from '../types/data.js';
 import { generateId } from '../utils/dataUtils.js';
 
 export interface LearningProgressPost {

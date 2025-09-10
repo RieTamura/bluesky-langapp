@@ -102,8 +102,8 @@ export async function saveUser(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    const sanitizedData = sanitizeUserData(userData);
-    const savedUser = await dataService.saveUser(sanitizedData);
+  const sanitizedData = sanitizeUserData(userData);
+  const savedUser = await dataService.saveUser(sanitizedData as any);
     
     const response: ApiResponse = {
       success: true,
@@ -245,8 +245,8 @@ export async function createWord(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    const sanitizedData = sanitizeWordData(wordData);
-    const savedWord = await dataService.saveWord(sanitizedData);
+  const sanitizedData = sanitizeWordData(wordData);
+  const savedWord = await dataService.saveWord(sanitizedData as any);
     
     const response: ApiResponse = {
       success: true,
@@ -295,8 +295,8 @@ export async function updateWord(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    const sanitizedData = sanitizeWordData(wordData);
-    const updatedWord = await dataService.saveWord({ ...existingWord, ...sanitizedData });
+  const sanitizedData = sanitizeWordData(wordData);
+  const updatedWord = await dataService.saveWord({ ...existingWord, ...sanitizedData } as any);
     
     const response: ApiResponse = {
       success: true,

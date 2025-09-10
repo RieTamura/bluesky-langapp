@@ -1,38 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
-
-// Data interfaces
-export interface WordData {
-  id: string;
-  word: string;
-  status: 'unknown' | 'learning' | 'known';
-  date: string;
-  userId?: string;
-  languageCode?: string; // ISO code (e.g., 'en', 'ja')
-  definition?: string;
-  exampleSentence?: string;
-  reviewCount?: number;
-  correctCount?: number;
-  lastReviewedAt?: string;
-  difficultyLevel?: number;
-  firstEncounteredAt?: string;
-}
-
-export interface UserData {
-  id: string;
-  blueskyId: string;
-  displayName?: string;
-  avatarUrl?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface AppData {
-  users: UserData[];
-  words: WordData[];
-  version: string;
-  lastBackup?: string;
-}
+import { normalizeWord } from '../utils/textProcessor.js';
+import type { WordData, UserData, AppData } from '../types/data.js';
 
 class DataService {
   private dataDir: string;
@@ -101,7 +70,8 @@ class DataService {
         const migratedWords = existingWords.map((word, index) => ({
           ...word,
           id: word.id || `word_${Date.now()}_${index}`,
-          userId: word.userId || 'default_user'
+          userId: word.userId || 'default_user',
+          normalizedWord: word.normalizedWord || normalizeWord(word.word || '')
         }));
 
         appData.words = migratedWords;
@@ -129,7 +99,7 @@ class DataService {
       let updatedCount = 0;
 
       // Basic definitions and example sentences for common words
-      const wordData: { [key: string]: { definition: string; exampleSentence: string } } = {
+  const wordData: { [key: string]: { definition: string; exampleSentence: string } } = {
         'excited': {
           definition: '興奮した、わくわくした',
           exampleSentence: 'I am so excited about the new project.'
@@ -182,7 +152,7 @@ class DataService {
 
       for (let i = 0; i < appData.words.length; i++) {
         const word = appData.words[i];
-        const normalizedWord = word.word.toLowerCase().replace(/[!?.,]/g, '');
+        const normalizedWord = word.normalizedWord || normalizeWord(word.word || '');
         let updated = false;
 
         if (!word.definition && wordData[normalizedWord]) {
@@ -201,7 +171,7 @@ class DataService {
           updated = true;
         }
 
-        if (updated) {
+  if (updated) {
           updatedCount++;
         }
       }
@@ -372,6 +342,7 @@ class DataService {
         appData.words[wordIndex] = {
           ...appData.words[wordIndex],
           ...wordData,
+          normalizedWord: wordData.normalizedWord || normalizeWord((wordData as any).word || appData.words[wordIndex].word || ''),
           languageCode: wordData.languageCode || appData.words[wordIndex].languageCode || 'en',
           date: now
         };
@@ -384,6 +355,7 @@ class DataService {
     const newWord: WordData = {
       id: wordData.id || `word_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       word: wordData.word,
+  normalizedWord: (wordData as any).normalizedWord || normalizeWord(wordData.word || ''),
       status: wordData.status,
       userId: wordData.userId || 'default_user',
   languageCode: wordData.languageCode || 'en',

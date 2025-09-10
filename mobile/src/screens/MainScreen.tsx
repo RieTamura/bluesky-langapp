@@ -139,21 +139,29 @@ const getTokenStyles = (params: {
 };
 
 const SelectableText: React.FC<{ text: string; highlightWordIndex?: number; onLongPressWord?: (wordIndex: number)=>void; knownWords: Set<string>; }> = ({ text, highlightWordIndex, onLongPressWord, knownWords }) => {
-  // Pass selectedWord setter through closure by attaching to each token via captured function from outer component (prop drilling alternative).
-  // For simplicity we rely on a temporary global setter injection replaced just-in-time below.
+  // restore previous whitespace-based tokenization/display
+  // but when a token is tapped, pass a punctuation-stripped word to the modal
   const setWord = (MainScreen as any)._setWord as (w: string)=>void;
   const colors = useThemeColors();
   const resolved = useResolvedTheme();
-  // ダーク/ライト別のチップ背景と再生中ハイライト背景
   const tokenBg = resolved === 'dark' ? '#1d252b' : '#eef2f7';
   const tokenPlayingBg = resolved === 'dark' ? 'rgba(255,200,80,0.25)' : '#ffe7b3';
-  let wordCounter = -1; // counts only non-space tokens
+  let wordCounter = -1; // counts only non-space, non-hashtag/url tokens
+
+  // Split on whitespace but keep spaces so we can preserve layout
+  const parts = Array.from(text.split(/(\s+)/)).filter(p => p !== '');
   return (
     <View style={styles.tokensWrap}>
-      {text.split(/(\s+)/).filter(t => t.length > 0).map((tok, i) => {
-        if (tok.trim() === '') return <Text key={i} style={styles.space}>{tok}</Text>;
-        const cleaned = stripEdgePunct(tok);
-        if (!cleaned) return <Text key={i} style={styles.token}>{tok}</Text>;
+      {parts.map((part, i) => {
+        if (/^\s+$/.test(part)) return <Text key={i} style={styles.space}>{part}</Text>;
+        const tok = part;
+        // cleaned: strip surrounding punctuation/markers for selection/modal use
+        const cleaned = stripEdgePunct(tok).replace(/[\u200B\uFEFF]/g, '').trim();
+        if (!cleaned) {
+          // pure punctuation - render as before (with token background) but do not make selectable
+          const dynamicStyles = getTokenStyles({ noBg: false, playing: false, resolved, tokenBg, tokenPlayingBg, colors });
+          return <Text key={i} style={[dynamicStyles, { color: colors.text }]}>{tok}</Text>;
+        }
         const isHashtag = cleaned.startsWith('#') && cleaned.length > 1;
         const isUrl = /^(https?:\/\/\S+|www\.[^\s]+)$/i.test(cleaned);
         let currentIdx: number | null = null;
@@ -162,12 +170,11 @@ const SelectableText: React.FC<{ text: string; highlightWordIndex?: number; onLo
         const lw = cleaned.toLowerCase();
         const isKnown = knownWords.has(lw);
         const noBg = isKnown || isHashtag || isUrl;
-        // known / hashtag / URL は背景無し
-  const dynamicStyles = getTokenStyles({ noBg, playing, resolved, tokenBg, tokenPlayingBg, colors });
+        const dynamicStyles = getTokenStyles({ noBg, playing, resolved, tokenBg, tokenPlayingBg, colors });
         return (
           <Text
             key={i}
-            onPress={() => setWord && setWord(cleaned)}
+            onPress={() => { if (cleaned && !isHashtag && !isUrl) setWord && setWord(cleaned); }}
             onLongPress={() => currentIdx !== null && onLongPressWord && onLongPressWord(currentIdx)}
             style={[dynamicStyles,{ color: colors.text }]}
           >{tok}</Text>
@@ -242,12 +249,17 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
 
   const buildTokens = useCallback(() => {
     const text = item?.text || '';
-    const rawTokens: string[] = text.split(/\s+/);
-    const isHashtag = (s: string) => /^#[\p{L}0-9_]+$/u.test(s); // ハッシュタグ (#英数字_)
-    const isUrl = (s: string) => /^(https?:\/\/\S+|www\.[^\s]+)$/i.test(s); // URL 判定
-    tokensRef.current = rawTokens
-      .map((t:string)=> ({ raw:t, cleaned: stripEdgePunct(t) }))
-      .filter(t=> t.cleaned.length>0 && !isHashtag(t.cleaned) && !isUrl(t.cleaned));
+    const isHashtag = (s: string) => /^#[\p{L}\p{N}_]+$/u.test(s);
+    const isUrl = (s: string) => /^(https?:\/\/\S+|www\.[^\s]+)$/i.test(s);
+    // Find word-like runs (letters/digits and allowed internal chars) and URLs/hashtags.
+    const matches = Array.from(text.matchAll(/(https?:\/\/\S+|www\.[^\s]+)|(#?[\p{L}\p{N}'’\-]+)/gu));
+    tokensRef.current = matches
+      .map((m:any) => {
+        const raw = m[0];
+        const cleaned = stripEdgePunct(raw).replace(/[\u200B\uFEFF]/g, '').trim();
+        return { raw, cleaned };
+      })
+      .filter(t => t.cleaned.length > 0 && !isHashtag(t.cleaned) && !isUrl(t.cleaned));
     if (mode === 'manual') baseLangRef.current = manualLanguage || 'en-US';
     else {
       const det = detectLanguage(text);

@@ -43,16 +43,16 @@ export const ProgressScreen: React.FC = () => {
   const schedule = stats?.reviewSchedule || {};
 
   const items = [
-    { k: '総語彙', v: stats?.totalWords },
+    { k: '総語彙', v: stats?.totalWords ?? 0 },
   // Removed per request: unknown/learning/known are shown in the header status boxes
-    { k: '総レビュー', v: stats?.totalReviews },
-    { k: '平均正答率', v: ((stats?.averageAccuracy || 0) * 100).toFixed(1) + '%' },
-    { k: 'レビュー対象', v: stats?.wordsForReview },
-    { k: '平均Ease', v: stats?.averageEaseFactor?.toFixed(2) },
-    { k: '今日', v: schedule.today },
-    { k: '明日', v: schedule.tomorrow },
-    { k: '今週', v: schedule.thisWeek },
-    { k: '来週', v: schedule.nextWeek }
+    { k: '総レビュー', v: stats?.totalReviews ?? 0 },
+    { k: '平均正答率', v: ((stats?.averageAccuracy ?? 0) * 100).toFixed(1) + '%' },
+    { k: 'レビュー対象', v: stats?.wordsForReview ?? 0 },
+    { k: '平均Ease', v: typeof stats?.averageEaseFactor === 'number' ? (stats!.averageEaseFactor).toFixed(2) : '' },
+    { k: '今日', v: schedule?.today ?? 0 },
+    { k: '明日', v: schedule?.tomorrow ?? 0 },
+    { k: '今週', v: schedule?.thisWeek ?? 0 },
+    { k: '来週', v: schedule?.nextWeek ?? 0 }
   ];
 
   return (
@@ -74,7 +74,7 @@ export const ProgressScreen: React.FC = () => {
             </View>
           </View>
 
-          <View style={[commonStyles.chartContainer, { backgroundColor: c.background, borderColor: c.border }]}> 
+          <View style={[commonStyles.chartContainer, { backgroundColor: c.background, borderColor: c.border, borderWidth: StyleSheet.hairlineWidth }]}> 
             <Text style={[commonStyles.chartTitle, { color: c.text }]}>過去14日間の回答数</Text>
             {historyQ.isLoading && <ActivityIndicator />}
             {!historyQ.isLoading && Array.isArray(historyQ.data) && historyQ.data.length > 0 && (
@@ -82,10 +82,18 @@ export const ProgressScreen: React.FC = () => {
                 <View style={commonStyles.chartRow}>
                   {(historyQ.data as any[]).map((d, i) => {
                     const val = Number(d.quizzesTaken ?? d.answers ?? 0);
+                    const rawDate = d?.date ?? d?.day ?? d?.dateString ?? String(d);
+                    const rawDateStr = String(rawDate ?? '');
+                    const parsed = new Date(rawDateStr);
+                    const isValid = !isNaN(parsed.getTime());
+                    // normalized key: YYYY-MM-DD when possible, else fallback to raw string + index
+                    const normKey = isValid ? `${parsed.getFullYear()}-${String(parsed.getMonth()+1).padStart(2,'0')}-${String(parsed.getDate()).padStart(2,'0')}` : `${rawDateStr}-${i}`;
+                    // label: MM-DD when date is valid, otherwise a safe shortened raw string
+                    const label = isValid ? `${String(parsed.getMonth()+1).padStart(2,'0')}-${String(parsed.getDate()).padStart(2,'0')}` : (rawDateStr.length > 10 ? rawDateStr.slice(0,10) : rawDateStr || `day-${i}`);
                     return (
-                      <View key={i} style={commonStyles.chartCol}>
+                      <View key={normKey} style={commonStyles.chartCol}>
                         <View style={[commonStyles.chartBar, { height: Math.min(MAX_BAR_HEIGHT, BASE_BAR_HEIGHT + val * BAR_HEIGHT_MULTIPLIER), backgroundColor: c.accent }]} />
-                        <Text style={[commonStyles.chartLabel, { color: c.secondaryText }]}>{String(d.date).slice(5)}</Text>
+                        <Text style={[commonStyles.chartLabel, { color: c.secondaryText }]}>{label}</Text>
                       </View>
                     );
                   })}

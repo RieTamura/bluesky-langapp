@@ -4,6 +4,7 @@ import DictionaryService from '../services/dictionaryService.js';
 import AuthController from './authController.js';
 import { CreateWordRequest, UpdateWordRequest } from '../types/data.js';
 import { validateWordData } from '../utils/dataUtils.js';
+import { normalizeWord } from '../utils/textProcessor.js';
 
 export class WordsController {
   private static dataService = new DataService();
@@ -97,9 +98,9 @@ export class WordsController {
       }
 
       // Check if word already exists for this user
-      const existingWords = await WordsController.dataService.getWords(userId);
-      const normalizedWord = wordData.word.toLowerCase().trim();
-      const existingWord = existingWords.find(w => w.word.toLowerCase() === normalizedWord);
+  const existingWords = await WordsController.dataService.getWords(userId);
+  const normalizedWord = normalizeWord(wordData.word);
+  const existingWord = existingWords.find(w => (w as any).normalizedWord === normalizedWord || w.word.toLowerCase() === normalizedWord);
 
       if (existingWord) {
         res.status(409).json({
@@ -112,7 +113,9 @@ export class WordsController {
 
       // Create new word
       const newWord = await WordsController.dataService.saveWord({
-        word: normalizedWord,
+        // store original word for display, but include normalizedWord for matching
+        word: wordData.word,
+        normalizedWord: normalizedWord,
         status: wordData.status || 'unknown',
         userId,
   languageCode: wordData.languageCode || 'en',

@@ -77,8 +77,20 @@ export function useWords(params: { languageCode?: string; status?: string } = {}
     onSuccess: () => qc.invalidateQueries({ queryKey: WORDS_KEY(languageCode, status) })
   });
 
+  // Remove punctuation/symbols from the word before registering. Keep internal apostrophes and dashes.
+  const sanitizeForRegistration = (w: string) => {
+    if (!w) return w;
+    // Trim and remove surrounding punctuation or symbols, but keep internal apostrophes/hyphens and letters/digits.
+    const m = w.trim().match(/^([\p{L}\p{N}'\u2019\-][\p{L}\p{N}'\u2019\-\s]*)$/u);
+    if (m) return m[1].trim();
+    // Fallback: remove punctuation from edges and collapse internal zero-widths
+    return w.replace(/^[\p{P}\p{S}]+|[\p{P}\p{S}]+$/gu, '').replace(/[\u200B\uFEFF]/g, '').trim();
+  };
+
   const addWord = useCallback((word: string, lang?: string) => {
-    createMutation.mutate({ word, languageCode: lang || languageCode });
+    const sanitized = sanitizeForRegistration(word);
+    if (!sanitized) return; // don't register empty strings or pure punctuation
+    createMutation.mutate({ word: sanitized, languageCode: lang || languageCode });
   }, [createMutation, languageCode]);
 
   const updateStatus = useCallback((id: string, status: WordItem['status']) => {

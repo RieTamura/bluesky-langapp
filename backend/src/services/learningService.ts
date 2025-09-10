@@ -1,4 +1,6 @@
-import DataService, { WordData } from './dataService.js';
+import DataService from './dataService.js';
+import type { WordData } from '../types/data.js';
+import { normalizeWord } from '../utils/textProcessor.js';
 import { LearningSessionData } from '../types/data.js';
 
 export interface QuizQuestion {
@@ -297,8 +299,8 @@ class LearningService {
         return this.checkMeaningAnswer(normalizedCorrectAnswer, normalizedUserAnswer);
       
       case 'usage':
-        // For usage questions, check exact word match (case insensitive)
-        const targetWord = question.word.word.toLowerCase().replace(/[!?.,]/g, '');
+        // For usage questions, check exact word match using normalizedWord if available
+        const targetWord = (question.word as any).normalizedWord || normalizeWord(question.word.word || '');
         return normalizedUserAnswer === targetWord;
       
       default:
