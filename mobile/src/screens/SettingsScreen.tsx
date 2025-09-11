@@ -26,8 +26,20 @@ type AuthMeResponse = {
   [key: string]: any;
 };
 
+// Lightweight local logger wrapper. Replace with centralized logger if available.
+const logger = {
+  error: (msg: string, meta?: any) => {
+    try { console.error(msg, meta); } catch (_) { /* noop */ }
+  }
+};
+
 function isProfile(obj: any): obj is Profile {
-  return obj && typeof obj === 'object' && typeof obj.handle === 'string';
+  if (!obj || typeof obj !== 'object') return false;
+  if (typeof obj.handle !== 'string') return false;
+  if ('displayName' in obj && obj.displayName != null && typeof obj.displayName !== 'string') return false;
+  if ('description' in obj && obj.description != null && typeof obj.description !== 'string') return false;
+  if ('avatar' in obj && obj.avatar != null && typeof obj.avatar !== 'string') return false;
+  return true;
 }
 
 async function fetchProfile(identifier: string | null | undefined): Promise<Profile | null> {
@@ -38,20 +50,20 @@ async function fetchProfile(identifier: string | null | undefined): Promise<Prof
     const data = res?.data;
     if (isProfile(data)) return data;
     // If the shape isn't what we expect, log and continue to fallback
-    console.warn('fetchProfile: /api/atprotocol/profile returned unexpected shape', data);
+    logger.error('fetchProfile: /api/atprotocol/profile returned unexpected shape', { response: res });
   } catch (err) {
-    console.warn('fetchProfile: /api/atprotocol/profile failed', err);
+    logger.error('fetchProfile: /api/atprotocol/profile failed', { error: err });
   }
 
   // Fallback to /api/auth/me — validate structure instead of assuming me.data.user
   try {
-    const meRes: AuthMeResponse = await api.get<any>('/api/auth/me');
+    const meRes: any = await api.get<any>('/api/auth/me');
     const meData = meRes?.data;
-    if (isProfile(meData?.user)) return meData!.user!;
-    if (isProfile(meData)) return meData as Profile;
-    console.warn('fetchProfile: /api/auth/me returned unexpected shape', meRes);
+    if (meData && isProfile(meData.user)) return meData.user;
+    if (meData && isProfile(meData)) return meData as Profile;
+    logger.error('fetchProfile: /api/auth/me returned unexpected shape', { response: meRes });
   } catch (err) {
-    console.warn('fetchProfile: /api/auth/me failed', err);
+    logger.error('fetchProfile: /api/auth/me failed', { error: err });
   }
 
   // Final stable fallback shape matching Profile so callers get a consistent type
@@ -116,7 +128,7 @@ export const SettingsScreen: React.FC = () => {
   // Reset avatar failure when avatar URL changes
   React.useEffect(() => {
     setAvatarFailed(false);
-  }, [profileQ.data?.avatar]);
+  }, [profileQ.data]);
 
   if (profileQ.isLoading) return <View style={styles.center}><ActivityIndicator /></View>;
   const prog: any = progressQ.data || {};

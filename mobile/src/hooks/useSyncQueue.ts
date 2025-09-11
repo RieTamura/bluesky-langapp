@@ -73,8 +73,27 @@ export function useSyncQueue(autoStart = true) {
         // inspect status (supports various error shapes)
         const status = e?.status || e?.response?.status;
 
-        // If network offline, stop processing and leave queue intact
-        if (e?.error === 'NETWORK_OFFLINE' || status === 0) {
+        // If network offline, stop processing and leave queue intact.
+        // Detect multiple shapes: custom offline flag, numeric status 0, axios/no-response, common OS error codes,
+        // error messages containing network/timeout, and navigator.onLine === false when available.
+        const errCode = (e && (e.code || e.errno || e.error)) ? String(e.code || e.errno || e.error).toLowerCase() : '';
+        const errMsg = (e && e.message) ? String(e.message).toLowerCase() : '';
+        const hasNoResponse = !!(e && !e.response && (e.request || e.code || e.message));
+
+        const networkErrCodes = ['enotfound', 'econnrefused', 'econnreset', 'etimedout', 'ehostunreach', 'eai_again', 'ecanceled'];
+        const msgLooksOffline = errMsg.includes('network error') || errMsg.includes('timeout') || errMsg.includes('networkrequestfailed') || errMsg.includes('socket hang up');
+
+        const navigatorOffline = (typeof navigator !== 'undefined' && (navigator as any).onLine === false);
+
+        const isOffline = (
+          e?.error === 'NETWORK_OFFLINE' ||
+          status === 0 ||
+          (hasNoResponse && (msgLooksOffline || networkErrCodes.some(c => errCode.includes(c)))) ||
+          navigatorOffline
+        );
+
+        if (isOffline) {
+          // Leave the queue intact for next sync attempt when network returns
           break;
         }
 

@@ -89,7 +89,9 @@ export const WordsScreen: React.FC = () => {
       </View>
       {/* Diagnostic counts: total words from hook, synced words (displayed), pending local words */}
       <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-        <Text style={{ color: c.secondaryText, fontSize: 12, opacity: 0.9 }}>総単語: {words.length}  表示中: {syncedWords.length}  未同期: {pq}</Text>
+        <Text style={{ color: c.secondaryText, fontSize: 12, opacity: 0.9 }}>
+          総単語: {words.length}  表示中: {syncedWords.length}  ローカル未登録: {pendingCount}  未同期キュー: {pq}
+        </Text>
       </View>
 
       <Modal visible={showFilterModal} transparent animationType="fade" onRequestClose={() => setShowFilterModal(false)}>
@@ -103,7 +105,7 @@ export const WordsScreen: React.FC = () => {
       <FlatList
         data={listData}
         refreshing={isLoading}
-        keyExtractor={(item) => item.type === 'word' ? item.data.id : item.id}
+  keyExtractor={(item, index) => item.type === 'word' ? (item.data.id || `temp_${index}`) : item.id}
         // Quiz画面: 外側padding 12 + QuizCard内padding 16 = 28px の開始位置
         // Words画面も同じ視覚的開始位置になるよう contentContainerStyle に 16px を追加
         contentContainerStyle={{ paddingVertical: 4, paddingHorizontal: 16 }}

@@ -104,8 +104,9 @@ app.get('/health', (req, res) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     atProtocol: {
-      initialized: atProtocolInitialized,
-      error: atProtocolInitError?.message || null
+  initialized: atProtocolInitialized,
+  // Access message defensively to avoid narrow-type issues from the compiler
+  error: atProtocolInitError ? (atProtocolInitError as any).message || String(atProtocolInitError) : null
     }
   });
 });
@@ -152,50 +153,32 @@ app.get('*', (req, res) => {
 });
 
 async function start(port: number, attempt = 0) {
-  const server = app.listen(port, async () => {
+  const server = app.listen(port, () => {
     console.log(`🚀 Bluesky LangApp API Server running at http://localhost:${port}`);
     console.log(`📊 Health check available at http://localhost:${port}/health`);
 
-    // Initialize data service
-let atProtocolInitialized = false;
-let atProtocolInitError: Error | null = null;
+    // Run async initialization in an IIFE so the listen callback remains synchronous
+    (async () => {
+      // Initialize data service
+      try {
+        const dataService = new DataService();
+        await dataService.initialize();
+        console.log(`💾 Data service initialized successfully`);
+      } catch (error) {
+        console.error('❌ Failed to initialize data service:', error);
+      }
 
-// Optional: automatic Bluesky AT Protocol initialization if creds provided in env
-try {
-  const handle = process.env.BLUESKY_HANDLE;
-  const password = process.env.BLUESKY_PASSWORD;
-  if (handle && password) {
-    console.log('Attempting automatic AT Protocol initialization from .env');
-    await atProtocolService.initialize({ identifier: handle, password });
-    atProtocolInitialized = true;
-    console.log('✅ AT Protocol service initialized automatically');
-  } else {
-    console.log('AT Protocol auto-init skipped (BLUESKY_HANDLE/BLUESKY_PASSWORD not set)');
-  }
-} catch (err) {
-  console.error('❌ Automatic AT Protocol initialization failed:', err);
-  atProtocolInitError = err instanceof Error ? err : new Error('Unknown error');
-}
-
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    atProtocol: {
-      initialized: atProtocolInitialized,
-      error: atProtocolInitError?.message
-    }
-  });
-});        await atProtocolService.initialize({ identifier: handle, password });
-        atProtocolInitialized = true;
-        console.log('✅ AT Protocol service initialized automatically');
+      // Optional: automatic Bluesky AT Protocol initialization is intentionally disabled.
+      // If you want automatic initialization, set BLUESKY_HANDLE/BLUESKY_PASSWORD in
+      // the environment and re-enable the initialization logic here.
+      const handle = process.env.BLUESKY_HANDLE;
+      const password = process.env.BLUESKY_PASSWORD;
+      if (handle && password) {
+        console.log('AT Protocol auto-init is disabled in code; enable it explicitly if desired');
       } else {
         console.log('AT Protocol auto-init skipped (BLUESKY_HANDLE/BLUESKY_PASSWORD not set)');
       }
-    } catch (err) {
-      console.error('❌ Automatic AT Protocol initialization failed:', err);
-      atProtocolInitError = err instanceof Error ? err : new Error('Unknown error');
-    }
+    })();
   });
 
   server.on('error', (err: any) => {

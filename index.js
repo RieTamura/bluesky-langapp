@@ -4,28 +4,42 @@ import inquirer from 'inquirer'
 import fs from 'fs'
 
 // ==== 設定（環境変数経由） ====
-const BLUESKY_ID = process.env.BLUESKY_ID || 'connectobasan.com'
-const BLUESKY_PW = process.env.BLUESKY_PW // App Password を environment variable に設定して使ってください
-const WORDS_FILE = 'words.json'
+// NOTE: avoid committing defaults for identifiers; prefer explicit env or login-derived session.
+const BLUESKY_ID = process.env.BLUESKY_ID || '';
+const BLUESKY_ACTOR = process.env.BLUESKY_ACTOR || '';
+const BLUESKY_SERVICE_URL = process.env.BLUESKY_SERVICE_URL || 'https://bsky.social';
+const BLUESKY_PW = process.env.BLUESKY_PW; // App Password を environment variable に設定して使ってください
+const WORDS_FILE = 'words.json';
+
+async function main() {
 
 // ==== JSONファイル準備 ====
 if (!fs.existsSync(WORDS_FILE)) {
   fs.writeFileSync(WORDS_FILE, JSON.stringify([], null, 2))
 }
-let savedWords = JSON.parse(fs.readFileSync(WORDS_FILE))
+let savedWords = JSON.parse(fs.readFileSync(WORDS_FILE, 'utf8'))
 
 // ==== Blueskyログイン ====
-if (!BLUESKY_PW) {
-  console.error('Error: BLUESKY_PW not set. Set environment variable BLUESKY_PW to your App Password to run this script.')
-  process.exit(1)
-}
+  if (!BLUESKY_PW) {
+    console.error('Error: BLUESKY_PW not set. Set environment variable BLUESKY_PW to your App Password to run this script.')
+    process.exitCode = 1
+    return
+  }
 
-const agent = new AtpAgent({ service: 'https://bsky.social' })
-await agent.login({ identifier: BLUESKY_ID, password: BLUESKY_PW })
+const agent = new AtpAgent({ service: BLUESKY_SERVICE_URL })
+await agent.login({ identifier: BLUESKY_ID || undefined, password: BLUESKY_PW })
+
+// Determine actor to fetch feed for. Prefer session DID, then session handle, then BLUESKY_ACTOR env.
+const sessionDid = agent.session?.did;
+const sessionHandle = agent.session?.handle;
+const actor = sessionDid || sessionHandle || BLUESKY_ACTOR || BLUESKY_ID || '';
+if (!actor) {
+  console.warn('No actor resolved to fetch feed for. Set BLUESKY_ACTOR or BLUESKY_ID env, or ensure login succeeded.');
+}
 
 // ==== 投稿取得（自分の最新5件） ====
 const timeline = await agent.getAuthorFeed({
-  actor: BLUESKY_ID,
+  actor: actor,
   limit: 5
 })
 
@@ -53,3 +67,10 @@ for (const post of timeline.data.feed) {
     }
   }
 }
+
+}
+
+main().catch(err => {
+  console.error('Fatal error in script:', err);
+  process.exitCode = 1;
+});

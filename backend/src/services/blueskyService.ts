@@ -320,9 +320,8 @@ export class BlueskyService {
           console.warn('Failed to inspect public attempt error response:', inspectErr instanceof Error ? inspectErr.message : inspectErr);
         }
 
-        // Strictly check for 401 status code first, fallback to message inspection only if no status
-        const indicatesAuthRequired = statusCode === 401 || 
-          (statusCode === undefined && /\b(auth|authentication)\s+(required|needed)/i.test(errMsg));        // to a conservative message-based test that looks for phrases like
+        // Prefer an explicit 401 status check. If no status is available, fall back
+        // to a conservative message-based test that looks for phrases like
         // "authentication required" or "auth required" to avoid false positives.
         const indicatesAuthRequired = statusCode === 401 ||
           (statusCode === undefined && /\b(?:auth|authentication)\s+(?:required|needed)\b/i.test(errMsg));
