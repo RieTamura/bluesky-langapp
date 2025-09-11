@@ -44,9 +44,31 @@ export class WordsController {
       // Expected format: lowercase ISO language codes (e.g. 'en', 'ja'). Invalid entries are ignored.
       const languageCodesParam = req.query.languageCode as string | undefined;
 
-      let words: WordData[] =
-        await WordsController.dataService.getWords(userId);
+      let words: WordData[] = await WordsController.dataService.getWords(userId);
       console.log(`Words API - User: ${userId}, Total words: ${words.length}`);
+
+      // Always include demo/default_user words in the listing, but avoid
+      // duplicating entries the user already has. This ensures the default
+      // vocabulary remains visible even after the user has added personal words.
+      try {
+        const defaultWords = await WordsController.dataService.getWords('default_user');
+        if (defaultWords && defaultWords.length > 0) {
+          // Build a set of keys for user's existing words to avoid duplicates.
+          const existingKeys = new Set(
+            words.map(w => `${(w as any).normalizedWord || normalizeWord(w.word || '')}::${(w as any).languageCode || 'en'}`)
+          );
+          const toAdd = defaultWords.filter(dw => {
+            const key = `${(dw as any).normalizedWord || normalizeWord(dw.word || '')}::${(dw as any).languageCode || 'en'}`;
+            return !existingKeys.has(key);
+          });
+          if (toAdd.length > 0) {
+            console.log(`Words API - merging ${toAdd.length} default_user words for user: ${userId}`);
+            words = words.concat(toAdd);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load default_user words for merge:', err);
+      }
 
   // (Previously: attempted a fallback to default_user when user's list was empty.)
   // With the development-mode early substitution above there is no need to

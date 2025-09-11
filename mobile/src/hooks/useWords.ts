@@ -36,8 +36,15 @@ export function useWords(params: { languageCode?: string; status?: string } = {}
       try {
         return (await wordsApi.create(payload)).data as WordItem;
       } catch (e: any) {
-        if (e?.error === 'NETWORK_OFFLINE' || e?.error === 'AUTH_REQUIRED') {
-          await enqueue({ type: 'word.create', payload, });
+        // Debug log to help diagnose why offline enqueue may not be called
+        console.warn('words.create error:', e?.error ?? e?.message ?? e);
+        const isOffline = e?.error === 'NETWORK_OFFLINE' || e?.error === 'AUTH_REQUIRED' || e?.status === 0 || (typeof e?.message === 'string' && e.message.toLowerCase().includes('offline'));
+        if (isOffline) {
+          try {
+            await enqueue({ type: 'word.create', payload, });
+          } catch (qe) {
+            console.error('Failed to enqueue offline create task:', qe);
+          }
           return { id: `temp_${Date.now()}`, word: payload.word, status: 'unknown' } as WordItem;
         }
         throw e;
@@ -51,8 +58,14 @@ export function useWords(params: { languageCode?: string; status?: string } = {}
       try {
         return (await wordsApi.update(id, patch)).data as WordItem;
       } catch (e: any) {
-        if (e?.error === 'NETWORK_OFFLINE') {
-          await enqueue({ type: 'word.update', payload: { id, patch } });
+        console.warn('words.update error:', e?.error ?? e?.message ?? e);
+        const isOffline = e?.error === 'NETWORK_OFFLINE' || e?.status === 0 || (typeof e?.message === 'string' && e.message.toLowerCase().includes('offline'));
+        if (isOffline) {
+          try {
+            await enqueue({ type: 'word.update', payload: { id, patch } });
+          } catch (qe) {
+            console.error('Failed to enqueue offline update task:', qe);
+          }
           return { id, word: patch.word || 'pending', status: (patch.status as any) || 'learning' } as WordItem;
         }
         throw e;
@@ -67,8 +80,14 @@ export function useWords(params: { languageCode?: string; status?: string } = {}
         await wordsApi.remove(id);
         return id;
       } catch (e: any) {
-        if (e?.error === 'NETWORK_OFFLINE') {
-          await enqueue({ type: 'word.delete', payload: { id } });
+        console.warn('words.delete error:', e?.error ?? e?.message ?? e);
+        const isOffline = e?.error === 'NETWORK_OFFLINE' || e?.status === 0 || (typeof e?.message === 'string' && e.message.toLowerCase().includes('offline'));
+        if (isOffline) {
+          try {
+            await enqueue({ type: 'word.delete', payload: { id } });
+          } catch (qe) {
+            console.error('Failed to enqueue offline delete task:', qe);
+          }
           return id;
         }
         throw e;

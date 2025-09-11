@@ -110,8 +110,17 @@ export function useSyncQueue(autoStart = true) {
           break;
         }
 
-        // Permanent client errors (400-499) except 429: do not retry, drop immediately
+        // Permanent client errors (400-499) except 429: handle specially.
+        // If authentication is required (401) we should stop processing and
+        // keep the queue intact so the user can re-authenticate and retry.
         if (typeof status === 'number' && status >= 400 && status < 500 && status !== 429) {
+          if (status === 401) {
+            if (__DEV__) console.warn('[useSyncQueue] auth required during sync; pausing sync and keeping queue intact');
+            // Stop processing further tasks but do not dequeue this task.
+            break;
+          }
+          // Other client errors are likely permanent (validation/conflict) so drop the task.
+          if (__DEV__) console.warn('[useSyncQueue] dropping task due to client error', { status, taskId: task.id });
           await dequeue(task.id);
           // continue with next task
           continue;

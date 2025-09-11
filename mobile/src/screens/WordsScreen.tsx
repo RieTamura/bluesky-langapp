@@ -1,9 +1,11 @@
 import React from 'react';
-import { View, FlatList, StyleSheet, SafeAreaView, TouchableOpacity, Text, Modal, Pressable } from 'react-native';
+import { View, FlatList, StyleSheet, SafeAreaView, TouchableOpacity, Text, Animated } from 'react-native';
 import { useThemeColors } from '../stores/theme';
 import { useSyncQueue } from '../hooks/useSyncQueue';
 import { useWords } from '../hooks/useWords';
 import { WordCard } from '../components/WordCard';
+import { ListFilter, RefreshCw } from 'lucide-react-native';
+import { authApi } from '../services/api';
 
 export const WordsScreen: React.FC = () => {
   const { words, isLoading, updateStatus } = useWords();
@@ -69,40 +71,114 @@ export const WordsScreen: React.FC = () => {
   const { isSyncing, lastSyncAt, pendingCount: pq, syncNow } = useSyncQueue(true);
 
   const [showFilterModal, setShowFilterModal] = React.useState(false);
+  const anim = React.useRef(new Animated.Value(0)).current;
+  const rotateAnim = React.useRef(new Animated.Value(0)).current;
+  const loopRef = React.useRef<Animated.CompositeAnimation | null>(null);
+
+  const runOneRotation = React.useCallback(() => {
+    return new Promise<void>((resolve) => {
+      rotateAnim.setValue(0);
+      Animated.timing(rotateAnim, { toValue: 1, duration: 800, useNativeDriver: true }).start(() => {
+        rotateAnim.setValue(0);
+        resolve();
+      });
+    });
+  }, [rotateAnim]);
+
+  const startContinuous = React.useCallback(() => {
+    loopRef.current = Animated.loop(Animated.timing(rotateAnim, { toValue: 1, duration: 800, useNativeDriver: true }));
+    loopRef.current.start();
+  }, [rotateAnim]);
+
+  const stopContinuous = React.useCallback(() => {
+    if (loopRef.current) {
+      loopRef.current.stop();
+      loopRef.current = null;
+    }
+    rotateAnim.setValue(0);
+  }, [rotateAnim]);
+
+  // When syncing starts, always perform at least one full rotation; if still syncing, continue rotating
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (isSyncing) {
+        await runOneRotation();
+        if (cancelled) return;
+        // if still syncing, start continuous rotation
+        if (isSyncing) startContinuous();
+      } else {
+        stopContinuous();
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isSyncing, runOneRotation, startContinuous, stopContinuous]);
+
+  // When app becomes online and there are pending tasks, trigger a one-rotation and start sync
+  React.useEffect(() => {
+    let mounted = true;
+    const tryAutoSync = async () => {
+      if (pq > 0 && !isSyncing) {
+        try {
+          await authApi.me(); // throws NETWORK_OFFLINE if offline
+          if (!mounted) return;
+          // play one rotation then start sync
+          await runOneRotation();
+          if (!mounted) return;
+          syncNow();
+        } catch (e) {
+          // offline or auth error; do nothing
+        }
+      }
+    };
+    tryAutoSync();
+    return () => { mounted = false; };
+  }, [pq, isSyncing, runOneRotation, syncNow]);
+
+  const openFilters = () => {
+    setShowFilterModal(true);
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true
+    }).start();
+  };
+
+  const closeFilters = () => {
+    Animated.timing(anim, {
+      toValue: 0,
+      duration: 180,
+      useNativeDriver: true
+    }).start(() => setShowFilterModal(false));
+  };
+
+  const toggleFilters = () => {
+    if (showFilterModal) closeFilters(); else openFilters();
+  };
 
       return (
     <SafeAreaView style={[styles.container,{ backgroundColor: c.background }]}> 
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 8 }}>
-        <View>
-          <TouchableOpacity onPress={() => syncNow()} accessibilityRole="button">
-            <Text style={{ color: pq > 0 ? c.accent : c.secondaryText, fontSize: 14, fontWeight: '700' }}>{pq > 0 ? `未同期 ${pq} 件` : '同期済み'}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity onPress={() => syncNow()} accessibilityRole="button" style={{ padding: 8 }} accessibilityLabel="同期">
+            <Animated.View style={{ transform: [{ rotate: rotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }] }}>
+              <RefreshCw size={20} color={c.text} />
+            </Animated.View>
           </TouchableOpacity>
-          {isSyncing && <Text style={{ color: c.secondaryText, fontSize: 12 }}>同期中…</Text>}
-          {!isSyncing && lastSyncAt && <Text style={{ color: c.secondaryText, fontSize: 12 }}>最終同期: {new Date(lastSyncAt).toLocaleString()}</Text>}
+          <Text style={{ marginLeft: 8, color: pq > 0 ? c.accent : c.secondaryText, fontSize: 14, fontWeight: '700' }}>{pq > 0 ? `未同期 ${pq} 件` : '同期済み'}</Text>
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity onPress={() => setShowFilterModal(true)} style={{ padding: 8 }} accessibilityRole="button">
-            <Text style={{ fontSize: 20, color: c.text }}>☰</Text>
+          <TouchableOpacity onPress={toggleFilters} style={{ padding: 8 }} accessibilityRole="button" accessibilityLabel="フィルター">
+            <ListFilter size={22} color={c.text} />
           </TouchableOpacity>
         </View>
       </View>
-      {/* Diagnostic counts: total words from hook, synced words (displayed), pending local words */}
-      {__DEV__ && (
-        <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-          <Text style={{ color: c.secondaryText, fontSize: 12, opacity: 0.9 }}>
-            総単語: {words.length}  表示中: {syncedWords.length}  ローカル未登録: {unregisteredLocalCount}  未同期キュー: {pq}
-          </Text>
-        </View>
+      {showFilterModal && (
+        <Animated.View style={{ paddingHorizontal: 16, alignItems: 'flex-end', opacity: anim, transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }] }}>
+          <SortTabs current={sortKey} onChange={(k) => { setSortKey(k); closeFilters(); }} />
+        </Animated.View>
       )}
-
-      <Modal visible={showFilterModal} transparent animationType="fade" onRequestClose={() => setShowFilterModal(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowFilterModal(false)}>
-          <View style={[styles.modalContent, { backgroundColor: c.surface, borderColor: c.border }]}> 
-            <SortTabs current={sortKey} onChange={(k) => { setSortKey(k); setShowFilterModal(false); }} />
-          </View>
-        </Pressable>
-      </Modal>
   {/* debug UI removed */}
       <FlatList
         data={listData}

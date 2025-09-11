@@ -102,6 +102,7 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
     if (!info) return undefined;
     if (info.id) return info.id;
     setSaving(true);
+  // minimal startup trace removed
     try {
       const res: any = await wordsApi.create({ word: info.word, definition: info.definition, exampleSentence: info.exampleSentence });
       const created = res?.data || res;
@@ -110,18 +111,23 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
       qc.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'words' });
       return created.id;
     } catch (e: any) {
+      // Debug: log full error shape so we can see why offline branch wasn't hit
+  console.warn('WordDetailModal.create error:', e);
       // Match behavior of useWords.createMutation: enqueue on offline / auth required
       const err = e || {};
-      if (err?.error === 'NETWORK_OFFLINE' || err?.error === 'AUTH_REQUIRED') {
+      const isOffline = err?.error === 'NETWORK_OFFLINE' || err?.error === 'AUTH_REQUIRED' || err?.status === 0 || (typeof err?.message === 'string' && err.message.toLowerCase().includes('offline'));
+      if (isOffline) {
         // enqueue create operation for offline processing
         try {
-          await enqueue({ type: 'word.create', payload: { word: info.word, definition: info.definition, exampleSentence: info.exampleSentence } });
+          const payload = { word: info.word, definition: info.definition, exampleSentence: info.exampleSentence };
+          await enqueue({ type: 'word.create', payload });
           // create a temp id to represent pending item (UUID-based to avoid collisions)
           const tempId = `temp_${uuidV4()}`;
           setInfo(s => s ? { ...s, id: tempId, status: 'unknown' } : s);
           qc.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'words' });
           return tempId;
         } catch (ee) {
+          console.error('Failed to enqueue offline create from WordDetailModal:', ee);
           // fallthrough to alert
         }
       }
@@ -134,6 +140,7 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
     const normalized = status.toLowerCase(); // APIは小文字 (unknown / learning / known)
     if (!['unknown','learning','known'].includes(normalized)) return;
     const wasNew = !info.id;
+  // removed verbose debug log
     const id = info.id || await ensureCreated();
     if (!id) return;
     setSaving(true); setMessage(null);
@@ -146,6 +153,34 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
   // 更新後にキャッシュをinvalidateしてフィード側 knownWords セットを更新
   qc.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'words' });
     } catch (e: any) {
+  console.warn('[WordDetailModal] update error:', e);
+      const err = e || {};
+      const isOffline = err?.error === 'NETWORK_OFFLINE' || err?.status === 0 || (typeof err?.message === 'string' && err.message.toLowerCase().includes('offline'));
+      if (isOffline) {
+        // enqueue an update task (or create if no real id)
+        try {
+          if (info.id) {
+            const payload = { id, changes: { status: normalized } };
+              await enqueue({ type: 'word.update', payload });
+            setInfo(s => s ? { ...s, status: normalized } : s);
+            qc.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'words' });
+            setMessage(normalized === 'known' ? '既知に設定しました (オフライン待機中)' : '状態を更新しました (オフライン待機中)');
+            return;
+          } else {
+            // fallback: enqueue a create with status
+            const payload = { word: info.word, definition: info.definition, exampleSentence: info.exampleSentence, status: normalized };
+            await enqueue({ type: 'word.create', payload });
+            const tempId = `temp_${uuidV4()}`;
+            setInfo(s => s ? { ...s, id: tempId, status: normalized } : s);
+            qc.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'words' });
+            setMessage('登録しました (オフライン待機中)');
+            return;
+          }
+        } catch (qe) {
+          console.error('[WordDetailModal] Failed to enqueue during update:', qe);
+          // fallthrough to alert
+        }
+      }
       Alert.alert('エラー', e?.message || '更新失敗');
     } finally { setSaving(false); }
   }, [info, ensureCreated]);

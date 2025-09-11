@@ -1,5 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { Badge } from '../ui';
+const ListFilter: React.FC<{ size?: number; className?: string }> = ({ size = 18, className }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    className={className}
+    aria-hidden="true"
+  >
+    {/* simple list + filter/funnel glyph */}
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h12M4 12h8M4 18h12" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 6l-4 6v4" />
+  </svg>
+);
 
 interface Word {
   id: string;
@@ -54,7 +70,19 @@ export default function WordsContent() {
       }
 
       const data = await response.json();
-      setWords(data.data || []);
+      // Normalize backend field names to the frontend model so both
+      // older and newer API shapes work (definition/date/lastReviewedAt -> meaning/createdAt/lastReviewed)
+      const incoming: any[] = data.data || [];
+      const normalized = incoming.map((w) => ({
+        id: String(w.id),
+        word: w.word,
+        meaning: w.meaning ?? w.definition ?? w.description ?? undefined,
+        status: w.status ?? 'unknown',
+        createdAt: w.createdAt ?? w.date ?? w.firstEncounteredAt ?? new Date().toISOString(),
+        lastReviewed: w.lastReviewed ?? w.lastReviewedAt ?? null
+      }));
+
+      setWords(normalized);
     } catch (err) {
       setError(err instanceof Error ? err.message : '不明なエラーが発生しました');
     } finally {
@@ -163,6 +191,17 @@ export default function WordsContent() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+          </div>
+          {/* Filter icon button (Lucide list-filter) */}
+          <div className="flex items-center">
+            <button
+              title="フィルター"
+              onClick={() => { /* 将来的なフィルター表示トグル用。今はダミー */ }}
+              className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+              aria-label="フィルター"
+            >
+              <ListFilter size={18} className="text-gray-600" />
+            </button>
           </div>
           <div className="flex space-x-2">
             {(['all', 'unknown', 'learning', 'known'] as const).map((status) => (
