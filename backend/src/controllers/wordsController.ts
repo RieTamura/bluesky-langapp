@@ -53,6 +53,10 @@ export class WordsController {
       try {
         const defaultWords = await WordsController.dataService.getWords('default_user');
         if (defaultWords && defaultWords.length > 0) {
+          // Performance monitoring: log how many default words we'll check before dedupe
+          // Include contextual IDs when available to help trace heavy requests
+          const reqId = (req as any).id || req.headers['x-request-id'] || null;
+          console.log(`defaultWords count before dedupe: ${defaultWords.length}`, { user: userId, reqId });
           // Build a set of keys for user's existing words to avoid duplicates.
           const existingKeys = new Set(
             words.map(w => `${(w as any).normalizedWord || normalizeWord(w.word || '')}::${(w as any).languageCode || 'en'}`)

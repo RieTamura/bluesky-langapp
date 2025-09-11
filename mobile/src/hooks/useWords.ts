@@ -101,7 +101,7 @@ export function useWords(params: { languageCode?: string; status?: string } = {}
     if (!w) return w;
   // Mirror backend `normalizeWord`: lowercase, trim, remove zero-widths, and strip any char
   // that is not a Unicode letter, digit or apostrophe (keep internal apostrophes)
-  const cleaned = String(w).toLowerCase().replace(/[\u200B\uFEFF]/g, '').trim().replace(/[^\p{L}0-9']/gu, '');
+  const cleaned = String(w).toLowerCase().replace(/[\u200B\uFEFF]/g, '').trim().replace(/[^\p{L}0-9'\u30FC\u30FB]/gu, '');
   return cleaned;
   };
 

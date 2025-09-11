@@ -160,7 +160,7 @@ export const WordDetailModal: React.FC<Props> = ({ word, onClose }) => {
         // enqueue an update task (or create if no real id)
         try {
           if (info.id) {
-            const payload = { id, changes: { status: normalized } };
+            const payload = { id, patch: { status: normalized } };
               await enqueue({ type: 'word.update', payload });
             setInfo(s => s ? { ...s, status: normalized } : s);
             qc.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'words' });

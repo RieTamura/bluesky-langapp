@@ -1,21 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Badge } from '../ui';
-const ListFilter: React.FC<{ size?: number; className?: string }> = ({ size = 18, className }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    className={className}
-    aria-hidden="true"
-  >
-    {/* simple list + filter/funnel glyph */}
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h12M4 12h8M4 18h12" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 6l-4 6v4" />
-  </svg>
-);
+import { ListFilter } from '../icons';
 
 interface Word {
   id: string;
@@ -72,15 +57,52 @@ export default function WordsContent() {
       const data = await response.json();
       // Normalize backend field names to the frontend model so both
       // older and newer API shapes work (definition/date/lastReviewedAt -> meaning/createdAt/lastReviewed)
-      const incoming: any[] = data.data || [];
-      const normalized = incoming.map((w) => ({
-        id: String(w.id),
-        word: w.word,
-        meaning: w.meaning ?? w.definition ?? w.description ?? undefined,
-        status: w.status ?? 'unknown',
-        createdAt: w.createdAt ?? w.date ?? w.firstEncounteredAt ?? new Date().toISOString(),
-        lastReviewed: w.lastReviewed ?? w.lastReviewedAt ?? null
-      }));
+      const incomingAny = Array.isArray(data?.data) ? data.data : [];
+
+      const allowedStatus = ['known', 'learning', 'unknown'];
+
+      const normalized = (incomingAny as any[])
+        .map((w) => {
+          const rawId = w?.id ?? w?.key ?? w?._id;
+          const id = rawId != null ? String(rawId) : undefined;
+          const rawWord = (w && (w.word || w.text || w.label));
+          const wordText = rawWord != null ? String(rawWord).trim() : '';
+          if (!id || !wordText) return null;
+
+          const meaning = w?.meaning ?? w?.definition ?? w?.description ?? undefined;
+
+          // createdAt: prefer provided values if valid ISO/parsable date, otherwise fallback to now
+          const createdRaw = w?.createdAt ?? w?.date ?? w?.firstEncounteredAt;
+          let createdAt: string;
+          if (createdRaw) {
+            const parsed = Date.parse(String(createdRaw));
+            createdAt = isNaN(parsed) ? new Date().toISOString() : new Date(parsed).toISOString();
+          } else {
+            createdAt = new Date().toISOString();
+          }
+
+          // lastReviewed: only set when valid, otherwise undefined
+          const lastRaw = w?.lastReviewed ?? w?.lastReviewedAt;
+          let lastReviewed: string | undefined = undefined;
+          if (lastRaw) {
+            const parsed = Date.parse(String(lastRaw));
+            if (!isNaN(parsed)) lastReviewed = new Date(parsed).toISOString();
+            else lastReviewed = undefined;
+          }
+
+          const rawStatus = String(w?.status ?? '').toLowerCase();
+          const status = allowedStatus.includes(rawStatus) ? (rawStatus as Word['status']) : 'unknown';
+
+          return {
+            id,
+            word: wordText,
+            meaning,
+            status,
+            createdAt,
+            lastReviewed
+          } as Word;
+        })
+        .filter((x): x is Word => !!x);
 
       setWords(normalized);
     } catch (err) {
@@ -195,6 +217,7 @@ export default function WordsContent() {
           {/* Filter icon button (Lucide list-filter) */}
           <div className="flex items-center">
             <button
+              type="button"
               title="フィルター"
               onClick={() => { /* 将来的なフィルター表示トグル用。今はダミー */ }}
               className="p-2 rounded-md hover:bg-gray-100 transition-colors"

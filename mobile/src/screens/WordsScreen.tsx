@@ -50,20 +50,20 @@ export const WordsScreen: React.FC = () => {
     if (sortKey !== 'status') {
       return sorted.map(w => ({ type: 'word', data: w }) as ListRenderable);
     }
-    // ステータスグループ表示
-    const result: ListRenderable[] = [];
-    let current: string | undefined;
+  // ステータスグループ表示
+  const result: ListRenderable[] = [];
+  let current: string | undefined;
   for (const w of sorted) {
-      if (w.status !== current) {
-        current = w.status;
-        let label = '';
-        if (current === 'unknown') label = 'UNKNOWN';
-        else if (current === 'learning') label = 'LEARNING';
-        else if (current === 'known') label = 'KNOWN';
-    result.push({ type: 'header', id: `hdr_${current}`, label });
-      }
-      result.push({ type: 'word', data: w });
+    if (w.status !== current) {
+      current = w.status;
+      let label = '';
+      if (current === 'unknown') label = 'UNKNOWN';
+      else if (current === 'learning') label = 'LEARNING';
+      else if (current === 'known') label = 'KNOWN';
+      result.push({ type: 'header', id: `hdr_${current}`, label });
     }
+    result.push({ type: 'word', data: w });
+  }
     return result;
   }, [syncedWords, sortKey]);
 
@@ -76,8 +76,8 @@ export const WordsScreen: React.FC = () => {
   const loopRef = React.useRef<Animated.CompositeAnimation | null>(null);
 
   const runOneRotation = React.useCallback(() => {
-    return new Promise<void>((resolve) => {
-      rotateAnim.setValue(0);
+    rotateAnim.setValue(0);
+    return new Promise<void>(resolve => {
       Animated.timing(rotateAnim, { toValue: 1, duration: 800, useNativeDriver: true }).start(() => {
         rotateAnim.setValue(0);
         resolve();
@@ -165,7 +165,12 @@ export const WordsScreen: React.FC = () => {
               <RefreshCw size={20} color={c.text} />
             </Animated.View>
           </TouchableOpacity>
-          <Text style={{ marginLeft: 8, color: pq > 0 ? c.accent : c.secondaryText, fontSize: 14, fontWeight: '700' }}>{pq > 0 ? `未同期 ${pq} 件` : '同期済み'}</Text>
+          <View style={{ marginLeft: 8 }}>
+            <Text style={{ color: pq > 0 ? c.accent : c.secondaryText, fontSize: 14, fontWeight: '700' }}>{pq > 0 ? `未同期 ${pq} 件` : '同期済み'}</Text>
+            {unregisteredLocalCount > 0 && (
+              <Text style={{ color: c.accent, fontSize: 12, marginTop: 2 }}>{`ローカル未登録 ${unregisteredLocalCount} 件`}</Text>
+            )}
+          </View>
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -183,7 +188,7 @@ export const WordsScreen: React.FC = () => {
       <FlatList
         data={listData}
         refreshing={isLoading}
-  keyExtractor={(item, index) => item.type === 'word' ? (item.data.id || `temp_${index}`) : item.id}
+  keyExtractor={(item, index) => item.type === 'word' ? (item.data?.id ?? `temp_${index}`) : (item.id ?? `hdr_${index}`)}
         // Quiz画面: 外側padding 12 + QuizCard内padding 16 = 28px の開始位置
         // Words画面も同じ視覚的開始位置になるよう contentContainerStyle に 16px を追加
         contentContainerStyle={{ paddingVertical: 4, paddingHorizontal: 16 }}

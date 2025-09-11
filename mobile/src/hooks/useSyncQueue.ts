@@ -85,21 +85,34 @@ export function useSyncQueue(autoStart = true) {
             break;
           }
         }
-  } catch (e: any) {
+  } catch (e: unknown) {
+        // Narrow the unknown error to a safer local shape before reading properties
+        type SyncError = {
+          status?: number;
+          response?: { status?: number } | null;
+          code?: string;
+          message?: string;
+          error?: string;
+          errno?: string;
+          request?: unknown;
+        };
+
+        const err = (e && typeof e === 'object') ? (e as SyncError) : ({} as SyncError);
+
         // inspect status (supports various error shapes)
-        const status = e?.status || e?.response?.status;
+        const status = typeof err.status === 'number' ? err.status : (typeof err.response?.status === 'number' ? err.response!.status : undefined);
 
         // If network offline, stop processing and leave queue intact.
         // Detect multiple shapes: custom offline flag, numeric status 0, axios/no-response, common OS error codes,
         // error messages containing network/timeout, and navigator.onLine === false when available.
-        const errCode = (e && (e.code || e.errno || e.error)) ? String(e.code || e.errno || e.error).toLowerCase() : '';
-        const errMsg = (e && e.message) ? String(e.message).toLowerCase() : '';
-        const hasNoResponse = !!(e && !e.response && (e.request || e.code || e.message));
+        const errCode = (err && (err.code || err.errno || err.error)) ? String(err.code || err.errno || err.error).toLowerCase() : '';
+        const errMsg = (err && err.message) ? String(err.message).toLowerCase() : '';
+        const hasNoResponse = !!(err && !err.response && (err.request || err.code || err.message));
 
-        const navigatorOffline = (typeof navigator !== 'undefined' && (navigator as any).onLine === false);
+        const navigatorOffline = (typeof navigator !== 'undefined' && ((navigator as any).onLine === false));
 
         const isOffline = (
-          e?.error === 'NETWORK_OFFLINE' ||
+          err?.error === 'NETWORK_OFFLINE' ||
           status === 0 ||
           (hasNoResponse && (isOfflineMessage(errMsg) || NETWORK_ERR_CODES.some(c => errCode.includes(c)))) ||
           navigatorOffline
