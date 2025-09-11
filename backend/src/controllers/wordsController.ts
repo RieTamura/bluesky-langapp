@@ -19,14 +19,20 @@ export class WordsController {
    */
   static async getWords(req: Request, res: Response): Promise<void> {
     try {
-      // Get userId from authenticated session
-      const userId = AuthController.getUserId(req);
+      // Get userId from authenticated session. For development builds allow a
+      // fallback to the demo account `default_user` when no session is present.
+      let userId = AuthController.getUserId(req);
       if (!userId) {
-        res.status(401).json({
-          error: "Authentication required",
-          message: "Valid session required",
-        });
-        return;
+        if (process.env.NODE_ENV === 'development') {
+          console.log('No session found; development fallback to default_user');
+          userId = 'default_user';
+        } else {
+          res.status(401).json({
+            error: "Authentication required",
+            message: "Valid session required",
+          });
+          return;
+        }
       }
 
       // Get query parameters for filtering
@@ -41,6 +47,10 @@ export class WordsController {
       let words: WordData[] =
         await WordsController.dataService.getWords(userId);
       console.log(`Words API - User: ${userId}, Total words: ${words.length}`);
+
+  // (Previously: attempted a fallback to default_user when user's list was empty.)
+  // With the development-mode early substitution above there is no need to
+  // try a second fallback here.
 
       // Filter by status if provided
       if (status && ["unknown", "learning", "known"].includes(status)) {

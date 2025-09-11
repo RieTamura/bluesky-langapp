@@ -1,21 +1,34 @@
 import React from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, Image, StyleSheet, ActivityIndicator, ScrollView, TextInput, TouchableOpacity, Linking } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
 import { useTTSStore } from '../stores/tts';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../stores/theme';
 
-// Placeholder Bluesky profile fetch (should map to real endpoint later)
+// (プロフィール取得) 実装は下にある fetchProfile を使用します
 async function fetchProfile(identifier: string | null | undefined) {
-  if (!identifier) return null;
   try {
-    const res: any = await api.get<any>(`/api/atproto/profile?identifier=${encodeURIComponent(identifier)}`);
-    return res.data || res;
-  } catch {
-    return { handle: identifier, displayName: identifier, description: 'プロフィール取得未実装' };
+    // Prefer the new backend atprotocol profile endpoint which accepts optional ?actor=
+    const q = identifier ? `?actor=${encodeURIComponent(identifier)}` : '';
+    const res: any = await api.get<any>(`/api/atprotocol/profile${q}`);
+    if (res && res.data) return res.data;
+
+    // Fallback: try auth/me which may contain authenticated user's info
+    try {
+      const me: any = await api.get<any>('/api/auth/me');
+      if (me && me.data && me.data.user) return me.data.user;
+    } catch (e) {
+      // ignore
+    }
+
+    return identifier ? { handle: identifier, displayName: identifier, description: 'プロフィール取得未実装' } : null;
+  } catch (e) {
+    console.warn('fetchProfile failed', e);
+    return identifier ? { handle: identifier, displayName: identifier, description: 'プロフィール取得エラー' } : null;
   }
 }
 
@@ -28,7 +41,9 @@ async function fetchProgress() {
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { identifier, logout } = useAuth();
+  const qc = useQueryClient();
   const profileQ = useQuery({ queryKey: ['profile', identifier], queryFn: () => fetchProfile(identifier) });
   const progressQ = useQuery({ queryKey: ['progress-mini'], queryFn: () => fetchProgress() });
   const ttsMode = useTTSStore(s => s.mode);
@@ -63,15 +78,47 @@ export const SettingsScreen: React.FC = () => {
   const rateScaled = Math.round(clampedRate * 100);   // 10 - 200
   const pitchScaled = Math.round(clampedPitch * 100); // 50 - 200
   // NOTE: ストア setTtsRate / setTtsPitch でもクランプ + NaN 防御を実施し、persist 前に不正値を排除。
+  // NOTE: ストア setTtsRate / setTtsPitch でもクランプ + NaN 防御を実施し、persist 前に不正値を排除。
+
+  // derive profile data & avatar state early so hooks are stable across renders
+  const p: any = profileQ.data || {};
+  const [avatarFailed, setAvatarFailed] = React.useState(false);
+
+  // Reset avatar failure when avatar URL changes
+  React.useEffect(() => {
+    setAvatarFailed(false);
+  }, [p?.avatar]);
 
   if (profileQ.isLoading) return <View style={styles.center}><ActivityIndicator /></View>;
-
-  const p: any = profileQ.data || {};
   const prog: any = progressQ.data || {};
   const history: number[] = (prog?.recentAccuracies || prog?.accuracyHistory || []).slice(-10);
 
+  // derive initials for fallback avatar
+  const getInitials = (nameOrHandle?: string) => {
+    const s = (nameOrHandle || '').trim();
+    if (!s) return '';
+    const parts = s.split(/\s+/);
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  };
+
+  // Open profile in Bluesky app if possible, otherwise fall back to web
+  const openInBluesky = async (handle?: string) => {
+    if (!handle) return;
+    const encoded = encodeURIComponent(handle);
+    const appUrl = `bsky://profile?handle=${encoded}`;
+    const webUrl = `https://bsky.app/profile/${encoded}`;
+    try {
+      const can = await Linking.canOpenURL(appUrl);
+      const target = can ? appUrl : webUrl;
+      await Linking.openURL(target);
+    } catch (e) {
+      try { await Linking.openURL(webUrl); } catch (_) { /* ignore */ }
+    }
+  };
+
   return (
-    <ScrollView style={[styles.container,{ backgroundColor: colors.background }]} contentContainerStyle={{ paddingBottom: 40 }}>
+    <ScrollView style={[styles.container,{ backgroundColor: colors.background }]} contentContainerStyle={{ paddingBottom: 40, paddingTop: insets.top + 30 }}>
   <Text style={[styles.title,{ color: colors.text }]}>設定</Text>
   <View style={[styles.section,{ backgroundColor: colors.surface, borderColor: colors.border }] }>
     <Text style={[styles.sectionTitle,{ color: colors.text }]}>テーマ (システム固定)</Text>
@@ -79,9 +126,35 @@ export const SettingsScreen: React.FC = () => {
       </View>
   <View style={[styles.section,{ backgroundColor: colors.surface, borderColor: colors.border }] }>
         <Text style={[styles.sectionTitle,{ color: colors.text }]}>Bluesky プロフィール</Text>
-        <Text style={[styles.handle,{ color: colors.accent }]}>@{p.handle}</Text>
-        <Text style={[styles.display,{ color: colors.text }]}>{p.displayName}</Text>
-        {!!p.description && <Text style={[styles.desc,{ color: colors.secondaryText }]}>{p.description}</Text>}
+        <View style={styles.profileColumn}>
+          {p?.avatar && !avatarFailed ? (
+            <Image
+              source={{ uri: p.avatar, cache: 'force-cache' as any }}
+              style={[styles.avatar, styles.avatarSpacing]}
+              resizeMode='cover'
+              accessibilityLabel='User avatar'
+              onError={() => setAvatarFailed(true)}
+            />
+          ) : (
+            <View style={[styles.avatarPlaceholder, { backgroundColor: colors.border }, styles.avatarSpacing] }>
+              <Text style={[styles.avatarInitials, { color: colors.surface }]}>{getInitials(p.displayName || p.handle || identifier)}</Text>
+            </View>
+          )}
+
+          <View style={styles.profileInfo}>
+            <Text style={[styles.display,{ color: colors.text }]}>{p.displayName || identifier || ''}</Text>
+            <TouchableOpacity accessibilityRole='link' onPress={() => openInBluesky(p.handle || identifier || '')} activeOpacity={0.7}>
+              <Text style={[styles.handle,{ color: colors.accent }]}>@{p.handle || (identifier || '')}</Text>
+            </TouchableOpacity>
+            {!!p.description && <Text style={[styles.desc,{ color: colors.secondaryText }]}>{p.description}</Text>}
+          </View>
+
+          {profileQ.isError && (
+            <TouchableOpacity onPress={() => qc.invalidateQueries({ queryKey: ['profile', identifier || ''] })} style={[styles.licenseBtn, { marginTop: 12, backgroundColor: colors.accent }]} accessibilityRole='button'>
+              <Text style={[styles.licenseBtnText]}>プロフィール再取得</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
   <View style={[styles.section,{ backgroundColor: colors.surface, borderColor: colors.border }] }>
         <Text style={[styles.sectionTitle,{ color: colors.text }]}>進捗 (Accuracy)</Text>
@@ -209,7 +282,9 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
   handle: { fontWeight: '600', fontSize: 14 },
   display: { fontSize: 18, fontWeight: '700', marginTop: 4 },
-  desc: { marginTop: 8, lineHeight: 18 },
+  // profile description should be center aligned within the profile card
+  // (e.g. "Early Adopter and Streamer..." block)
+  desc: { marginTop: 8, lineHeight: 18, textAlign: 'center' },
   muted: { fontSize: 12 },
   // color は動的にテーマ (colors.error) から適用し fallback (#e53935)
   logout: { fontWeight: '700', textAlign: 'center' },
@@ -229,4 +304,13 @@ const styles = StyleSheet.create({
   licenseBody: { fontSize: 10, lineHeight: 14 },
   licenseBtn: { marginTop: 8, paddingVertical:8, paddingHorizontal:12, borderRadius:6, alignSelf:'flex-start' },
   licenseBtnText: { color:'#fff', fontWeight:'700', fontSize:12 }
+  ,profileRow: { flexDirection: 'row', alignItems: 'center', gap: 12 }
+  ,avatar: { width: 72, height: 72, borderRadius: 36 }
+  ,avatarPlaceholder: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center' }
+  ,avatarInitials: { fontSize: 20, fontWeight: '700' }
+  ,profileInfo: { flex: 1, alignItems: 'center' }
+  ,avatarColumn: { alignItems: 'center', marginRight: 12 }
+  ,profileColumn: { flexDirection: 'column', alignItems: 'center', gap: 6 }
+  ,avatarSpacing: { marginBottom: 4 }
+  
 });

@@ -242,6 +242,115 @@ export class BlueskyService {
   }
 
   /**
+   * Get profile for an arbitrary actor (handle or DID).
+   * This does not require the service to be authenticated and can be used
+   * to look up public profiles.
+   */
+  async getProfileByActor(actor: string): Promise<{
+    did: string;
+    handle: string;
+    displayName?: string;
+    description?: string;
+    avatar?: string;
+    followersCount?: number;
+    followsCount?: number;
+    postsCount?: number;
+  }> {
+    // Normalize actor: strip leading @ if present
+    const normalize = (a: string) => a.startsWith('@') ? a.slice(1) : a;
+    let tryActors = [normalize(actor)];
+
+    // If actor looks like a short handle without a dot, try appending the common host
+    if (!actor.includes('.') && !actor.startsWith('did:')) {
+      tryActors.push(`${normalize(actor)}.bsky.social`);
+    }
+
+    // Create a public (unauthenticated) agent to prefer public lookups first
+    const serviceUrl = process.env.BLUESKY_SERVICE_URL || 'https://bsky.social';
+    const publicAgent = new AtpAgent({ service: serviceUrl });
+
+    let lastErr: any = null;
+
+    for (const a of tryActors) {
+      // 1) Try public, unauthenticated lookup first
+      try {
+        console.log('BlueskyService.getProfileByActor (public) trying actor=', a);
+        const profile = await publicAgent.getProfile({ actor: a });
+        return {
+          did: profile.data.did,
+          handle: profile.data.handle,
+          displayName: profile.data.displayName,
+          description: profile.data.description,
+          avatar: profile.data.avatar,
+          followersCount: profile.data.followersCount,
+          followsCount: profile.data.followsCount,
+          postsCount: profile.data.postsCount
+        };
+      } catch (errPublic) {
+        // Dump full error object for debugging (include non-enumerable props)
+        try {
+          const errDump = JSON.stringify(errPublic, Object.getOwnPropertyNames(errPublic), 2);
+          console.warn('BlueskyService.getProfileByActor public attempt failed for', a, 'errorDump=', errDump);
+        } catch (dumpErr) {
+          console.warn('BlueskyService.getProfileByActor public attempt failed for', a, 'errorMessage=', errPublic instanceof Error ? errPublic.message : String(errPublic));
+        }
+
+        lastErr = errPublic;
+
+        // Try to detect authentication-required by inspecting known shapes
+        let errMsg = '';
+        try { errMsg = errPublic instanceof Error ? errPublic.message : String(errPublic); } catch { errMsg = '' }
+
+        // If the agent provided a response object, try to inspect status and body
+        let statusCode: number | undefined = undefined;
+        try {
+          const anyErr: any = errPublic;
+          if (anyErr && anyErr.response && typeof anyErr.response.status === 'number') {
+            statusCode = anyErr.response.status;
+            console.warn('Public attempt response status:', anyErr.response.status);
+            if (anyErr.response.data) {
+              try {
+                console.warn('Public attempt response data:', JSON.stringify(anyErr.response.data));
+              } catch (jsonErr) {
+                console.warn('Public attempt response data (string):', String(anyErr.response.data));
+              }
+            }
+          }
+        } catch (inspectErr) {
+          console.warn('Failed to inspect public attempt error response:', inspectErr instanceof Error ? inspectErr.message : inspectErr);
+        }
+
+        const indicatesAuthRequired = /auth|authentication|required|401/i.test(errMsg) || statusCode === 401;
+
+        if (indicatesAuthRequired && this.isAuthenticated) {
+          try {
+            console.log('BlueskyService.getProfileByActor falling back to authenticated agent for', a);
+            const profile = await this.agent.getProfile({ actor: a });
+            return {
+              did: profile.data.did,
+              handle: profile.data.handle,
+              displayName: profile.data.displayName,
+              description: profile.data.description,
+              avatar: profile.data.avatar,
+              followersCount: profile.data.followersCount,
+              followsCount: profile.data.followsCount,
+              postsCount: profile.data.postsCount
+            };
+          } catch (errAuth) {
+            console.warn('BlueskyService.getProfileByActor authenticated attempt failed for', a, errAuth instanceof Error ? errAuth.message : errAuth);
+            lastErr = errAuth;
+          }
+        } else {
+          console.log('BlueskyService.getProfileByActor: public attempt failed and no authenticated fallback available for', a);
+        }
+      }
+    }
+
+    console.error('Failed to get profile by actor (all attempts):', { actor, lastError: lastErr });
+    throw new Error(`Failed to get profile for ${actor}: ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`);
+  }
+
+  /**
    * Logout and clear authentication
    */
   logout(): void {

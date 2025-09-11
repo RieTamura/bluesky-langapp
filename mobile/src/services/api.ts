@@ -91,12 +91,8 @@ async function request<T>(path: string, init: RequestInit = {}, attempt = 0): Pr
     res = await fetch(BASE_URL + path, { ...init, headers });
   } catch (e) {
     // network level (fetch threw before getting a response)
-    const hasNavigatorOnlineFlag = typeof navigator !== 'undefined' && Object.prototype.hasOwnProperty.call(navigator, 'onLine');
-    if (hasNavigatorOnlineFlag && (navigator as any).onLine === false) {
-      throw <ApiErrorShape>{ error: 'NETWORK_OFFLINE', message: 'オフラインです', status: 0 };
-    }
-    // Could not conclusively determine offline; treat as generic network error
-    throw <ApiErrorShape>{ error: 'SERVER_ERROR', message: 'ネットワークエラー', status: 0 };
+  // In React Native navigator.onLine is unreliable. Treat fetch exceptions as offline.
+  throw <ApiErrorShape>{ error: 'NETWORK_OFFLINE', message: 'オフラインです', status: 0 };
   }
 
   let json: any;

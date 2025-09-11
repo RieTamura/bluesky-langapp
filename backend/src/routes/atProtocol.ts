@@ -8,6 +8,7 @@ import {
   getAuthStatus,
   logout,
   autoPostMilestone
+  ,getProfile
 } from '../controllers/atProtocolController.js';
 import {
   getATProtocolIntegration,
@@ -34,6 +35,7 @@ router.get('/shared-data/:userId', generateSharedData);
 // Post management
 router.get('/posts/history', getPostHistory);
 router.get('/posts/templates', getPostTemplates);
+router.get('/profile', getProfile);
 
 // Future API integration endpoints
 router.get('/integration/spec', getATProtocolIntegration);

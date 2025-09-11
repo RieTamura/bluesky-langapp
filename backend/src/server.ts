@@ -11,6 +11,7 @@ import wordsRoutes from './routes/words.js';
 import learningRoutes from './routes/learning.js';
 import atProtocolRoutes from './routes/atProtocol.js';
 import DataService from './services/dataService.js';
+import { atProtocolService } from './services/atProtocolService.js';
 
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -154,6 +155,21 @@ async function start(port: number, attempt = 0) {
       console.log(`💾 Data service initialized successfully`);
     } catch (error) {
       console.error('❌ Failed to initialize data service:', error);
+    }
+
+    // Optional: automatic Bluesky AT Protocol initialization if creds provided in env
+    try {
+      const handle = process.env.BLUESKY_HANDLE;
+      const password = process.env.BLUESKY_PASSWORD;
+      if (handle && password) {
+        console.log('Attempting automatic AT Protocol initialization from .env');
+        await atProtocolService.initialize({ identifier: handle, password });
+        console.log('✅ AT Protocol service initialized automatically');
+      } else {
+        console.log('AT Protocol auto-init skipped (BLUESKY_HANDLE/BLUESKY_PASSWORD not set)');
+      }
+    } catch (err) {
+      console.error('❌ Automatic AT Protocol initialization failed:', err);
     }
   });
 

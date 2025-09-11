@@ -507,6 +507,22 @@ class ATProtocolService {
   logout(): void {
     this.blueskyService.logout();
   }
+
+  /**
+   * Get profile information. If actor is provided, resolve that actor's public
+   * profile. If not provided, attempt to get the authenticated user's profile.
+   */
+  async getProfile(actor?: string) {
+    if (actor) {
+      return await this.blueskyService.getProfileByActor(actor);
+    }
+    if (!this.isAuthenticated()) {
+      throw new Error('Not authenticated and no actor provided');
+    }
+    return await this.blueskyService.getProfile();
+  }
 }
 
 export default ATProtocolService;
+// Export a shared singleton instance used by controllers and server
+export const atProtocolService = new ATProtocolService();

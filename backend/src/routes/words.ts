@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import WordsController from '../controllers/wordsController.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, optionalAuth } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -12,7 +12,7 @@ const router = Router();
  * - limit: Number of words to return (optional)
  * - offset: Number of words to skip (optional, default: 0)
  */
-router.get('/', requireAuth, WordsController.getWords);
+router.get('/', optionalAuth, WordsController.getWords);
 
 /**
  * POST /api/words

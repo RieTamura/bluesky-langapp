@@ -1,18 +1,25 @@
 import React from 'react';
-import { View, FlatList, StyleSheet, SafeAreaView, TouchableOpacity, Text } from 'react-native';
+import { View, FlatList, StyleSheet, SafeAreaView, TouchableOpacity, Text, Modal, Pressable } from 'react-native';
 import { useThemeColors } from '../stores/theme';
+import { useSyncQueue } from '../hooks/useSyncQueue';
 import { useWords } from '../hooks/useWords';
 import { WordCard } from '../components/WordCard';
 
 export const WordsScreen: React.FC = () => {
   const { words, isLoading, updateStatus } = useWords();
+  // Exclude locally-created temporary words (ids starting with 'temp_') from the
+  // main synced list used for status grouping/counts so it matches server-side stats.
+  const syncedWords = React.useMemo(() => words.filter(w => !(w.id || '').startsWith('temp_')), [words]);
+  const pendingCount = React.useMemo(() => words.filter(w => (w.id || '').startsWith('temp_')).length, [words]);
   // 並び順要求: 1.復習 2.LEARNING 3.KNOWN 4.UNKNOWN 5.ステータス(グループ表示) 6.A-Z
   const [sortKey, setSortKey] = React.useState<'review' | 'learning' | 'known' | 'unknown' | 'status' | 'alpha'>('review');
 
   type ListRenderable = { type: 'word'; data: typeof words[number] } | { type: 'header'; id: string; label: string };
 
   const listData: ListRenderable[] = React.useMemo(() => {
-    const base = [...words];
+    // If there are no syncedWords but the backend returned words, fall back to showing them
+    // This helps diagnose why 'syncedWords' might be empty (e.g., id format mismatch).
+    const base = (syncedWords && syncedWords.length > 0) ? [...syncedWords] : [...words];
     const orderStatus: Record<string, number> = { unknown: 0, learning: 1, known: 2 };
     const sorted = (() => {
       switch (sortKey) {
@@ -45,24 +52,55 @@ export const WordsScreen: React.FC = () => {
     // ステータスグループ表示
     const result: ListRenderable[] = [];
     let current: string | undefined;
-    for (const w of sorted) {
+  for (const w of sorted) {
       if (w.status !== current) {
         current = w.status;
         let label = '';
         if (current === 'unknown') label = 'UNKNOWN';
         else if (current === 'learning') label = 'LEARNING';
         else if (current === 'known') label = 'KNOWN';
-        result.push({ type: 'header', id: `hdr_${current}`, label });
+    result.push({ type: 'header', id: `hdr_${current}`, label });
       }
       result.push({ type: 'word', data: w });
     }
     return result;
-  }, [words, sortKey]);
+  }, [syncedWords, sortKey]);
 
   const c = useThemeColors();
-  return (
+  const { isSyncing, lastSyncAt, pendingCount: pq, syncNow } = useSyncQueue(true);
+
+  const [showFilterModal, setShowFilterModal] = React.useState(false);
+
+      return (
     <SafeAreaView style={[styles.container,{ backgroundColor: c.background }]}> 
-      <SortTabs current={sortKey} onChange={setSortKey} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 8 }}>
+        <View>
+          <TouchableOpacity onPress={() => syncNow()} accessibilityRole="button">
+            <Text style={{ color: pq > 0 ? c.accent : c.secondaryText, fontSize: 14, fontWeight: '700' }}>{pq > 0 ? `未同期 ${pq} 件` : '同期済み'}</Text>
+          </TouchableOpacity>
+          {isSyncing && <Text style={{ color: c.secondaryText, fontSize: 12 }}>同期中…</Text>}
+          {!isSyncing && lastSyncAt && <Text style={{ color: c.secondaryText, fontSize: 12 }}>最終同期: {new Date(lastSyncAt).toLocaleString()}</Text>}
+        </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity onPress={() => setShowFilterModal(true)} style={{ padding: 8 }} accessibilityRole="button">
+            <Text style={{ fontSize: 20, color: c.text }}>☰</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      {/* Diagnostic counts: total words from hook, synced words (displayed), pending local words */}
+      <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+        <Text style={{ color: c.secondaryText, fontSize: 12, opacity: 0.9 }}>総単語: {words.length}  表示中: {syncedWords.length}  未同期: {pq}</Text>
+      </View>
+
+      <Modal visible={showFilterModal} transparent animationType="fade" onRequestClose={() => setShowFilterModal(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowFilterModal(false)}>
+          <View style={[styles.modalContent, { backgroundColor: c.surface, borderColor: c.border }]}> 
+            <SortTabs current={sortKey} onChange={(k) => { setSortKey(k); setShowFilterModal(false); }} />
+          </View>
+        </Pressable>
+      </Modal>
+  {/* debug UI removed */}
       <FlatList
         data={listData}
         refreshing={isLoading}
@@ -92,6 +130,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 12, paddingBottom: 140, paddingTop: 48 },
   sectionHeader: { paddingTop: 18, paddingBottom: 6 },
   sectionHeaderText: { fontSize: 12, fontWeight: '700' }
+  ,
+  modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' },
+  modalContent: { width: '90%', borderRadius: 12, padding: 12, borderWidth: StyleSheet.hairlineWidth }
 });
 
 // ソートタブコンポーネント

@@ -18,6 +18,7 @@ import { AppHeader, SettingsMenu, FooterNav } from './src/components';
 import { navigationRef } from './src/navigation/rootNavigation';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { LicenseScreen } from './src/screens/LicenseScreen';
+import { loadOfflineQueue } from './src/stores/offlineQueue';
 
 const Stack = createNativeStackNavigator();
 const queryClient = new QueryClient();
@@ -32,6 +33,8 @@ export default function App() {
   useEffect(()=> {
     hydrate();
   }, [hydrate]);
+  // Restore offline queue from storage at startup
+  useEffect(()=> { loadOfflineQueue().catch(() => {}); }, []);
   // フォールバック: Appearance listener が片方向で失敗する端末向けに hook の値で再同期
   useEffect(()=> {
     syncAutoResolution();

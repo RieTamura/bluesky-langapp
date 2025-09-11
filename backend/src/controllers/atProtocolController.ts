@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
-import ATProtocolService, { LearningProgressPost } from '../services/atProtocolService.js';
+import { LearningProgressPost } from '../services/atProtocolService.js';
 import type { ApiResponse } from '../types/data.js';
 
-const atProtocolService = new ATProtocolService();
+import { atProtocolService } from '../services/atProtocolService.js';
 
 /**
  * Initialize AT Protocol service with Bluesky credentials
@@ -307,6 +307,31 @@ export async function autoPostMilestone(req: Request, res: Response): Promise<vo
     const response: ApiResponse = {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to auto-post milestone'
+    };
+    res.status(500).json(response);
+  }
+}
+
+/**
+ * Get Bluesky profile (authenticated user or arbitrary actor)
+ */
+export async function getProfile(req: Request, res: Response): Promise<void> {
+  try {
+    const actor = (req.query.actor as string) || undefined;
+
+    const profile = await atProtocolService.getProfile(actor);
+
+    const response: ApiResponse = {
+      success: true,
+      data: profile
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Failed to get profile:', error);
+    const response: ApiResponse = {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get profile'
     };
     res.status(500).json(response);
   }

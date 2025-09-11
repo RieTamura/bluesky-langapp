@@ -17,7 +17,7 @@ export const AppHeader: React.FC<Props> = ({ onOpenMenu, showFeedTabs }) => {
   const setFeedTab = useFeedStore(s => s.setFeedTab);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 4, backgroundColor: c.background, borderColor: c.border }]}> 
+    <View style={[styles.container, { paddingTop: insets.top + 8, backgroundColor: c.background, borderColor: c.border }]}> 
       {showFeedTabs ? (
         <View style={styles.tabsRow} accessibilityRole="tablist">
           {([
@@ -51,7 +51,7 @@ export const AppHeader: React.FC<Props> = ({ onOpenMenu, showFeedTabs }) => {
 
 const styles = StyleSheet.create({
   // 最小限の高さ + 下線を透明化
-  container: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'transparent', paddingBottom: 4 },
+  container: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'transparent', paddingBottom: 8 },
   menuBtn: { padding: 8, minWidth: 48, alignItems: 'center' },
   menuText: { fontSize: 22, fontWeight: '600' },
   tabsRow: { flexDirection: 'row', flex: 1, justifyContent: 'flex-start' },
