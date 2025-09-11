@@ -10,7 +10,7 @@ export const WordsScreen: React.FC = () => {
   // Exclude locally-created temporary words (ids starting with 'temp_') from the
   // main synced list used for status grouping/counts so it matches server-side stats.
   const syncedWords = React.useMemo(() => words.filter(w => w.id && !w.id.startsWith('temp_')), [words]);
-  const pendingCount = React.useMemo(() => words.filter(w => w.id && w.id.startsWith('temp_')).length, [words]);  // 並び順要求: 1.復習 2.LEARNING 3.KNOWN 4.UNKNOWN 5.ステータス(グループ表示) 6.A-Z
+  const unregisteredLocalCount = React.useMemo(() => words.filter(w => w.id && w.id.startsWith('temp_')).length, [words]);  // 並び順要求: 1.復習 2.LEARNING 3.KNOWN 4.UNKNOWN 5.ステータス(グループ表示) 6.A-Z
   const [sortKey, setSortKey] = React.useState<'review' | 'learning' | 'known' | 'unknown' | 'status' | 'alpha'>('review');
 
   type ListRenderable = { type: 'word'; data: typeof words[number] } | { type: 'header'; id: string; label: string };
@@ -88,11 +88,13 @@ export const WordsScreen: React.FC = () => {
         </View>
       </View>
       {/* Diagnostic counts: total words from hook, synced words (displayed), pending local words */}
-      <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-        <Text style={{ color: c.secondaryText, fontSize: 12, opacity: 0.9 }}>
-          総単語: {words.length}  表示中: {syncedWords.length}  ローカル未登録: {pendingCount}  未同期キュー: {pq}
-        </Text>
-      </View>
+      {__DEV__ && (
+        <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+          <Text style={{ color: c.secondaryText, fontSize: 12, opacity: 0.9 }}>
+            総単語: {words.length}  表示中: {syncedWords.length}  ローカル未登録: {unregisteredLocalCount}  未同期キュー: {pq}
+          </Text>
+        </View>
+      )}
 
       <Modal visible={showFilterModal} transparent animationType="fade" onRequestClose={() => setShowFilterModal(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowFilterModal(false)}>

@@ -18,17 +18,32 @@ type Profile = {
   [key: string]: any;
 };
 
-type AuthMeResponse = {
-  data?: {
-    user?: Profile;
-    [key: string]: any;
-  };
-  [key: string]: any;
-};
+// Possible shapes returned by /api/auth/me
+type MeResUserWrapped = { data: { user: Profile } };
+type MeResProfileDirect = { data: Profile };
+type MeResNull = { data: null };
+type MeResponse = MeResUserWrapped | MeResProfileDirect | MeResNull | { data?: any };
 
-// Lightweight local logger wrapper. Replace with centralized logger if available.
-const logger = {
-  error: (msg: string, meta?: any) => {
+// Pluggable logger abstraction: allows injecting a centralized logger (Sentry/remote)
+// while safely falling back to console.error. Export a setter so other modules can
+// provide the upstream logger when available.
+type Logger = { error: (msg: string, meta?: any) => void };
+let externalLogger: Logger | null = null;
+export function setSettingsScreenLogger(l: Logger | null) {
+  externalLogger = l;
+}
+
+const logger: Logger = {
+  error(msg: string, meta?: any) {
+    // Prefer forwarding to injected external logger. If it throws, fall back to console.error.
+    if (externalLogger && typeof externalLogger.error === 'function') {
+      try {
+        externalLogger.error(msg, meta);
+        return;
+      } catch (e) {
+        // If upstream logger fails, swallow and fallback to console below
+      }
+    }
     try { console.error(msg, meta); } catch (_) { /* noop */ }
   }
 };
@@ -57,10 +72,17 @@ async function fetchProfile(identifier: string | null | undefined): Promise<Prof
 
   // Fallback to /api/auth/me — validate structure instead of assuming me.data.user
   try {
-    const meRes: any = await api.get<any>('/api/auth/me');
+    const meRes = await api.get<MeResponse>('/api/auth/me');
     const meData = meRes?.data;
-    if (meData && isProfile(meData.user)) return meData.user;
-    if (meData && isProfile(meData)) return meData as Profile;
+    // If response wraps user: { data: { user: Profile } }
+    if (meData && typeof meData === 'object' && 'user' in meData && isProfile((meData as any).user)) {
+      return (meData as any).user as Profile;
+    }
+    // If response is directly a Profile object: { data: Profile }
+    if (meData && isProfile(meData)) {
+      return meData as Profile;
+    }
+    // Null or unexpected shapes are logged with full response for diagnostics
     logger.error('fetchProfile: /api/auth/me returned unexpected shape', { response: meRes });
   } catch (err) {
     logger.error('fetchProfile: /api/auth/me failed', { error: err });

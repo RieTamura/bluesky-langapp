@@ -4,9 +4,15 @@ import inquirer from 'inquirer'
 import fs from 'fs'
 
 // ==== 設定（環境変数経由） ====
-// NOTE: avoid committing defaults for identifiers; prefer explicit env or login-derived session.
-const BLUESKY_ID = process.env.BLUESKY_ID || '';
-const BLUESKY_ACTOR = process.env.BLUESKY_ACTOR || '';
+// NOTE: Do NOT default identifiers to empty strings because that hides missing env values
+// and can make presence checks ambiguous. Purpose & priority:
+//  - BLUESKY_PW: required App Password for login.
+//  - BLUESKY_ID: optional legacy identifier used for login if provided (e.g. handle).
+//  - BLUESKY_ACTOR: explicit actor to use for fetching feeds (handle or DID). If both
+//    BLUESKY_ACTOR and BLUESKY_ID are provided, BLUESKY_ACTOR takes precedence for
+//    feed fetching. After successful login, session DID/handle override both.
+const BLUESKY_ID = process.env.BLUESKY_ID ?? undefined;
+const BLUESKY_ACTOR = process.env.BLUESKY_ACTOR ?? undefined;
 const BLUESKY_SERVICE_URL = process.env.BLUESKY_SERVICE_URL || 'https://bsky.social';
 const BLUESKY_PW = process.env.BLUESKY_PW; // App Password を environment variable に設定して使ってください
 const WORDS_FILE = 'words.json';
@@ -27,13 +33,18 @@ let savedWords = JSON.parse(fs.readFileSync(WORDS_FILE, 'utf8'))
   }
 
 const agent = new AtpAgent({ service: BLUESKY_SERVICE_URL })
-await agent.login({ identifier: BLUESKY_ID || undefined, password: BLUESKY_PW })
+await agent.login({ identifier: BLUESKY_ID ?? undefined, password: BLUESKY_PW })
 
-// Determine actor to fetch feed for. Prefer session DID, then session handle, then BLUESKY_ACTOR env.
+// Determine actor to fetch feed for. Priority (highest -> lowest):
+// 1) session DID (agent.session?.did)
+// 2) session handle (agent.session?.handle)
+// 3) BLUESKY_ACTOR env
+// 4) BLUESKY_ID env
 const sessionDid = agent.session?.did;
 const sessionHandle = agent.session?.handle;
-const actor = sessionDid || sessionHandle || BLUESKY_ACTOR || BLUESKY_ID || '';
-if (!actor) {
+const actor = sessionDid ?? sessionHandle ?? BLUESKY_ACTOR ?? BLUESKY_ID ?? undefined;
+// Use explicit presence checks (avoid truthiness on empty strings)
+if (typeof actor !== 'string' || actor.length === 0) {
   console.warn('No actor resolved to fetch feed for. Set BLUESKY_ACTOR or BLUESKY_ID env, or ensure login succeeded.');
 }
 

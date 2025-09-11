@@ -3,6 +3,22 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useOfflineQueue } from '../stores/offlineQueue';
 import { wordsApi } from '../services/api';
 
+// Common network error codes and message patterns to detect offline conditions.
+const NETWORK_ERR_CODES = [
+  'enotfound',
+  'econnrefused',
+  'econnreset',
+  'etimedout',
+  'ehostunreach',
+  'eai_again',
+  'ecanceled'
+];
+
+function isOfflineMessage(errMsg: string): boolean {
+  const s = (errMsg || '').toLowerCase();
+  return s.includes('network error') || s.includes('timeout') || s.includes('networkrequestfailed') || s.includes('socket hang up');
+}
+
 /**
  * Hook to process offline queue tasks.
  * - periodically attempts to sync queued tasks
@@ -80,15 +96,12 @@ export function useSyncQueue(autoStart = true) {
         const errMsg = (e && e.message) ? String(e.message).toLowerCase() : '';
         const hasNoResponse = !!(e && !e.response && (e.request || e.code || e.message));
 
-        const networkErrCodes = ['enotfound', 'econnrefused', 'econnreset', 'etimedout', 'ehostunreach', 'eai_again', 'ecanceled'];
-        const msgLooksOffline = errMsg.includes('network error') || errMsg.includes('timeout') || errMsg.includes('networkrequestfailed') || errMsg.includes('socket hang up');
-
         const navigatorOffline = (typeof navigator !== 'undefined' && (navigator as any).onLine === false);
 
         const isOffline = (
           e?.error === 'NETWORK_OFFLINE' ||
           status === 0 ||
-          (hasNoResponse && (msgLooksOffline || networkErrCodes.some(c => errCode.includes(c)))) ||
+          (hasNoResponse && (isOfflineMessage(errMsg) || NETWORK_ERR_CODES.some(c => errCode.includes(c)))) ||
           navigatorOffline
         );
 
