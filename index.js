@@ -3,9 +3,9 @@ import chalk from 'chalk'
 import inquirer from 'inquirer'
 import fs from 'fs'
 
-// ==== 設定 ====
-const BLUESKY_ID = 'connectobasan.com'
-const BLUESKY_PW = 'vzb3-3vm3-7xhw-2w4i' // パスワードではなく "App Password" を使ってください
+// ==== 設定（環境変数経由） ====
+const BLUESKY_ID = process.env.BLUESKY_ID || 'connectobasan.com'
+const BLUESKY_PW = process.env.BLUESKY_PW // App Password を environment variable に設定して使ってください
 const WORDS_FILE = 'words.json'
 
 // ==== JSONファイル準備 ====
@@ -15,6 +15,11 @@ if (!fs.existsSync(WORDS_FILE)) {
 let savedWords = JSON.parse(fs.readFileSync(WORDS_FILE))
 
 // ==== Blueskyログイン ====
+if (!BLUESKY_PW) {
+  console.error('Error: BLUESKY_PW not set. Set environment variable BLUESKY_PW to your App Password to run this script.')
+  process.exit(1)
+}
+
 const agent = new AtpAgent({ service: 'https://bsky.social' })
 await agent.login({ identifier: BLUESKY_ID, password: BLUESKY_PW })
 

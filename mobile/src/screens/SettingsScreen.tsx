@@ -9,27 +9,56 @@ import { api } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../stores/theme';
 
-// (プロフィール取得) 実装は下にある fetchProfile を使用します
-async function fetchProfile(identifier: string | null | undefined) {
+// (プロフィール取得) 型定義とバリデーション付きの実装
+type Profile = {
+  handle: string;
+  displayName?: string;
+  description?: string;
+  avatar?: string;
+  [key: string]: any;
+};
+
+type AuthMeResponse = {
+  data?: {
+    user?: Profile;
+    [key: string]: any;
+  };
+  [key: string]: any;
+};
+
+function isProfile(obj: any): obj is Profile {
+  return obj && typeof obj === 'object' && typeof obj.handle === 'string';
+}
+
+async function fetchProfile(identifier: string | null | undefined): Promise<Profile | null> {
+  // Try the atprotocol profile endpoint first
+  const q = identifier ? `?actor=${encodeURIComponent(identifier)}` : '';
   try {
-    // Prefer the new backend atprotocol profile endpoint which accepts optional ?actor=
-    const q = identifier ? `?actor=${encodeURIComponent(identifier)}` : '';
     const res: any = await api.get<any>(`/api/atprotocol/profile${q}`);
-    if (res && res.data) return res.data;
-
-    // Fallback: try auth/me which may contain authenticated user's info
-    try {
-      const me: any = await api.get<any>('/api/auth/me');
-      if (me && me.data && me.data.user) return me.data.user;
-    } catch (e) {
-      // ignore
-    }
-
-    return identifier ? { handle: identifier, displayName: identifier, description: 'プロフィール取得未実装' } : null;
-  } catch (e) {
-    console.warn('fetchProfile failed', e);
-    return identifier ? { handle: identifier, displayName: identifier, description: 'プロフィール取得エラー' } : null;
+    const data = res?.data;
+    if (isProfile(data)) return data;
+    // If the shape isn't what we expect, log and continue to fallback
+    console.warn('fetchProfile: /api/atprotocol/profile returned unexpected shape', data);
+  } catch (err) {
+    console.warn('fetchProfile: /api/atprotocol/profile failed', err);
   }
+
+  // Fallback to /api/auth/me — validate structure instead of assuming me.data.user
+  try {
+    const meRes: AuthMeResponse = await api.get<any>('/api/auth/me');
+    const meData = meRes?.data;
+    if (isProfile(meData?.user)) return meData!.user!;
+    if (isProfile(meData)) return meData as Profile;
+    console.warn('fetchProfile: /api/auth/me returned unexpected shape', meRes);
+  } catch (err) {
+    console.warn('fetchProfile: /api/auth/me failed', err);
+  }
+
+  // Final stable fallback shape matching Profile so callers get a consistent type
+  if (identifier) {
+    return { handle: identifier, displayName: identifier, description: 'プロフィール取得未実装' };
+  }
+  return null;
 }
 
 async function fetchProgress() {
@@ -87,7 +116,7 @@ export const SettingsScreen: React.FC = () => {
   // Reset avatar failure when avatar URL changes
   React.useEffect(() => {
     setAvatarFailed(false);
-  }, [p?.avatar]);
+  }, [profileQ.data?.avatar]);
 
   if (profileQ.isLoading) return <View style={styles.center}><ActivityIndicator /></View>;
   const prog: any = progressQ.data || {};

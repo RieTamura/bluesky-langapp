@@ -9,9 +9,8 @@ export const WordsScreen: React.FC = () => {
   const { words, isLoading, updateStatus } = useWords();
   // Exclude locally-created temporary words (ids starting with 'temp_') from the
   // main synced list used for status grouping/counts so it matches server-side stats.
-  const syncedWords = React.useMemo(() => words.filter(w => !(w.id || '').startsWith('temp_')), [words]);
-  const pendingCount = React.useMemo(() => words.filter(w => (w.id || '').startsWith('temp_')).length, [words]);
-  // 並び順要求: 1.復習 2.LEARNING 3.KNOWN 4.UNKNOWN 5.ステータス(グループ表示) 6.A-Z
+  const syncedWords = React.useMemo(() => words.filter(w => w.id && !w.id.startsWith('temp_')), [words]);
+  const pendingCount = React.useMemo(() => words.filter(w => w.id && w.id.startsWith('temp_')).length, [words]);  // 並び順要求: 1.復習 2.LEARNING 3.KNOWN 4.UNKNOWN 5.ステータス(グループ表示) 6.A-Z
   const [sortKey, setSortKey] = React.useState<'review' | 'learning' | 'known' | 'unknown' | 'status' | 'alpha'>('review');
 
   type ListRenderable = { type: 'word'; data: typeof words[number] } | { type: 'header'; id: string; label: string };
