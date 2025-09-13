@@ -29,7 +29,33 @@ export const FooterNav: React.FC = () => {
 
   // Subscribe to profile cache entries so FooterNav updates when profile data arrives.
   const profileMeQ = useQuery({ queryKey: ['profile','me'], queryFn: async () => null as any, enabled: false });
-  const profileAtprotoQ = useQuery({ queryKey: ['profile','atproto', identifier], queryFn: async () => null as any, enabled: Boolean(identifier) ? false : false });
+  // When an identifier is available, enable a query to fetch the atproto profile.
+  // The queryFn is guarded but will only be invoked when `enabled: !!identifier` is true.
+  const profileAtprotoQ = useQuery({
+    queryKey: ['profile','atproto', identifier],
+    enabled: !!identifier,
+    queryFn: async () => {
+      if (!identifier) return null as any;
+      try {
+        // Attempt to fetch profile from a local API proxy route. Adjust the URL
+        // if your app uses a different endpoint for fetching profiles.
+        const url = `/api/profile/atproto/${encodeURIComponent(identifier)}`;
+        const res = await fetch(url);
+        if (!res.ok) {
+          // Return null for non-2xx responses to keep UI stable; callers may
+          // inspect `error` on the query if they need to handle it.
+          return null as any;
+        }
+        const data = await res.json();
+        return data;
+      } catch (e) {
+        // Don't throw here if you want to avoid showing global errors; returning
+        // null keeps FooterNav resilient. If you prefer to surfacing errors,
+        // rethrow or return Promise.reject(e).
+        return null as any;
+      }
+    }
+  });
 
   // 画面遷移イベントを購読してアクティブ表示を更新
   React.useEffect(() => {

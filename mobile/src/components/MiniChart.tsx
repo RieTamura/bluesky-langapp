@@ -15,23 +15,44 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, labels, maxLabels = 7 }) =>
   const { colors } = useTheme();
   const max = Math.max(...data, 1);
 
-  // Animated values for each bar
-  const animatedVals = React.useRef(data.map(() => new Animated.Value(0))).current;
+  // Animated values for each bar. Keep a stable ref and mutate its .current so
+  // we don't reassign the ref object (important for hooks stability).
+  const animatedVals = React.useRef<Animated.Value[]>([]);
 
   React.useEffect(() => {
-    const animations = animatedVals.map((av, i) =>
-      Animated.timing(av, {
-        toValue: data[i] / max,
-        duration: 600,
-        delay: i * 40,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false
-      })
-    );
-    Animated.stagger(30, animations).start();
-    // If data changes, update values
-    return () => { /* no cleanup needed for now */ };
-  }, [data, max, animatedVals]);
+    // Ensure the ref array has at least data.length entries. Push new Animated.Value(0)
+    // for any newly added indices. We intentionally do NOT reassign animatedVals.current.
+    const arr = animatedVals.current;
+    for (let i = arr.length; i < data.length; i++) {
+      arr.push(new Animated.Value(0));
+    }
+
+    // Build animations only for the active range (0..data.length-1). If arr has
+    // extra entries we simply ignore them.
+    const animations: Animated.CompositeAnimation[] = [];
+    for (let i = 0; i < data.length; i++) {
+      const av = arr[i];
+      if (!av) continue;
+      animations.push(
+        Animated.timing(av, {
+          toValue: data[i] / max,
+          duration: 600,
+          delay: i * 40,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false
+        })
+      );
+    }
+
+    const runner = Animated.stagger(30, animations);
+    runner.start();
+
+    return () => {
+      // Stop any running animations to avoid leaks.
+      try { runner.stop(); } catch (e) { /* ignore */ }
+    };
+    // Note: intentionally exclude animatedVals from deps; we only react to data/max
+  }, [data, max]);
 
   // NOTE: Label thinning disabled per request. Show all provided labels.
 
@@ -117,6 +138,23 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, labels, maxLabels = 7 }) =>
     return `#${toHex(nr)}${toHex(ng)}${toHex(nb)}`;
   };
 
+  // Mix two colors (hex or rgb) by t (0..1). t=0 -> a, t=1 -> b
+  const mixColors = (a: string, b: string, t: number): string => {
+    const { r: ra, g: ga, b: ba } = parseColorToRgb(a);
+    const { r: rb, g: gb, b: bb } = parseColorToRgb(b);
+    const clamped = Math.max(0, Math.min(1, t));
+    const r = Math.round(ra + (rb - ra) * clamped);
+    const g = Math.round(ga + (gb - ga) * clamped);
+    const b2 = Math.round(ba + (bb - ba) * clamped);
+    const toHex = (n: number) => n.toString(16).padStart(2, '0');
+    return `#${toHex(r)}${toHex(g)}${toHex(b2)}`;
+  };
+
+  // Precompute the darkest accent color (used as end of gradient)
+  const darkestAccent = darkenColor(colors.accent, 1);
+  // Compute a light accent (a tint toward white) to use as gradient start
+  const lightAccent = mixColors('#ffffff', colors.accent, 0.18);
+
   return (
     <View style={{ marginTop: 8 }}>
       {/* Bars with overlaid numeric counts at the bar's top edge (inside the bar). */}
@@ -125,9 +163,12 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, labels, maxLabels = 7 }) =>
           // compute pixel height synchronously for decision logic
           const pixelH = Math.round((v / max) * maxBarPx);
           const showInside = pixelH >= insideThresholdPx;
-          // compute per-bar color (value -> darker fraction)
-          const frac = max === 0 ? 0 : Math.min(1, v / max);
-          const barColor = darkenColor(colors.accent, frac * 0.8);
+          // compute per-bar color by mapping value range to 1..10
+          const valForMap = Math.max(1, Math.min(10, Math.round(v))); // clip to [1,10]
+          const tRaw = (valForMap - 1) / (10 - 1); // 0..1
+          const tEased = Math.pow(tRaw, 0.8); // gentle easing
+          // 1 -> lightAccent (thin tint), 10 -> darkestAccent
+          const barColor = mixColors(lightAccent, darkestAccent, tEased);
           const insideTextColor = getContrastColor(barColor);
 
           return (
@@ -142,7 +183,8 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, labels, maxLabels = 7 }) =>
                     bottom: 0,
                     borderRadius: 3,
                     backgroundColor: barColor,
-                    height: Animated.multiply(animatedVals[i], maxBarPx),
+                    // Use animatedVals.current and fall back to a static 0 Animated.Value
+                    height: Animated.multiply(animatedVals.current[i] || new Animated.Value(0), maxBarPx),
                     justifyContent: 'center',
                     alignItems: 'center',
                     overflow: 'hidden'
@@ -153,14 +195,11 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, labels, maxLabels = 7 }) =>
                       numberOfLines={1}
                       ellipsizeMode='clip'
                       style={{
-                        textAlign: 'center',
-                        fontSize: 12,
-                        fontWeight: '600',
-                        color: insideTextColor,
-                        textShadowColor: 'rgba(0,0,0,0.25)',
-                        textShadowOffset: { width: 0, height: 1 },
-                        textShadowRadius: 1,
-                      }}
+                          textAlign: 'center',
+                          fontSize: 12,
+                          fontWeight: '600',
+                          color: insideTextColor,
+                        }}
                     >
                       {String(v)}
                     </Animated.Text>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, FlatList, TouchableOpacity, Share } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import ViewShot from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import { Share2 } from 'lucide-react-native';
@@ -31,10 +32,34 @@ export const ProgressScreen: React.FC = () => {
     return res.data || res;
   }});
 
-  // history for chart (last 7 days)
-  const DAYS = 7;
-  const historyQ = useQuery({ queryKey: ['learning-history', DAYS], queryFn: async () => {
-    const res: any = await api.get<any>(`/api/learning/history?days=${DAYS}`);
+  // history for chart: configurable number of days (persisted)
+  const [days, setDays] = React.useState<number>(7);
+
+  // Load persisted choice on mount
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem('progress_days');
+        if (!mounted) return;
+        if (raw) {
+          const parsed = Number(raw);
+          if (!Number.isNaN(parsed) && parsed > 0) setDays(parsed);
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  // Persist choice when changed
+  React.useEffect(() => {
+    AsyncStorage.setItem('progress_days', String(days)).catch(() => { /* ignore */ });
+  }, [days]);
+
+  const historyQ = useQuery({ queryKey: ['learning-history', days], queryFn: async () => {
+    const res: any = await api.get<any>(`/api/learning/history?days=${days}`);
     return res.data || res;
   }});
 
@@ -102,12 +127,21 @@ export const ProgressScreen: React.FC = () => {
         </View>
 
         <View style={[commonStyles.chartContainer, { backgroundColor: c.background }]}> 
-          <Text style={[commonStyles.chartTitle, { color: c.text }]}>過去7日間の回答数</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={[commonStyles.chartTitle, { color: c.text }]}>過去{days}日間の回答数</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {[7,14,30].map(d => (
+                <TouchableOpacity key={d} onPress={() => setDays(d)} accessibilityRole='button' style={[styles.periodBtn, days === d ? { borderColor: c.accent, backgroundColor: c.surface } : { borderColor: c.border, backgroundColor: 'transparent' }]}>
+                  <Text style={{ color: days === d ? c.accent : c.secondaryText, fontWeight: days === d ? '700' : '500' }}>{d}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
           {historyQ.isLoading && <ActivityIndicator />}
           {!historyQ.isLoading && Array.isArray(historyQ.data) && historyQ.data.length > 0 && (
             (() => {
               const arr = historyQ.data as any[];
-              const sliced = arr.slice(-DAYS);
+              const sliced = arr.slice(-days);
               const values = sliced.map(d => Number(d.quizzesTaken ?? d.answers ?? 0));
               const rawDates = sliced.map(d => String(d.date || d.day || ''));
               return <MiniChart data={values} labels={rawDates} />;
@@ -142,5 +176,6 @@ const styles = StyleSheet.create({
   val: { fontVariant: ['tabular-nums'] }
   ,
   shareBtn: { position: 'absolute', top: 16, right: 12, zIndex: 10 },
+  periodBtn: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginLeft: 6 },
   // header/status and chart styles moved to `commonStyles` to avoid duplication
 });

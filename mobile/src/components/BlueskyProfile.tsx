@@ -34,7 +34,14 @@ async function fetchMeProfile(): Promise<Profile | null> {
       return meData as Profile;
     }
   } catch (err) {
-    // ignore
+    // Log the error for debugging/monitoring and return null
+    try {
+      // If a project logger is available, prefer using it. Otherwise fallback to console.error.
+      (globalThis as any).logger?.error?.('fetchMeProfile failed', err);
+    } catch (e) {
+      // ignore
+    }
+    console.error('fetchMeProfile failed', err);
   }
   return null;
 }
@@ -47,7 +54,12 @@ async function fetchAtprotoProfile(identifier: string | null | undefined): Promi
     const data = res?.data;
     if (isProfile(data)) return data;
   } catch (err) {
-    // ignore
+    try {
+      (globalThis as any).logger?.error?.('fetchAtprotoProfile failed', { identifier, err });
+    } catch (e) {
+      // ignore
+    }
+    console.error('fetchAtprotoProfile failed', { identifier, err });
   }
   return null;
 }
@@ -58,7 +70,20 @@ const BlueskyProfile: React.FC = () => {
   const qc = useQueryClient();
   // Use cached data if available so UI can render immediately while a background
   // fetch refreshes the profile. Keep a moderate staleTime to avoid frequent refetches.
-  const cached = qc.getQueryData(['profile','atproto', identifier]) || qc.getQueryData(['profile','me']) || qc.getQueryData(['auth','me']) || undefined;
+  const getCachedProfile = (qc: ReturnType<typeof useQueryClient>, identifier?: string | null) => {
+    const keys = [ ['profile','atproto', identifier], ['profile','me'], ['auth','me'] ] as const;
+    for (const k of keys) {
+      try {
+        const v = qc.getQueryData(k as any);
+        if (v !== undefined) return v;
+      } catch (e) {
+        // ignore and continue
+      }
+    }
+    return undefined;
+  };
+
+  const cached = getCachedProfile(qc, identifier);
   // Use auth/me for the immediate profile; enable atprotocol fetch automatically when identifier present
   const profileMeQ = useQuery({ queryKey: ['profile','me'], queryFn: fetchMeProfile, staleTime: 1000 * 60 * 5 });
   const profileAtprotoQ = useQuery({ queryKey: ['profile','atproto', identifier], queryFn: () => fetchAtprotoProfile(identifier), enabled: Boolean(identifier), staleTime: 1000 * 60 * 60 });
