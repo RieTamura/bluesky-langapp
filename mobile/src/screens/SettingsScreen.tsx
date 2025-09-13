@@ -1,114 +1,19 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, ActivityIndicator, ScrollView, TextInput, TouchableOpacity, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
 import { useTTSStore } from '../stores/tts';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../stores/theme';
 
-// (プロフィール取得) 型定義とバリデーション付きの実装
-type Profile = {
-  handle: string;
-  displayName?: string;
-  description?: string;
-  avatar?: string;
-  [key: string]: any;
-};
 
-// Possible shapes returned by /api/auth/me
-type MeResUserWrapped = { data: { user: Profile } };
-type MeResProfileDirect = { data: Profile };
-type MeResNull = { data: null };
-type MeResponse = MeResUserWrapped | MeResProfileDirect | MeResNull | { data?: any };
-
-// Pluggable logger abstraction: allows injecting a centralized logger (Sentry/remote)
-// while safely falling back to console.error. Export a setter so other modules can
-// provide the upstream logger when available.
-type Logger = { error: (msg: string, meta?: any) => void };
-let externalLogger: Logger | null = null;
-export function setSettingsScreenLogger(l: Logger | null) {
-  externalLogger = l;
-}
-
-const logger: Logger = {
-  error(msg: string, meta?: any) {
-    // Prefer forwarding to injected external logger. If it throws, fall back to console.error.
-    if (externalLogger && typeof externalLogger.error === 'function') {
-      try {
-        externalLogger.error(msg, meta);
-        return;
-      } catch (e) {
-        // If upstream logger fails, swallow and fallback to console below
-      }
-    }
-    try { console.error(msg, meta); } catch (_) { /* noop */ }
-  }
-};
-
-function isProfile(obj: any): obj is Profile {
-  if (!obj || typeof obj !== 'object') return false;
-  if (typeof obj.handle !== 'string') return false;
-  if ('displayName' in obj && obj.displayName != null && typeof obj.displayName !== 'string') return false;
-  if ('description' in obj && obj.description != null && typeof obj.description !== 'string') return false;
-  if ('avatar' in obj && obj.avatar != null && typeof obj.avatar !== 'string') return false;
-  return true;
-}
-
-async function fetchProfile(identifier: string | null | undefined): Promise<Profile | null> {
-  // Try the atprotocol profile endpoint first
-  const q = identifier ? `?actor=${encodeURIComponent(identifier)}` : '';
-  try {
-    const res: any = await api.get<any>(`/api/atprotocol/profile${q}`);
-    const data = res?.data;
-    if (isProfile(data)) return data;
-    // If the shape isn't what we expect, log and continue to fallback
-    logger.error('fetchProfile: /api/atprotocol/profile returned unexpected shape', { response: res });
-  } catch (err) {
-    logger.error('fetchProfile: /api/atprotocol/profile failed', { error: err });
-  }
-
-  // Fallback to /api/auth/me — validate structure instead of assuming me.data.user
-  try {
-    const meRes = await api.get<MeResponse>('/api/auth/me');
-    const meData = meRes?.data;
-    // If response wraps user: { data: { user: Profile } }
-    if (meData && typeof meData === 'object' && 'user' in meData && isProfile((meData as any).user)) {
-      return (meData as any).user as Profile;
-    }
-    // If response is directly a Profile object: { data: Profile }
-    if (meData && isProfile(meData)) {
-      return meData as Profile;
-    }
-    // Null or unexpected shapes are logged with full response for diagnostics
-    logger.error('fetchProfile: /api/auth/me returned unexpected shape', { response: meRes });
-  } catch (err) {
-    logger.error('fetchProfile: /api/auth/me failed', { error: err });
-  }
-
-  // Final stable fallback shape matching Profile so callers get a consistent type
-  if (identifier) {
-    return { handle: identifier, displayName: identifier, description: 'プロフィール取得未実装' };
-  }
-  return null;
-}
-
-async function fetchProgress() {
-  try {
-    const res: any = await api.get<any>('/api/learning/progress');
-    return res.data || res;
-  } catch { return null; }
-}
+// progress fetching removed — progress UI was removed from settings
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { identifier, logout } = useAuth();
-  const qc = useQueryClient();
-  const profileQ = useQuery({ queryKey: ['profile', identifier], queryFn: () => fetchProfile(identifier) });
-  const progressQ = useQuery({ queryKey: ['progress-mini'], queryFn: () => fetchProgress() });
+  const { logout } = useAuth();
   const ttsMode = useTTSStore(s => s.mode);
   const setMode = useTTSStore(s => s.setMode);
   const manualLanguage = useTTSStore(s => s.manualLanguage);
@@ -143,42 +48,9 @@ export const SettingsScreen: React.FC = () => {
   // NOTE: ストア setTtsRate / setTtsPitch でもクランプ + NaN 防御を実施し、persist 前に不正値を排除。
   // NOTE: ストア setTtsRate / setTtsPitch でもクランプ + NaN 防御を実施し、persist 前に不正値を排除。
 
-  // derive profile data & avatar state early so hooks are stable across renders
-  const p: any = profileQ.data || {};
-  const [avatarFailed, setAvatarFailed] = React.useState(false);
-
-  // Reset avatar failure when avatar URL changes
-  React.useEffect(() => {
-    setAvatarFailed(false);
-  }, [profileQ.data]);
-
-  if (profileQ.isLoading) return <View style={styles.center}><ActivityIndicator /></View>;
-  const prog: any = progressQ.data || {};
-  const history: number[] = (prog?.recentAccuracies || prog?.accuracyHistory || []).slice(-10);
-
-  // derive initials for fallback avatar
-  const getInitials = (nameOrHandle?: string) => {
-    const s = (nameOrHandle || '').trim();
-    if (!s) return '';
-    const parts = s.split(/\s+/);
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  };
+  // progress data removed
 
   // Open profile in Bluesky app if possible, otherwise fall back to web
-  const openInBluesky = async (handle?: string) => {
-    if (!handle) return;
-    const encoded = encodeURIComponent(handle);
-    const appUrl = `bsky://profile?handle=${encoded}`;
-    const webUrl = `https://bsky.app/profile/${encoded}`;
-    try {
-      const can = await Linking.canOpenURL(appUrl);
-      const target = can ? appUrl : webUrl;
-      await Linking.openURL(target);
-    } catch (e) {
-      try { await Linking.openURL(webUrl); } catch (_) { /* ignore */ }
-    }
-  };
 
   return (
     <ScrollView style={[styles.container,{ backgroundColor: colors.background }]} contentContainerStyle={{ paddingBottom: 40, paddingTop: insets.top + 30 }}>
@@ -187,44 +59,8 @@ export const SettingsScreen: React.FC = () => {
     <Text style={[styles.sectionTitle,{ color: colors.text }]}>テーマ (システム固定)</Text>
   <Text style={[styles.help,{ color: colors.secondaryText }]}>現在適用: {resolved}. 端末の外観設定を変更すると自動で切替わります。</Text>
       </View>
-  <View style={[styles.section,{ backgroundColor: colors.surface, borderColor: colors.border }] }>
-        <Text style={[styles.sectionTitle,{ color: colors.text }]}>Bluesky プロフィール</Text>
-        <View style={styles.profileColumn}>
-          {p?.avatar && !avatarFailed ? (
-            <Image
-              source={{ uri: p.avatar, cache: 'force-cache' as any }}
-              style={[styles.avatar, styles.avatarSpacing]}
-              resizeMode='cover'
-              accessibilityLabel='User avatar'
-              onError={() => setAvatarFailed(true)}
-            />
-          ) : (
-            <View style={[styles.avatarPlaceholder, { backgroundColor: colors.border }, styles.avatarSpacing] }>
-              <Text style={[styles.avatarInitials, { color: colors.surface }]}>{getInitials(p.displayName || p.handle || identifier)}</Text>
-            </View>
-          )}
-
-          <View style={styles.profileInfo}>
-            <Text style={[styles.display,{ color: colors.text }]}>{p.displayName || identifier || ''}</Text>
-            <TouchableOpacity accessibilityRole='link' onPress={() => openInBluesky(p.handle || identifier || '')} activeOpacity={0.7}>
-              <Text style={[styles.handle,{ color: colors.accent }]}>@{p.handle || (identifier || '')}</Text>
-            </TouchableOpacity>
-            {!!p.description && <Text style={[styles.desc,{ color: colors.secondaryText }]}>{p.description}</Text>}
-          </View>
-
-          {profileQ.isError && (
-            <TouchableOpacity onPress={() => qc.invalidateQueries({ queryKey: ['profile', identifier || ''] })} style={[styles.licenseBtn, { marginTop: 12, backgroundColor: colors.accent }]} accessibilityRole='button'>
-              <Text style={[styles.licenseBtnText]}>プロフィール再取得</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-  <View style={[styles.section,{ backgroundColor: colors.surface, borderColor: colors.border }] }>
-        <Text style={[styles.sectionTitle,{ color: colors.text }]}>進捗 (Accuracy)</Text>
-        {progressQ.isLoading && <ActivityIndicator />}
-        {!progressQ.isLoading && history.length === 0 && <Text style={[styles.muted,{ color: colors.secondaryText }]}>データなし</Text>}
-        {!progressQ.isLoading && history.length > 0 && <MiniChart data={history} />}
-      </View>
+  {/* Bluesky profile moved to a reusable component and shown on Progress screen */}
+  {/* Progress section removed from settings */}
   <View style={[styles.section,{ backgroundColor: colors.surface, borderColor: colors.border }] }>
         <Text style={[styles.sectionTitle,{ color: colors.text }]}>読み上げ (TTS)</Text>
         <View style={styles.row}> 
@@ -325,17 +161,7 @@ export const SettingsScreen: React.FC = () => {
   );
 };
 
-const MiniChart: React.FC<{ data: number[] }> = ({ data }) => {
-  const { colors } = useTheme();
-  const max = Math.max(...data, 1);
-  return (
-    <View style={styles.chartRow}>
-      {data.map((v, i) => (
-        <View key={i} style={[styles.chartBar, { height: 60 * (v / max) + 4, backgroundColor: colors.accent }]} />
-      ))}
-    </View>
-  );
-};
+// MiniChart component moved to components/MiniChart.tsx
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },

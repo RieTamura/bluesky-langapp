@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import * as SecureStore from 'expo-secure-store';
 import { api } from '../services/api';
 
@@ -52,12 +53,28 @@ async function clearSession() {
 }
 
 export function useAuth() {
+  const qc = useQueryClient();
   const [local, setLocal] = useState<AuthState>(authState);
 
   // Subscribe to global auth state
   useEffect(() => {
     subscribers.add(setLocal);
     if (!initialized) bootstrap();
+    // Ensure react-query cache has the latest /api/auth/me and profile info so
+    // components that read from cache (FooterNav) can show avatar immediately.
+    (async () => {
+      try {
+        const me = await api.get<any>('/api/auth/me');
+        const payload = (me as any).data ?? me;
+        // store top-level auth/me response
+        try { qc.setQueryData(['auth','me'], payload); } catch (_) { /* ignore */ }
+        // prefer payload.user for profile cache, else payload itself
+        const user = payload?.user ?? payload;
+        try { qc.setQueryData(['profile','me'], user); } catch (_) { /* ignore */ }
+      } catch (e) {
+        // ignore
+      }
+    })();
     return () => { subscribers.delete(setLocal); };
   }, []);
 
@@ -66,9 +83,20 @@ export function useAuth() {
     const sessionId = res.sessionId || res.data?.sessionId || res.data?.data?.sessionId;
     if (sessionId) {
       await setSession(sessionId, identifier);
+      // After login, fetch /api/auth/me and populate react-query cache so components
+      // that read from cache (FooterNav) can immediately show profile/avatar.
+      try {
+        const me = await api.get<any>('/api/auth/me');
+        const payload = (me as any).data ?? me;
+        try { qc.setQueryData(['auth','me'], payload); } catch (_) { /* ignore */ }
+        const user = payload?.user ?? payload;
+        try { qc.setQueryData(['profile','me'], user); } catch (_) { /* ignore */ }
+      } catch (e) {
+        // ignore
+      }
     }
     return res;
-  }, []);
+  }, [qc]);
 
   const logout = useCallback(async () => {
     try { await api.post('/api/auth/logout', {}); } catch {/* ignore */}

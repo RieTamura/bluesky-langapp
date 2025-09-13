@@ -8,12 +8,25 @@
     "updates": {
       "fallbackToCacheTimeout": 0
     },
-    "assetBundlePatterns": ["**/*"],
-    "ios": { "supportsTablet": true, "userInterfaceStyle": "automatic" },
-  "android": { "adaptiveIcon": { "backgroundColor": "#ffffff" }, "userInterfaceStyle": "automatic" },
-  "web": {},
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "userInterfaceStyle": "automatic"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "userInterfaceStyle": "automatic"
+    },
+    "web": {},
     "extra": {
       "apiUrl": "http://192.168.11.27:3000"
-    }
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
   }
 }

@@ -1,6 +1,8 @@
 import React from 'react';
-import { View, Pressable, StyleSheet } from 'react-native';
+import { View, Pressable, StyleSheet, Text, Image } from 'react-native';
 import { useTheme } from '../stores/theme';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { useAuth } from '../hooks/useAuth';
 import { Home, BookOpen, Pencil, BarChart3 } from 'lucide-react-native';
 // useNavigation は本コンポーネントが Stack.Navigator 外にあるため利用できない。
 // 代わりに navigationRef を使用。
@@ -21,7 +23,13 @@ const items: Item[] = [
 export const FooterNav: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const qc = useQueryClient();
+  const { identifier } = useAuth();
   const [routeName, setRouteName] = React.useState<string | undefined>(() => getCurrentRouteName());
+
+  // Subscribe to profile cache entries so FooterNav updates when profile data arrives.
+  const profileMeQ = useQuery({ queryKey: ['profile','me'], queryFn: async () => null as any, enabled: false });
+  const profileAtprotoQ = useQuery({ queryKey: ['profile','atproto', identifier], queryFn: async () => null as any, enabled: Boolean(identifier) ? false : false });
 
   // 画面遷移イベントを購読してアクティブ表示を更新
   React.useEffect(() => {
@@ -72,6 +80,24 @@ export const FooterNav: React.FC = () => {
   <View style={[styles.container, { paddingBottom: insets.bottom > 8 ? insets.bottom : 12, backgroundColor: colors.surface, borderColor: colors.border }]}> 
       {items.map(it => {
         const active = routeName === it.target;
+        // For the progress tab, attempt to render the user's avatar instead of the default icon
+        const isProgress = it.key === 'progress';
+        let avatarElement: React.ReactNode | null = null;
+        if (isProgress) {
+          try {
+            // Prefer reactive cached queries (useQuery(-, enabled:false) above) so FooterNav re-renders
+            const cached = profileAtprotoQ.data || profileMeQ.data || qc.getQueryData(['profile','atproto', identifier]) || qc.getQueryData(['profile','me']) || qc.getQueryData(['auth','me']) || undefined;
+            const p: any = cached && typeof cached === 'object' ? ((cached as any).user || (cached as any)) : null;
+            if (p && p.avatar) {
+              avatarElement = React.createElement(Image, { source: { uri: p.avatar }, style: [styles.avatar, active ? { borderColor: colors.accent } : { borderColor: 'transparent' }] });
+            } else if (p && (p.displayName || p.handle || identifier)) {
+              const initials = ((p.displayName || p.handle || identifier) + '').trim().split(/\s+/).map(s=>s[0]).slice(0,2).join('').toUpperCase();
+              avatarElement = React.createElement(View, { style: [styles.avatar, { backgroundColor: colors.border, alignItems:'center', justifyContent:'center' }] }, React.createElement(Text, { style: { color: colors.surface, fontWeight: '700' } }, initials));
+            }
+          } catch (e) {
+            avatarElement = null;
+          }
+        }
         return (
           <Pressable
             key={it.key}
@@ -80,7 +106,11 @@ export const FooterNav: React.FC = () => {
             onPress={() => navigate(it.target)}
             style={[styles.item, active && styles.activeItem]}
           >
-            <it.Icon size={24} color={active ? colors.accent : colors.secondaryText} />
+            {isProgress && avatarElement ? (
+              avatarElement
+            ) : (
+              <it.Icon size={24} color={active ? colors.accent : colors.secondaryText} />
+            )}
           </Pressable>
         );
       })}
@@ -95,4 +125,5 @@ const styles = StyleSheet.create({
   icon: { fontSize: 22 },
   activeItem: { },
   activeText: { color: '#007aff', fontWeight: '600' }
+  ,avatar: { width: 24, height: 24, borderRadius: 12, overflow: 'hidden', borderWidth: 1 }
 });

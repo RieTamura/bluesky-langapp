@@ -1,14 +1,16 @@
 import React from 'react';
-import { View, Text, ActivityIndicator, StyleSheet, FlatList, ScrollView } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, FlatList, TouchableOpacity, Share } from 'react-native';
+import ViewShot from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
+import { Share2 } from 'lucide-react-native';
 import { useThemeColors } from '../stores/theme';
+import MiniChart from '../components/MiniChart';
+import BlueskyProfile from '../components/BlueskyProfile';
 import { commonStyles } from '../styles/commonStyles';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
 
-// Chart bar sizing constants (centralized for easy tuning)
-const MAX_BAR_HEIGHT = 120; // maximum height in pixels for a bar
-const BASE_BAR_HEIGHT = 8; // base/minimum height in pixels for a bar
-const BAR_HEIGHT_MULTIPLIER = 12; // multiplier applied to value to compute bar height
+// Chart bar sizing constants are defined in MiniChart component
 
 interface AdvancedStats {
   totalWords: number; unknownWords: number; learningWords: number; knownWords: number;
@@ -29,11 +31,31 @@ export const ProgressScreen: React.FC = () => {
     return res.data || res;
   }});
 
-  // history for chart (last 14 days)
-  const historyQ = useQuery({ queryKey: ['learning-history'], queryFn: async () => {
-    const res: any = await api.get<any>('/api/learning/history?days=14');
+  // history for chart (last 7 days)
+  const DAYS = 7;
+  const historyQ = useQuery({ queryKey: ['learning-history', DAYS], queryFn: async () => {
+    const res: any = await api.get<any>(`/api/learning/history?days=${DAYS}`);
     return res.data || res;
   }});
+
+  // Reference for view shot capture
+  const viewRef = React.useRef<any>(null);
+
+  const onShareCapture = async () => {
+    try {
+      if (!viewRef.current) return;
+      const uri = await viewRef.current.capture?.();
+      if (!uri) return;
+      // Try using expo-sharing to share the image file; fallback to Share API with uri
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri);
+      } else {
+        await Share.share({ url: uri });
+      }
+    } catch (e) {
+      // ignore share errors
+    }
+  };
 
   if (isLoading) return <View style={[styles.center,{ backgroundColor: c.background }]}><ActivityIndicator /></View>;
   if (error) return <View style={[styles.center,{ backgroundColor: c.background }]}><Text style={{ color: c.text }}>エラー</Text></View>;
@@ -55,57 +77,53 @@ export const ProgressScreen: React.FC = () => {
     { k: '来週', v: schedule?.nextWeek ?? 0 }
   ];
 
+
+  // Build header element once (stable within render) rather than passing an inline function
+  const headerElement = (
+  <ViewShot ref={viewRef} options={{ format: 'png', quality: 0.9 }} style={{ borderRadius: 12, overflow: 'hidden' }}>
+  <View style={[commonStyles.card, { backgroundColor: c.surface, borderColor: c.border, marginBottom: 0 }]}>
+        <TouchableOpacity style={styles.shareBtn} onPress={onShareCapture} accessibilityRole='button'>
+          <Share2 color={c.accent} width={18} height={18} />
+        </TouchableOpacity>
+        <BlueskyProfile />
+        <View style={commonStyles.statusRow}>
+          <View style={[commonStyles.statusBox, { backgroundColor: c.badgeUnknown }]}>
+            <Text style={[commonStyles.statusLabel, { color: '#fff' }]}>UNKNOWN</Text>
+            <Text style={[commonStyles.statusNumber, { color: '#fff' }]}>{progressQ.data?.unknownWords ?? stats?.unknownWords ?? 0}</Text>
+          </View>
+          <View style={[commonStyles.statusBox, { backgroundColor: c.badgeLearning }]}>
+            <Text style={[commonStyles.statusLabel, { color: '#fff' }]}>LEARNING</Text>
+            <Text style={[commonStyles.statusNumber, { color: '#fff' }]}>{progressQ.data?.learningWords ?? stats?.learningWords ?? 0}</Text>
+          </View>
+          <View style={[commonStyles.statusBox, { backgroundColor: c.badgeKnown }]}>
+            <Text style={[commonStyles.statusLabel, { color: '#fff' }]}>KNOWN</Text>
+            <Text style={[commonStyles.statusNumber, { color: '#fff' }]}>{progressQ.data?.knownWords ?? stats?.knownWords ?? 0}</Text>
+          </View>
+        </View>
+
+        <View style={[commonStyles.chartContainer, { backgroundColor: c.background }]}> 
+          <Text style={[commonStyles.chartTitle, { color: c.text }]}>過去7日間の回答数</Text>
+          {historyQ.isLoading && <ActivityIndicator />}
+          {!historyQ.isLoading && Array.isArray(historyQ.data) && historyQ.data.length > 0 && (
+            (() => {
+              const arr = historyQ.data as any[];
+              const sliced = arr.slice(-DAYS);
+              const values = sliced.map(d => Number(d.quizzesTaken ?? d.answers ?? 0));
+              const rawDates = sliced.map(d => String(d.date || d.day || ''));
+              return <MiniChart data={values} labels={rawDates} />;
+            })()
+          )}
+          {!historyQ.isLoading && (!historyQ.data || (Array.isArray(historyQ.data) && historyQ.data.length === 0)) && (
+            <Text style={{ color: c.secondaryText, paddingVertical: 8 }}>データなし</Text>
+          )}
+        </View>
+      </View>
+    </ViewShot>
+  );
+
   return (
     <FlatList
-      ListHeaderComponent={() => (
-        <>
-          <View style={commonStyles.statusRow}>
-            <View style={[commonStyles.statusBox, { backgroundColor: c.badgeUnknown, borderColor: c.badgeUnknown }]}>
-              <Text style={[commonStyles.statusLabel, { color: '#fff' }]}>UNKNOWN</Text>
-              <Text style={[commonStyles.statusNumber, { color: '#fff' }]}>{progressQ.data?.unknownWords ?? stats?.unknownWords ?? 0}</Text>
-            </View>
-            <View style={[commonStyles.statusBox, { backgroundColor: c.badgeLearning, borderColor: c.badgeLearning }]}>
-              <Text style={[commonStyles.statusLabel, { color: '#fff' }]}>LEARNING</Text>
-              <Text style={[commonStyles.statusNumber, { color: '#fff' }]}>{progressQ.data?.learningWords ?? stats?.learningWords ?? 0}</Text>
-            </View>
-            <View style={[commonStyles.statusBox, { backgroundColor: c.badgeKnown, borderColor: c.badgeKnown }]}>
-              <Text style={[commonStyles.statusLabel, { color: '#fff' }]}>KNOWN</Text>
-              <Text style={[commonStyles.statusNumber, { color: '#fff' }]}>{progressQ.data?.knownWords ?? stats?.knownWords ?? 0}</Text>
-            </View>
-          </View>
-
-          <View style={[commonStyles.chartContainer, { backgroundColor: c.background, borderColor: c.border, borderWidth: StyleSheet.hairlineWidth }]}> 
-            <Text style={[commonStyles.chartTitle, { color: c.text }]}>過去14日間の回答数</Text>
-            {historyQ.isLoading && <ActivityIndicator />}
-            {!historyQ.isLoading && Array.isArray(historyQ.data) && historyQ.data.length > 0 && (
-              <ScrollView horizontal contentContainerStyle={{ paddingVertical: 8 }} showsHorizontalScrollIndicator={false}>
-                <View style={commonStyles.chartRow}>
-                  {(historyQ.data as any[]).map((d, i) => {
-                    const val = Number(d.quizzesTaken ?? d.answers ?? 0);
-                    const rawDate = d?.date ?? d?.day ?? d?.dateString ?? String(d);
-                    const rawDateStr = String(rawDate ?? '');
-                    const parsed = new Date(rawDateStr);
-                    const isValid = !isNaN(parsed.getTime());
-                    // normalized key: YYYY-MM-DD when possible, else fallback to raw string + index
-                    const normKey = isValid ? `${parsed.getFullYear()}-${String(parsed.getMonth()+1).padStart(2,'0')}-${String(parsed.getDate()).padStart(2,'0')}` : `${rawDateStr}-${i}`;
-                    // label: MM-DD when date is valid, otherwise a safe shortened raw string
-                    const label = isValid ? `${String(parsed.getMonth()+1).padStart(2,'0')}-${String(parsed.getDate()).padStart(2,'0')}` : (rawDateStr.length > 10 ? rawDateStr.slice(0,10) : rawDateStr || `day-${i}`);
-                    return (
-                      <View key={normKey} style={commonStyles.chartCol}>
-                        <View style={[commonStyles.chartBar, { height: Math.min(MAX_BAR_HEIGHT, BASE_BAR_HEIGHT + val * BAR_HEIGHT_MULTIPLIER), backgroundColor: c.accent }]} />
-                        <Text style={[commonStyles.chartLabel, { color: c.secondaryText }]}>{label}</Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-            )}
-            {!historyQ.isLoading && (!historyQ.data || (Array.isArray(historyQ.data) && historyQ.data.length === 0)) && (
-              <Text style={{ color: c.secondaryText, paddingVertical: 8 }}>データなし</Text>
-            )}
-          </View>
-        </>
-      )}
+      ListHeaderComponent={headerElement}
       contentContainerStyle={[styles.container,{ backgroundColor: c.background }]}
       data={items}
       keyExtractor={i => i.k}
@@ -123,5 +141,6 @@ const styles = StyleSheet.create({
   key: { fontWeight: '600' },
   val: { fontVariant: ['tabular-nums'] }
   ,
+  shareBtn: { position: 'absolute', top: 16, right: 12, zIndex: 10 },
   // header/status and chart styles moved to `commonStyles` to avoid duplication
 });

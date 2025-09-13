@@ -129,11 +129,27 @@ export class AuthController {
         return;
       }
 
+      // Attempt to include richer Bluesky profile info (displayName, avatar, description)
+      let profileData: any = { identifier: session.blueskyIdentifier };
+      try {
+        const profile = await session.blueskyService.getProfile();
+        if (profile) {
+          profileData = {
+            identifier: session.blueskyIdentifier,
+            handle: profile.handle,
+            displayName: profile.displayName,
+            description: profile.description,
+            avatar: profile.avatar
+          };
+        }
+      } catch (err) {
+        // If profile fetch fails, fall back to minimal response but don't error the endpoint
+        console.warn('auth.me: failed to fetch Bluesky profile for session user', session.blueskyIdentifier, err instanceof Error ? err.message : err);
+      }
+
       res.json({
         authenticated: true,
-        user: {
-          identifier: session.blueskyIdentifier
-        },
+        user: profileData,
         message: 'User is authenticated'
       });
     } catch (error) {

@@ -166,7 +166,8 @@ export const WordsScreen: React.FC = () => {
             </Animated.View>
           </TouchableOpacity>
           <View style={{ marginLeft: 8 }}>
-            <Text style={{ color: pq > 0 ? c.accent : c.secondaryText, fontSize: 14, fontWeight: '700' }}>{pq > 0 ? `未同期 ${pq} 件` : '同期済み'}</Text>
+        <Text style={{ color: pq > 0 ? c.accent : c.secondaryText, fontSize: 14, fontWeight: '700' }}>{pq > 0 ? `未同期 ${pq} 件` : '同期済み'}</Text>
+        {!!lastSyncAt && <Text style={{ color: c.secondaryText, fontSize: 11 }}>{`最終同期: ${new Date(lastSyncAt).toLocaleString()}`}</Text>}
             {unregisteredLocalCount > 0 && (
               <Text style={{ color: c.accent, fontSize: 12, marginTop: 2 }}>{`ローカル未登録 ${unregisteredLocalCount} 件`}</Text>
             )}
