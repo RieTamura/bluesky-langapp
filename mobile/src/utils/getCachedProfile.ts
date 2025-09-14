@@ -1,4 +1,4 @@
-import { UseQueryResult, QueryClient } from '@tanstack/react-query';
+import { QueryClient } from '@tanstack/react-query';
 
 export type Profile = {
   handle: string;

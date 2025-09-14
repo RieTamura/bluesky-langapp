@@ -82,7 +82,7 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, labels, maxLabels = 7 }) =>
   const insideThresholdPx = 16; // if bar height < this, show the number above the bar instead of inside
 
   // Color utilities: parse a hex or rgb(a) color and compute relative luminance
-  const parseColorToRgb = (c: string) => {
+  const parseColorToRgb = (c: string): { r: number; g: number; b: number } => {
     if (!c) return { r: 0, g: 0, b: 0 };
     const s = c.trim();
     // hex (#rrggbb or #rgb)
@@ -105,30 +105,20 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, labels, maxLabels = 7 }) =>
       // - CSS: #RRGGBBAA (RRGGBB then alpha)
       // - Android: #AARRGGBB (alpha first)
       if (hex.length === 8) {
-        // Heuristic: if the original string started with '#' treat it as Android
-        // #AARRGGBB (common in Android resources). Otherwise treat as CSS #RRGGBBAA.
-        // This heuristic errs on the side of supporting Android-style values that
-        // often appear in native contexts; in the web/CSS case callers may omit
-        // the leading '#' when passing raw hex and will be handled as CSS.
+        // For React Native, default to Android style #AARRGGBB
+        // unless explicitly indicated otherwise
         try {
-          if (s[0] === '#') {
-            // Treat as Android #AARRGGBB: alpha (0-1), R (2-3), G (4-5), B (6-7)
-            const r = parseInt(hex.slice(2, 4), 16);
-            const g = parseInt(hex.slice(4, 6), 16);
-            const b = parseInt(hex.slice(6, 8), 16);
-            return { r, g, b };
-          } else {
-            // Treat as CSS #RRGGBBAA: R (0-1), G (2-3), B (4-5), alpha ignored
-            const r = parseInt(hex.slice(0, 2), 16);
-            const g = parseInt(hex.slice(2, 4), 16);
-            const b = parseInt(hex.slice(4, 6), 16);
-            return { r, g, b };
-          }
+          // Treat as Android #AARRGGBB: alpha (0-1), R (2-3), G (4-5), B (6-7)
+          const r = parseInt(hex.slice(2, 4), 16);
+          const g = parseInt(hex.slice(4, 6), 16);
+          const b = parseInt(hex.slice(6, 8), 16);
+          return { r, g, b };
         } catch (e) {
           return { r: 0, g: 0, b: 0 };
         }
       }
     }
+
     // rgb(...) or rgba(...)
     const rgbMatch = s.match(/rgba?\(([^)]+)\)/i);
     if (rgbMatch) {

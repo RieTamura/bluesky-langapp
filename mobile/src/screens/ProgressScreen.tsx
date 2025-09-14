@@ -35,7 +35,8 @@ export const ProgressScreen: React.FC = () => {
   // history for chart: configurable number of days (persisted)
   const [days, setDays] = React.useState<number>(7);
   // Ref to hold debounce timer id for persisting `days`
-  const saveTimerRef = React.useRef<number | null>(null);
+  // Use ReturnType<typeof setTimeout> to be compatible across environments (node/browser/react-native)
+  const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load persisted choice on mount
   React.useEffect(() => {
@@ -61,15 +62,20 @@ export const ProgressScreen: React.FC = () => {
   // Persist choice when changed, but debounce writes to avoid redundant AsyncStorage calls
   React.useEffect(() => {
     // Clear any existing timer then start a new one
-    try { if (saveTimerRef.current != null) clearTimeout(saveTimerRef.current); } catch (e) { /* ignore */ }
+    if (saveTimerRef.current != null) {
+      try { clearTimeout(saveTimerRef.current); } catch (e) { /* ignore */ }
+      saveTimerRef.current = null;
+    }
     saveTimerRef.current = setTimeout(() => {
       AsyncStorage.setItem('progress_days', String(days)).catch(() => { /* ignore */ });
       saveTimerRef.current = null;
-    }, 200) as unknown as number;
+    }, 200);
 
     return () => {
-      try { if (saveTimerRef.current != null) clearTimeout(saveTimerRef.current); } catch (e) { /* ignore */ }
-      saveTimerRef.current = null;
+      if (saveTimerRef.current != null) {
+        try { clearTimeout(saveTimerRef.current); } catch (e) { /* ignore */ }
+        saveTimerRef.current = null;
+      }
     };
   }, [days]);
 

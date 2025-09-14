@@ -34,31 +34,34 @@ async function fetchMeProfile(): Promise<Profile | null> {
       return meData as Profile;
     }
   } catch (err) {
-    // Log a single non-PII message. If a project logger exists, use it; otherwise fall back
-    // to console.error. Optionally emit a sanitized debug-level log for deeper diagnosis
-    // without leaking user handles/PII to production error logs.
-    try {
-      const logger = (globalThis as any).logger;
-      if (logger && typeof logger.error === 'function') {
-        logger.error('fetchMeProfile failed');
-        if (typeof logger.debug === 'function') {
-          try {
-            // Minimal sanitization: extract message if present and redact @handles/emails
-            let rawMsg: string | undefined;
-            if (!err) rawMsg = undefined;
-            else if (typeof err === 'string') rawMsg = err;
-            else if (err && typeof (err as any).message === 'string') rawMsg = (err as any).message;
-            const sanitized = rawMsg ? rawMsg.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[redacted]').replace(/@[A-Za-z0-9._-]+/g, '[redacted]') : undefined;
-            logger.debug('fetchMeProfile raw error (sanitized)', sanitized ? { message: sanitized } : { note: 'no message' });
-          } catch (e) {
-            // ignore sanitization errors
-          }
-        }
-      } else {
-        console.error('fetchMeProfile failed');
+    // Log a single non-PII message. Prefer project logger if present.
+    const logger = (globalThis as any)?.logger;
+    if (logger && typeof logger.error === 'function') {
+      logger.error('fetchMeProfile failed');
+    } else {
+      console.error('fetchMeProfile failed');
+    }
+
+    // Optionally emit a sanitized debug-level message for deeper diagnosis.
+    const sanitizeForDebug = (e: any): string | undefined => {
+      try {
+        if (!e) return undefined;
+        if (typeof e === 'string') return e.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[redacted]').replace(/@[A-Za-z0-9._-]+/g, '[redacted]');
+        if (e && typeof e.message === 'string') return e.message.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[redacted]').replace(/@[A-Za-z0-9._-]+/g, '[redacted]');
+        // Fallback: try JSON stringify safely
+        try { return JSON.stringify(e); } catch (_) { return String(e); }
+      } catch (_) {
+        return undefined;
       }
-    } catch (e) {
-      // ignore logging errors
+    };
+
+    try {
+      const debugMsg = sanitizeForDebug(err);
+      if (logger && typeof logger.debug === 'function') {
+        logger.debug('fetchMeProfile raw error (sanitized)', debugMsg ? { message: debugMsg } : { note: 'no message' });
+      }
+    } catch (_) {
+      // ignore any errors from sanitization/logging
     }
   }
   return null;
