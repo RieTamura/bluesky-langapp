@@ -8,6 +8,8 @@ import { WordsScreen } from './src/screens/WordsScreen';
 import { QuizScreen } from './src/screens/QuizScreen';
 import { ProgressScreen } from './src/screens/ProgressScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
+import LevelSelectionScreen from './src/screens/LevelSelectionScreen';
+import APISetupScreen from './src/screens/APISetupScreen';
 import { useAuth } from './src/hooks/useAuth';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Text, View } from 'react-native';
@@ -79,6 +81,23 @@ function AuthGate() {
   const { isAuthenticated, loading } = useAuth();
   if (loading) return <Text>Loading...</Text>;
   if (!isAuthenticated) return <LoginScreen />;
+  // After login, enforce level selection and API setup flow before main app
+  return <OnboardStack />;
+}
+
+function OnboardStack() {
+  const StackOn = createNativeStackNavigator();
+  return (
+    <StackOn.Navigator screenOptions={{ headerShown: false }}>
+      <StackOn.Screen name="LevelSelection" component={LevelSelectionScreen} />
+      <StackOn.Screen name="APISetup" component={APISetupScreen} />
+      <StackOn.Screen name="MainApp" component={AuthedStackWrapper} />
+    </StackOn.Navigator>
+  );
+}
+
+function AuthedStackWrapper() {
+  // Wrap the existing AuthedStack so it can be used as a screen in OnboardStack
   return <AuthedStack />;
 }
 
