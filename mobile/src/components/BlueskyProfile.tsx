@@ -34,14 +34,32 @@ async function fetchMeProfile(): Promise<Profile | null> {
       return meData as Profile;
     }
   } catch (err) {
-    // Log the error for debugging/monitoring and return null
+    // Log a single non-PII message. If a project logger exists, use it; otherwise fall back
+    // to console.error. Optionally emit a sanitized debug-level log for deeper diagnosis
+    // without leaking user handles/PII to production error logs.
     try {
-      // If a project logger is available, prefer using it. Otherwise fallback to console.error.
-      (globalThis as any).logger?.error?.('fetchMeProfile failed', err);
+      const logger = (globalThis as any).logger;
+      if (logger && typeof logger.error === 'function') {
+        logger.error('fetchMeProfile failed');
+        if (typeof logger.debug === 'function') {
+          try {
+            // Minimal sanitization: extract message if present and redact @handles/emails
+            let rawMsg: string | undefined;
+            if (!err) rawMsg = undefined;
+            else if (typeof err === 'string') rawMsg = err;
+            else if (err && typeof (err as any).message === 'string') rawMsg = (err as any).message;
+            const sanitized = rawMsg ? rawMsg.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[redacted]').replace(/@[A-Za-z0-9._-]+/g, '[redacted]') : undefined;
+            logger.debug('fetchMeProfile raw error (sanitized)', sanitized ? { message: sanitized } : { note: 'no message' });
+          } catch (e) {
+            // ignore sanitization errors
+          }
+        }
+      } else {
+        console.error('fetchMeProfile failed');
+      }
     } catch (e) {
-      // ignore
+      // ignore logging errors
     }
-    console.error('fetchMeProfile failed', err);
   }
   return null;
 }
@@ -70,12 +88,12 @@ const BlueskyProfile: React.FC = () => {
   const qc = useQueryClient();
   // Use cached data if available so UI can render immediately while a background
   // fetch refreshes the profile. Keep a moderate staleTime to avoid frequent refetches.
-  const getCachedProfile = (qc: ReturnType<typeof useQueryClient>, identifier?: string | null) => {
+  const getCachedProfile = (qc: ReturnType<typeof useQueryClient>, identifier?: string | null): Profile | undefined => {
     const keys = [ ['profile','atproto', identifier], ['profile','me'], ['auth','me'] ] as const;
     for (const k of keys) {
       try {
-        const v = qc.getQueryData(k as any);
-        if (v !== undefined) return v;
+        const v = qc.getQueryData<Profile>(k as any);
+        if (v !== undefined && isProfile(v)) return v;
       } catch (e) {
         // ignore and continue
       }

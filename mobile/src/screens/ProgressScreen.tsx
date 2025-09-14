@@ -34,6 +34,8 @@ export const ProgressScreen: React.FC = () => {
 
   // history for chart: configurable number of days (persisted)
   const [days, setDays] = React.useState<number>(7);
+  // Ref to hold debounce timer id for persisting `days`
+  const saveTimerRef = React.useRef<number | null>(null);
 
   // Load persisted choice on mount
   React.useEffect(() => {
@@ -44,7 +46,9 @@ export const ProgressScreen: React.FC = () => {
         if (!mounted) return;
         if (raw) {
           const parsed = Number(raw);
-          if (!Number.isNaN(parsed) && parsed > 0) setDays(parsed);
+          // Only accept whitelisted values to avoid restoring unexpected values
+          const allowed = [7, 14, 30];
+          if (!Number.isNaN(parsed) && allowed.includes(parsed)) setDays(parsed);
         }
       } catch (e) {
         // ignore
@@ -54,14 +58,32 @@ export const ProgressScreen: React.FC = () => {
   }, []);
 
   // Persist choice when changed
+  // Persist choice when changed, but debounce writes to avoid redundant AsyncStorage calls
   React.useEffect(() => {
-    AsyncStorage.setItem('progress_days', String(days)).catch(() => { /* ignore */ });
+    // Clear any existing timer then start a new one
+    try { if (saveTimerRef.current != null) clearTimeout(saveTimerRef.current); } catch (e) { /* ignore */ }
+    saveTimerRef.current = setTimeout(() => {
+      AsyncStorage.setItem('progress_days', String(days)).catch(() => { /* ignore */ });
+      saveTimerRef.current = null;
+    }, 200) as unknown as number;
+
+    return () => {
+      try { if (saveTimerRef.current != null) clearTimeout(saveTimerRef.current); } catch (e) { /* ignore */ }
+      saveTimerRef.current = null;
+    };
   }, [days]);
 
-  const historyQ = useQuery({ queryKey: ['learning-history', days], queryFn: async () => {
-    const res: any = await api.get<any>(`/api/learning/history?days=${days}`);
-    return res.data || res;
-  }});
+  const historyQ = useQuery({
+    queryKey: ['learning-history', days],
+    queryFn: async () => {
+      const res: any = await api.get<any>(`/api/learning/history?days=${days}`);
+      return res.data || res;
+    },
+    // Keep previous data visible while refetching when `days` changes
+    keepPreviousData: true,
+    // Consider data fresh for 5 minutes to avoid frequent background refetches
+    staleTime: 300000
+  } as any);
 
   // Reference for view shot capture
   const viewRef = React.useRef<any>(null);

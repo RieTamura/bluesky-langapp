@@ -20,11 +20,16 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, labels, maxLabels = 7 }) =>
   const animatedVals = React.useRef<Animated.Value[]>([]);
 
   React.useEffect(() => {
-    // Ensure the ref array has at least data.length entries. Push new Animated.Value(0)
-    // for any newly added indices. We intentionally do NOT reassign animatedVals.current.
+    // Ensure the ref array has exactly data.length entries. Push new Animated.Value(0)
+    // for any newly added indices. If data shrank, remove surplus Animated.Values by
+    // mutating the existing array (do NOT reassign animatedVals.current).
     const arr = animatedVals.current;
     for (let i = arr.length; i < data.length; i++) {
       arr.push(new Animated.Value(0));
+    }
+    if (arr.length > data.length) {
+      // remove extra entries in-place to avoid leaking Animated.Value instances
+      arr.splice(data.length);
     }
 
     // Build animations only for the active range (0..data.length-1). If arr has
@@ -89,11 +94,39 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, labels, maxLabels = 7 }) =>
         const b = parseInt(hex[2] + hex[2], 16);
         return { r, g, b };
       }
+      // Handle 6-char #RRGGBB
       if (hex.length === 6) {
         const r = parseInt(hex.slice(0, 2), 16);
         const g = parseInt(hex.slice(2, 4), 16);
         const b = parseInt(hex.slice(4, 6), 16);
         return { r, g, b };
+      }
+      // Handle 8-char hex. There are two common conventions:
+      // - CSS: #RRGGBBAA (RRGGBB then alpha)
+      // - Android: #AARRGGBB (alpha first)
+      if (hex.length === 8) {
+        // Heuristic: if the original string started with '#' treat it as Android
+        // #AARRGGBB (common in Android resources). Otherwise treat as CSS #RRGGBBAA.
+        // This heuristic errs on the side of supporting Android-style values that
+        // often appear in native contexts; in the web/CSS case callers may omit
+        // the leading '#' when passing raw hex and will be handled as CSS.
+        try {
+          if (s[0] === '#') {
+            // Treat as Android #AARRGGBB: alpha (0-1), R (2-3), G (4-5), B (6-7)
+            const r = parseInt(hex.slice(2, 4), 16);
+            const g = parseInt(hex.slice(4, 6), 16);
+            const b = parseInt(hex.slice(6, 8), 16);
+            return { r, g, b };
+          } else {
+            // Treat as CSS #RRGGBBAA: R (0-1), G (2-3), B (4-5), alpha ignored
+            const r = parseInt(hex.slice(0, 2), 16);
+            const g = parseInt(hex.slice(2, 4), 16);
+            const b = parseInt(hex.slice(4, 6), 16);
+            return { r, g, b };
+          }
+        } catch (e) {
+          return { r: 0, g: 0, b: 0 };
+        }
       }
     }
     // rgb(...) or rgba(...)
@@ -163,11 +196,12 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, labels, maxLabels = 7 }) =>
           // compute pixel height synchronously for decision logic
           const pixelH = Math.round((v / max) * maxBarPx);
           const showInside = pixelH >= insideThresholdPx;
-          // compute per-bar color by mapping value range to 1..10
-          const valForMap = Math.max(1, Math.min(10, Math.round(v))); // clip to [1,10]
-          const tRaw = (valForMap - 1) / (10 - 1); // 0..1
-          const tEased = Math.pow(tRaw, 0.8); // gentle easing
-          // 1 -> lightAccent (thin tint), 10 -> darkestAccent
+          // compute per-bar color by normalizing v to [0,1] using current max.
+          // This produces a continuous t instead of stepped buckets.
+          const safeMax = (typeof max === 'number' && isFinite(max) && max > 0) ? max : 1;
+          const tRaw = Math.max(0, Math.min(1, v / safeMax));
+          const tEased = Math.pow(tRaw, 0.8);
+          // tEased==0 -> lightAccent, tEased==1 -> darkestAccent
           const barColor = mixColors(lightAccent, darkestAccent, tEased);
           const insideTextColor = getContrastColor(barColor);
 
@@ -199,6 +233,7 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, labels, maxLabels = 7 }) =>
                           fontSize: 12,
                           fontWeight: '600',
                           color: insideTextColor,
+                          fontVariant: ['tabular-nums'],
                         }}
                     >
                       {String(v)}

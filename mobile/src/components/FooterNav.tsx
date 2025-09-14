@@ -1,12 +1,14 @@
 import React from 'react';
 import { View, Pressable, StyleSheet, Text, Image } from 'react-native';
 import { useTheme } from '../stores/theme';
+import { api } from '../services/api';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { Home, BookOpen, Pencil, BarChart3 } from 'lucide-react-native';
 // useNavigation は本コンポーネントが Stack.Navigator 外にあるため利用できない。
 // 代わりに navigationRef を使用。
 import { navigationRef, navigate, getCurrentRouteName } from '../navigation/rootNavigation';
+import getCachedProfile from '../utils/getCachedProfile';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Lucide React Native icons受け取り props を最小限に絞った型 (size/color + a11y ラベル程度)
@@ -34,24 +36,15 @@ export const FooterNav: React.FC = () => {
   const profileAtprotoQ = useQuery({
     queryKey: ['profile','atproto', identifier],
     enabled: !!identifier,
+    staleTime: 1000 * 60 * 60,
     queryFn: async () => {
       if (!identifier) return null as any;
       try {
-        // Attempt to fetch profile from a local API proxy route. Adjust the URL
-        // if your app uses a different endpoint for fetching profiles.
-        const url = `/api/profile/atproto/${encodeURIComponent(identifier)}`;
-        const res = await fetch(url);
-        if (!res.ok) {
-          // Return null for non-2xx responses to keep UI stable; callers may
-          // inspect `error` on the query if they need to handle it.
-          return null as any;
-        }
-        const data = await res.json();
-        return data;
+  const res = await api.get<any>(`/api/atprotocol/profile?actor=${encodeURIComponent(identifier)}`);
+  const data = res?.data;
+  return data ?? null;
       } catch (e) {
-        // Don't throw here if you want to avoid showing global errors; returning
-        // null keeps FooterNav resilient. If you prefer to surfacing errors,
-        // rethrow or return Promise.reject(e).
+        // Keep FooterNav resilient: return null on error (other parts may inspect error)
         return null as any;
       }
     }
@@ -112,12 +105,13 @@ export const FooterNav: React.FC = () => {
         if (isProgress) {
           try {
             // Prefer reactive cached queries (useQuery(-, enabled:false) above) so FooterNav re-renders
-            const cached = profileAtprotoQ.data || profileMeQ.data || qc.getQueryData(['profile','atproto', identifier]) || qc.getQueryData(['profile','me']) || qc.getQueryData(['auth','me']) || undefined;
-            const p: any = cached && typeof cached === 'object' ? ((cached as any).user || (cached as any)) : null;
+            // Use the shared getCachedProfile utility to keep lookup order and validation consistent.
+            const p = profileAtprotoQ.data || profileMeQ.data || getCachedProfile(qc, identifier) || null;
             if (p && p.avatar) {
               avatarElement = React.createElement(Image, { source: { uri: p.avatar }, style: [styles.avatar, active ? { borderColor: colors.accent } : { borderColor: 'transparent' }] });
             } else if (p && (p.displayName || p.handle || identifier)) {
-              const initials = ((p.displayName || p.handle || identifier) + '').trim().split(/\s+/).map(s=>s[0]).slice(0,2).join('').toUpperCase();
+              const source = (p.displayName || p.handle || identifier) + '';
+              const initials = source.trim().split(/\s+/).filter(Boolean).map(s => s[0]).slice(0,2).join('').toUpperCase();
               avatarElement = React.createElement(View, { style: [styles.avatar, { backgroundColor: colors.border, alignItems:'center', justifyContent:'center' }] }, React.createElement(Text, { style: { color: colors.surface, fontWeight: '700' } }, initials));
             }
           } catch (e) {
