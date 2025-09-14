@@ -130,6 +130,10 @@ bluesky-langapp/
 
 MIT License
 
+## Credits & Third-Party Data
+
+This project includes a sample of the NGSL (New General Service List) wordlist used for language learning features in the mobile app. The NGSL data is provided under the Creative Commons Attribution-ShareAlike 4.0 International License (CC BY-SA 4.0). For full attribution details and the source URL, see `mobile/CREDITS.md`.
+
 ## 貢献
 
 プルリクエストやイシューの報告を歓迎します。

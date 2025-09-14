@@ -14,6 +14,8 @@ import { useAuth } from './src/hooks/useAuth';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Text, View } from 'react-native';
 import { useThemeColors, useTheme } from './src/stores/theme';
+import { getSelectedLevel } from './src/stores/userLevel';
+import { hasApiKey } from './src/stores/apiKeys';
 import { StatusBar } from 'react-native';
 import { MainScreen } from './src/screens/MainScreen';
 import { AppHeader, SettingsMenu, FooterNav } from './src/components';
@@ -23,6 +25,8 @@ import { LicenseScreen } from './src/screens/LicenseScreen';
 import { loadOfflineQueue } from './src/stores/offlineQueue';
 
 const Stack = createNativeStackNavigator();
+// Hoist a separate navigator for onboarding so it's not recreated on every render
+const OnboardStackNav = createNativeStackNavigator();
 const queryClient = new QueryClient();
 
 export default function App() {
@@ -81,18 +85,50 @@ function AuthGate() {
   const { isAuthenticated, loading } = useAuth();
   if (loading) return <Text>Loading...</Text>;
   if (!isAuthenticated) return <LoginScreen />;
-  // After login, enforce level selection and API setup flow before main app
-  return <OnboardStack />;
+  // After login, choose between onboarding flow or main app depending on stored level and API keys
+  return <OnboardingGate />;
+}
+
+function OnboardingGate() {
+  const [checking, setChecking] = useState(true);
+  const [needsOnboarding, setNeedsOnboarding] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function check() {
+      try {
+        // synchronous read for level
+        const level = getSelectedLevel();
+        // check required API keys (openai required; anthropic optional)
+        const hasOpenAI = await hasApiKey('openai');
+
+        const onboardingNeeded = level == null || !hasOpenAI;
+        if (mounted) {
+          setNeedsOnboarding(onboardingNeeded);
+        }
+      } catch (e) {
+        if (mounted) setNeedsOnboarding(true);
+      } finally {
+        if (mounted) setChecking(false);
+      }
+    }
+
+    check();
+    return () => { mounted = false; };
+  }, []);
+
+  if (checking) return <Text>Checking onboarding status...</Text>;
+  return needsOnboarding ? <OnboardStack /> : <AuthedStack />;
 }
 
 function OnboardStack() {
-  const StackOn = createNativeStackNavigator();
   return (
-    <StackOn.Navigator screenOptions={{ headerShown: false }}>
-      <StackOn.Screen name="LevelSelection" component={LevelSelectionScreen} />
-      <StackOn.Screen name="APISetup" component={APISetupScreen} />
-      <StackOn.Screen name="MainApp" component={AuthedStackWrapper} />
-    </StackOn.Navigator>
+    <OnboardStackNav.Navigator screenOptions={{ headerShown: false }}>
+      <OnboardStackNav.Screen name="LevelSelection" component={LevelSelectionScreen} />
+      <OnboardStackNav.Screen name="APISetup" component={APISetupScreen} />
+      <OnboardStackNav.Screen name="MainApp" component={AuthedStackWrapper} />
+    </OnboardStackNav.Navigator>
   );
 }
 

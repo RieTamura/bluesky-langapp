@@ -1,4 +1,13 @@
 {
+  "metadata": {
+    "name": "NGSL (sample subset)",
+    "source": "New General Service List (NGSL)",
+    "authors": ["Browne", "Culligan", "Phillips"],
+    "source_url": "https://www.newgeneralservicelist.org/",
+    "license": "Creative Commons Attribution-ShareAlike 4.0 International",
+    "license_spdx": "CC-BY-SA-4.0",
+    "notes": "This file includes a small sample subset for development. For full NGSL data, see the source URL and comply with CC-BY-SA 4.0 requirements."
+  },
   "levels": {
     "1": ["the", "be", "and", "of", "a", "in", "to", "have", "it", "I"],
     "2": ["that", "for", "you", "he", "with", "on", "do", "say", "this", "they"]
