@@ -40,7 +40,9 @@ export default function LevelSelectionScreen({ navigation }: any) {
         onPress={() => {
           if (selected) {
             setSelectedLevel(selected);
-            navigation?.navigate('APISetup');
+            // Previous flow routed to APISetup here — allow users to continue
+            // directly to the main app even if they don't have API keys.
+            navigation?.navigate('MainApp');
           }
         }}
       />

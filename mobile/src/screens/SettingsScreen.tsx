@@ -2,10 +2,13 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Alert } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { useTTSStore } from '../stores/tts';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../stores/theme';
+import { useAIModeStore } from '../stores/aiMode';
+import { deleteApiKey, hasApiKey } from '../stores/apiKeys';
 
 
 // progress fetching removed — progress UI was removed from settings
@@ -51,6 +54,9 @@ export const SettingsScreen: React.FC = () => {
   // progress data removed
 
   // Open profile in Bluesky app if possible, otherwise fall back to web
+
+  const aiEnabled = useAIModeStore(s => s.enabled);
+  const setAiEnabled = useAIModeStore(s => s.setEnabled);
 
   return (
     <ScrollView style={[styles.container,{ backgroundColor: colors.background }]} contentContainerStyle={{ paddingBottom: 40, paddingTop: insets.top + 30 }}>
@@ -149,6 +155,44 @@ export const SettingsScreen: React.FC = () => {
       </View>
   <View style={[styles.section,{ backgroundColor: colors.surface, borderColor: colors.border }] }>
     <Text style={[styles.logout,{ color: colors.error || '#e53935' }]} onPress={logout}>ログアウト</Text>
+      </View>
+    <View style={[styles.section,{ backgroundColor: colors.surface, borderColor: colors.border }] }>
+    <Text style={[styles.sectionTitle,{ color: colors.text }]}>AI / API Keys</Text>
+    <Text style={[styles.help,{ color: colors.secondaryText }]}>API keys can be entered to enable AI features (OpenAI/Anthropic). You can add keys or disable AI mode here.</Text>
+    <View style={{ marginTop: 12 }}>
+      <TouchableOpacity style={[styles.licenseBtn,{ backgroundColor: colors.accent }]} onPress={() => (navigation as any).navigate('APISetup')}>
+        <Text style={styles.licenseBtnText}>API キーを設定</Text>
+      </TouchableOpacity>
+    </View>
+    <View style={{ marginTop: 12 }}>
+      <Text style={[styles.help,{ color: colors.secondaryText }]}>AI mode: {aiEnabled ? '有効' : '無効'}</Text>
+      {aiEnabled && (
+        <TouchableOpacity style={[styles.licenseBtn,{ backgroundColor: colors.error, marginTop:8 }]} onPress={async () => {
+          try {
+            // remove stored OpenAI key and disable AI mode
+            await deleteApiKey('openai');
+            setAiEnabled(false);
+            Alert.alert('AI disabled', 'OpenAI key removed and AI mode disabled');
+          } catch (e) {
+            Alert.alert('Error', String(e));
+          }
+        }}>
+          <Text style={styles.licenseBtnText}>AI を無効化</Text>
+        </TouchableOpacity>
+      )}
+      <View style={{ marginTop: 8 }}>
+        <TouchableOpacity style={[styles.licenseBtn,{ backgroundColor: '#666', marginTop:4 }]} onPress={async () => {
+          try {
+            await deleteApiKey('anthropic');
+            Alert.alert('Anthropic key removed', 'Anthropic の API キーを削除しました。');
+          } catch (e) {
+            Alert.alert('Error', String(e));
+          }
+        }}>
+          <Text style={styles.licenseBtnText}>Anthropic キーを削除</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
       </View>
   <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
     <Text style={[styles.licenseTitle,{ color: colors.text }]}>ライセンス / 使用ライブラリ</Text>

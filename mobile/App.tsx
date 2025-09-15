@@ -23,6 +23,7 @@ import { navigationRef } from './src/navigation/rootNavigation';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { LicenseScreen } from './src/screens/LicenseScreen';
 import { loadOfflineQueue } from './src/stores/offlineQueue';
+import { useAIModeStore } from './src/stores/aiMode';
 
 const Stack = createNativeStackNavigator();
 // Hoist a separate navigator for onboarding so it's not recreated on every render
@@ -41,6 +42,22 @@ export default function App() {
   }, [hydrate]);
   // Restore offline queue from storage at startup
   useEffect(()=> { loadOfflineQueue().catch(() => {}); }, []);
+  // Hydrate AI mode from stored OpenAI key
+  useEffect(()=> {
+    let mounted = true;
+    (async () => {
+      try {
+        const hasOpen = await hasApiKey('openai');
+        if (mounted) {
+          useAIModeStore.getState().setEnabled(!!hasOpen);
+          useAIModeStore.getState().hydrate().catch(()=>{});
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
   // フォールバック: Appearance listener が片方向で失敗する端末向けに hook の値で再同期
   useEffect(()=> {
     syncAutoResolution();
@@ -100,10 +117,12 @@ function OnboardingGate() {
       try {
         // synchronous read for level
         const level = getSelectedLevel();
-        // check required API keys (openai required; anthropic optional)
-        const hasOpenAI = await hasApiKey('openai');
-
-        const onboardingNeeded = level == null || !hasOpenAI;
+        // Historically we required an OpenAI key before entering the app, but
+        // the new flow should allow users to proceed to the feed without an
+        // API key (device TTS / expo-speech will be used). Only the missing
+        // level should trigger onboarding. Keep APISetup accessible from
+        // Settings for later key entry.
+        const onboardingNeeded = level == null;
         if (mounted) {
           setNeedsOnboarding(onboardingNeeded);
         }

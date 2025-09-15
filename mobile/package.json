@@ -18,7 +18,7 @@
       "@testing-library/jest-native/extend-expect"
     ],
     "transformIgnorePatterns": [
-      "node_modules/(?!(react-native|@react-native|@react-navigation|@react-native-async-storage|expo|@expo|@unimodules|unimodules|@tanstack)/)"
+      "node_modules/(?!(react-native|@react-native|@react-navigation|@react-native-async-storage|expo|expo-modules-core|expo-modules|@expo|@unimodules|unimodules|@tanstack)/)"
     ]
   },
   "dependencies": {

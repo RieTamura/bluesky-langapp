@@ -1,14 +1,24 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, Alert, Platform } from 'react-native';
-import { saveApiKey, getApiKey } from '../stores/apiKeys';
+import { View, Text, TextInput, Button, Alert, Platform, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { saveApiKey, getApiKey, validateApiKey, validateRawKey } from '../stores/apiKeys';
+import { useAIModeStore } from '../stores/aiMode';
 import { generateExampleSentence } from '../services/claude';
 import { requestSpeechAudio, speakWithDevice } from '../services/openaiTTS';
 import { getSelectedLevel } from '../stores/userLevel';
 import { getWordsForLevel } from '../services/ngslService';
+import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useThemeColors } from '../stores/theme';
+import { ArrowLeft } from 'lucide-react-native';
 
 export default function APISetupScreen() {
   const [openaiKey, setOpenaiKey] = useState('');
   const [anthropicKey, setAnthropicKey] = useState('');
+  const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
+  const [saving, setSaving] = useState(false);
+  const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
   async function saveKeys() {
     // Validate trimmed keys first to avoid accidental empty saves
@@ -19,39 +29,86 @@ export default function APISetupScreen() {
       return;
     }
 
-    // Ask user whether to require device authentication when saving keys.
-    Alert.alert(
-      'Save API keys',
-      'Require device authentication (FaceID/TouchID/passcode) when saving these API keys?',
-      [
+    // Validate the provided keys first (best-effort)
+    setSaving(true);
+    setValidationMessage(null);
+    try {
+      let openaiRes: any = { ok: true };
+      let anthRes: any = { ok: true };
+      if (openaiTrim) {
+        openaiRes = await validateRawKey('openai', openaiTrim);
+      }
+      if (anthropicTrim) {
+        anthRes = await validateRawKey('anthropic', anthropicTrim);
+      }
+
+      // Build a concise validation log/message
+      const logs: string[] = [];
+      if (openaiTrim && !openaiRes.ok) {
+        logs.push(`OpenAI: status=${openaiRes.status ?? 'n/a'} error=${openaiRes.error ?? ''}`);
+      }
+      if (anthropicTrim && !anthRes.ok) {
+        logs.push(`Anthropic: status=${anthRes.status ?? 'n/a'} error=${anthRes.error ?? ''}`);
+      }
+      if (logs.length > 0) {
+        const logText = logs.join('\n');
+        setValidationMessage('キーの検証で問題が報告されました。保存は中止されました。');
+        setSaving(false);
+        // Show the log and abort saving
+        Alert.alert('検証失敗', logText);
+        return;
+      }
+
+      // If no validation issues, save normally (ask whether to require device auth)
+      setSaving(false);
+      Alert.alert('保存方法', '保存時に端末認証（FaceID/TouchID/パスコード）を要求しますか？', [
+        { text: 'キャンセル', style: 'cancel' },
         {
-          text: 'Require',
+          text: '認証ありで保存',
           onPress: async () => {
-            const opts = Platform.OS ? { requireAuthentication: true } : undefined;
+            setSaving(true);
             try {
+              const opts = Platform.OS ? { requireAuthentication: true } : undefined;
               if (openaiTrim) await saveApiKey('openai', openaiTrim, opts as any);
               if (anthropicTrim) await saveApiKey('anthropic', anthropicTrim, opts as any);
-              Alert.alert('Saved', 'API keys saved to secure store (authentication required)');
+              if (openaiTrim) useAIModeStore.getState().setEnabled(true);
+              Alert.alert('保存しました', 'API キーを保存しました。');
+              navigation.goBack && navigation.goBack();
             } catch (e: any) {
-              Alert.alert('Save error', e.message || String(e));
+              const msg = e?.message || String(e);
+              setValidationMessage(msg);
+              Alert.alert('保存エラー', msg);
+            } finally {
+              setSaving(false);
             }
-          },
+          }
         },
         {
-          text: "Don't require",
-          style: 'cancel',
+          text: '認証なしで保存',
           onPress: async () => {
+            setSaving(true);
             try {
               if (openaiTrim) await saveApiKey('openai', openaiTrim);
               if (anthropicTrim) await saveApiKey('anthropic', anthropicTrim);
-              Alert.alert('Saved', 'API keys saved to secure store');
+              if (openaiTrim) useAIModeStore.getState().setEnabled(true);
+              Alert.alert('保存しました', 'API キーを保存しました。');
+              navigation.goBack && navigation.goBack();
             } catch (e: any) {
-              Alert.alert('Save error', e.message || String(e));
+              const msg = e?.message || String(e);
+              setValidationMessage(msg);
+              Alert.alert('保存エラー', msg);
+            } finally {
+              setSaving(false);
             }
-          },
-        },
-      ],
-    );
+          }
+        }
+      ]);
+    } catch (e: any) {
+      setSaving(false);
+      const msg = e?.message || String(e);
+      setValidationMessage(msg);
+      Alert.alert('検証エラー', msg);
+    }
   }
 
   async function quickTest() {
@@ -71,12 +128,27 @@ export default function APISetupScreen() {
         speakWithDevice(sent);
       }
     } catch (e: any) {
-      Alert.alert('Error', e.message || String(e));
+      // Try to present a friendly message for known Anthropic/Claude errors
+      const msg = (e && (e.message || String(e))) || 'Unknown error';
+      if (/Anthropic|Claude|Claude API|credit balance|invalid_request_error/i.test(msg)) {
+        // Map common billing / credit error to a helpful message
+        Alert.alert('Claude API エラー', 'Anthropic(Claude) API へのリクエストが失敗しました。残高不足やキーの権限が原因の可能性があります。Anthropic のプラン/課金ページを確認してください。');
+      } else {
+        Alert.alert('Error', msg);
+      }
     }
   }
 
   return (
-    <View style={{ flex: 1, padding: 16 }}>
+    <View style={{ flex: 1 }}>
+      <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: colors.background, borderBottomColor: colors.border }]}> 
+        <Pressable onPress={() => navigation.goBack && navigation.goBack()} style={styles.backBtn} accessibilityRole='button' accessibilityLabel='戻る'>
+          <ArrowLeft size={20} color={colors.text} />
+        </Pressable>
+        <Text style={[styles.title, { color: colors.text }]}>API 設定</Text>
+        <View style={{ width: 56 }} />
+      </View>
+      <View style={{ flex: 1, padding: 16 }}>
       <Text>OpenAI API Key</Text>
       <TextInput
         value={openaiKey}
@@ -93,7 +165,7 @@ export default function APISetupScreen() {
       <TextInput
         value={anthropicKey}
         onChangeText={setAnthropicKey}
-        placeholder="ak-..."
+        placeholder="sk-..."
         secureTextEntry={true}
         autoCapitalize="none"
         autoCorrect={false}
@@ -101,9 +173,25 @@ export default function APISetupScreen() {
         style={{ borderWidth: 1, padding: 8, marginBottom: 12 }}
       />
 
-      <Button title="Save Keys" onPress={saveKeys} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <Button title={saving ? '保存中...' : 'Save Keys'} onPress={saveKeys} disabled={saving} />
+        {saving && <ActivityIndicator style={{ marginLeft: 8 }} />}
+      </View>
       <View style={{ height: 12 }} />
       <Button title="Quick Test: Generate + Play" onPress={quickTest} />
+      {validationMessage ? (
+        <View style={{ marginTop: 12 }}>
+          <Text style={{ color: 'orange' }}>{validationMessage}</Text>
+        </View>
+      ) : null}
+      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  backBtn: { minWidth: 56, paddingVertical: 8 },
+  backText: { fontSize: 16, fontWeight: '600' },
+  title: { fontSize: 18, fontWeight: '700' }
+});

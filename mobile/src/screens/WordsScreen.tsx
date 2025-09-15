@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, FlatList, StyleSheet, SafeAreaView, TouchableOpacity, Text, Animated } from 'react-native';
+import * as Speech from 'expo-speech';
 import { useThemeColors } from '../stores/theme';
+import { isPaidUser } from '../utils/featureFlags';
 import { useSyncQueue } from '../hooks/useSyncQueue';
 import { useWords } from '../hooks/useWords';
 import { WordCard } from '../components/WordCard';
@@ -9,6 +11,8 @@ import { authApi } from '../services/api';
 
 export const WordsScreen: React.FC = () => {
   const { words, isLoading, updateStatus } = useWords();
+  const [examples, setExamples] = React.useState<{ word: string; examples: { id: string; text: string; translation?: string }[] } | null>(null);
+  const [examplesVisible, setExamplesVisible] = React.useState(false);
   // Exclude locally-created temporary words (ids starting with 'temp_') from the
   // main synced list used for status grouping/counts so it matches server-side stats.
   const syncedWords = React.useMemo(() => words.filter(w => w.id && !w.id.startsWith('temp_')), [words]);
@@ -68,6 +72,17 @@ export const WordsScreen: React.FC = () => {
   }, [syncedWords, sortKey]);
 
   const c = useThemeColors();
+  const [paid, setPaid] = React.useState<boolean | null>(null);
+  React.useEffect(()=>{
+    let mounted = true;
+    (async ()=>{
+      try{
+        const p = await isPaidUser();
+        if (mounted) setPaid(p);
+      }catch(e){}
+    })();
+    return ()=>{ mounted = false; };
+  }, []);
   const { isSyncing, lastSyncAt, pendingCount: pq, syncNow } = useSyncQueue(true);
 
   const [showFilterModal, setShowFilterModal] = React.useState(false);
@@ -144,6 +159,27 @@ export const WordsScreen: React.FC = () => {
     }).start();
   };
 
+  // Fetch example sentences for a selected word (demo: use the first word in the list)
+  // Fetch examples for tapped word
+  const fetchAndShowExamples = React.useCallback(async (wordStr: string) => {
+    try {
+      const dict = await import('../services/dictionary.js');
+      const ex = await dict.fetchExampleSentences(wordStr) as Array<{ id: string; text: string; translation?: string }>;
+      setExamples({ word: wordStr, examples: ex.map((e: { id: string; text: string; translation?: string }) => ({ id: e.id, text: e.text, translation: e.translation })) });
+      setExamplesVisible(true);
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  const speak = (text: string) => {
+    try {
+      Speech.speak(text, { language: 'en' });
+    } catch (e) {
+      // ignore
+    }
+  };
+
   const closeFilters = () => {
     Animated.timing(anim, {
       toValue: 0,
@@ -185,9 +221,26 @@ export const WordsScreen: React.FC = () => {
           <SortTabs current={sortKey} onChange={(k) => { setSortKey(k); closeFilters(); }} />
         </Animated.View>
       )}
+      {/* Example sentences demo block (Free) */}
+      {examples && (
+        <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+          <Text style={{ color: c.text, fontWeight: '700', marginBottom: 6 }}>{`例文（${examples.word}）`}</Text>
+          {examples.examples.map(ex => (
+            <View key={ex.id} style={{ marginBottom: 8 }}>
+              <Text style={{ color: c.text }}>{ex.text}</Text>
+              {ex.translation ? <Text style={{ color: c.secondaryText, fontSize: 12 }}>{ex.translation}</Text> : null}
+              <View style={{ flexDirection: 'row', marginTop: 6 }}>
+                <TouchableOpacity onPress={() => speak(ex.text)} style={{ marginRight: 8, padding: 8, backgroundColor: c.surface, borderRadius: 6 }}>
+                  <Text style={{ color: c.text }}>再生</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
   {/* debug UI removed */}
       <FlatList
-        data={listData}
+  data={listData}
         refreshing={isLoading}
   keyExtractor={(item, index) => item.type === 'word' ? (item.data?.id ?? `temp_${index}`) : (item.id ?? `hdr_${index}`)}
         // Quiz画面: 外側padding 12 + QuizCard内padding 16 = 28px の開始位置
@@ -201,9 +254,39 @@ export const WordsScreen: React.FC = () => {
               </View>
             );
           }
-          return <WordCard word={item.data} onStatusChange={updateStatus} />;
+          return <WordCard word={item.data} onStatusChange={updateStatus} onPress={() => fetchAndShowExamples(item.data.word)} />;
         }}
       />
+      {/* Examples modal (simple) */}
+      {examplesVisible && examples && (
+        <Animated.View style={{ position: 'absolute', left: 16, right: 16, bottom: 24, backgroundColor: c.surface, padding: 12, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <Text style={{ color: c.text, fontWeight: '700' }}>{`例文（${examples.word}）`}</Text>
+            <TouchableOpacity onPress={() => { setExamplesVisible(false); setExamples(null); }}>
+              <Text style={{ color: c.accent }}>閉じる</Text>
+            </TouchableOpacity>
+          </View>
+          {examples.examples.map(ex => (
+            <View key={ex.id} style={{ marginBottom: 8 }}>
+              <Text style={{ color: c.text }}>{ex.text}</Text>
+              {ex.translation ? <Text style={{ color: c.secondaryText, fontSize: 12 }}>{ex.translation}</Text> : null}
+              <View style={{ flexDirection: 'row', marginTop: 6 }}>
+                <TouchableOpacity onPress={() => speak(ex.text)} style={{ marginRight: 8, padding: 8, backgroundColor: c.background, borderRadius: 6 }}>
+                  <Text style={{ color: c.text }}>再生</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+        </Animated.View>
+      )}
+      {/* Ad placeholder for Free users */}
+      {paid === false && (
+        <View style={{ position: 'absolute', left: 16, right: 16, top: 80, alignItems: 'center' }}>
+          <View style={{ width: '100%', padding: 12, backgroundColor: c.surface, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border }}>
+            <Text style={{ color: c.secondaryText, textAlign: 'center' }}>広告枠（ここにAdMobバナーを導入）</Text>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 };
