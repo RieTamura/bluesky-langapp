@@ -2,7 +2,6 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Alert } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { useTTSStore } from '../stores/tts';
 import { useAuth } from '../hooks/useAuth';

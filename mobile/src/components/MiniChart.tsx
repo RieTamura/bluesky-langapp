@@ -11,7 +11,7 @@ type MiniChartProps = {
   maxLabels?: number;
 };
 
-const MiniChart: React.FC<MiniChartProps> = ({ data, labels, maxLabels = 7 }) => {
+const MiniChart: React.FC<MiniChartProps> = ({ data, labels }) => {
   const { colors } = useTheme();
   const max = Math.max(...data, 1);
 
@@ -67,7 +67,7 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, labels, maxLabels = 7 }) =>
     // Prefer YYYY-MM-DD
     const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (isoMatch) {
-      const y = Number(isoMatch[1]), m = Number(isoMatch[2]), d = Number(isoMatch[3]);
+      const m = Number(isoMatch[2]), d = Number(isoMatch[3]);
       // Return fixed MM-DD format as requested
       const mm = m.toString().padStart(2, '0');
       const dd = d.toString().padStart(2, '0');

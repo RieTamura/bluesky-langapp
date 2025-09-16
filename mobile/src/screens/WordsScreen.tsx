@@ -79,7 +79,9 @@ export const WordsScreen: React.FC = () => {
       try{
         const p = await isPaidUser();
         if (mounted) setPaid(p);
-      }catch(e){}
+      } catch (e) {
+        // ignore errors checking paid status
+      }
     })();
     return ()=>{ mounted = false; };
   }, []);
@@ -168,7 +170,7 @@ export const WordsScreen: React.FC = () => {
       setExamples({ word: wordStr, examples: ex.map((e: { id: string; text: string; translation?: string }) => ({ id: e.id, text: e.text, translation: e.translation })) });
       setExamplesVisible(true);
     } catch (e) {
-      // ignore
+      // ignore errors from fetching examples (network or parsing)
     }
   }, []);
 

@@ -1,3 +1,7 @@
+// @ts-nocheck
+/* eslint-disable */
+// Archived original: src/screens/APISetupScreen.tsx
+
 // Archived original: src/screens/APISetupScreen.tsx
 // This file was archived because AI features are temporarily disabled.
 

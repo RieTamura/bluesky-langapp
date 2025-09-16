@@ -1,3 +1,5 @@
+// @ts-nocheck
+/* eslint-disable */
 // Archived original: src/services/openaiTTS.ts
 // This file was archived because AI features are temporarily disabled.
 

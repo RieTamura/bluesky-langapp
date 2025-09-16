@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import React from 'react';
 
 const PAID_KEY = 'feature_paid_v1';
 
@@ -29,20 +30,18 @@ export async function clearPaidUser(): Promise<void> {
 
 // Simple synchronous helper for components that want a promise-based check
 export function usePaidUser(): [boolean, (v: boolean) => Promise<void>] {
-  const [state, setState] = require('react').useState(false);
-  ReactCheck();
-  function ReactCheck() {
-    const React = require('react');
-    React.useEffect(() => {
-      let mounted = true;
-      (async () => {
-        try {
-          const p = await isPaidUser();
-          if (mounted) setState(p);
-        } catch (e) {}
-      })();
-      return () => { mounted = false; };
-    }, []);
-  }
+  const [state, setState] = React.useState(false);
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const p = await isPaidUser();
+        if (mounted) setState(p);
+      } catch (e) {
+        // ignore
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
   return [state, setPaidUser];
 }

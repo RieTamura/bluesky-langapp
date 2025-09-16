@@ -9,7 +9,7 @@ export interface AIModeState {
   hydrate: () => Promise<void>;
 }
 
-export const useAIModeStore = create<AIModeState>((set, get) => ({
+export const useAIModeStore = create<AIModeState>((set) => ({
   enabled: false,
   setEnabled: (v: boolean) => { set({ enabled: v }); persist(); },
   hydrate: async () => {

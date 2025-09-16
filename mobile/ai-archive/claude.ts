@@ -1,3 +1,5 @@
+// @ts-nocheck
+/* eslint-disable */
 // Archived original: src/services/claude.ts
 // This file was archived because AI features are temporarily disabled.
 
