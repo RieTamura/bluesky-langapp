@@ -1,18 +1,18 @@
 Phase 1: Minimal integration templates
 
-Files added:
+Files added (note: AI implementation files have been archived and removed from src):
 - assets/ngsl.json
-- src/stores/apiKeys.ts
+- src/stores/apiKeys.ts (archived: see mobile/ai-archive/apiKeys.ts)
 - src/stores/userLevel.ts
 - src/services/ngslService.ts
-- src/services/claude.ts
-- src/services/openaiTTS.ts
+- src/services/claude.ts (archived: see mobile/ai-archive/claude.ts)
+- src/services/openaiTTS.ts (archived: see mobile/ai-archive/openaiTTS.ts)
 - src/screens/LevelSelectionScreen.tsx
-- src/screens/APISetupScreen.tsx
+- src/screens/APISetupScreen.tsx (archived: see mobile/ai-archive/APISetupScreen.tsx)
 
 Notes:
 - This is a minimal template to get the feature flow working: level selection -> API key setup -> example generation -> TTS playback.
-- The service endpoints in `claude.ts` and `openaiTTS.ts` are placeholders and must be adjusted to real provider endpoints and request schemas.
+-- The service endpoints in `claude.ts` and `openaiTTS.ts` are placeholders. The original implementations have been archived in `mobile/ai-archive/` and removed from `src`.
 - Dependencies likely needed (install in mobile project):
   - expo-secure-store
   - expo-file-system
