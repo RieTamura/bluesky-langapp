@@ -8,7 +8,7 @@ type MiniChartProps = {
   // localize and thin them to at most maxLabels entries.
   labels?: string[];
   // max number of labels to show on x-axis (will be thinned evenly)
-  maxLabels?: number;
+  _maxLabels?: number;
 };
 
 const MiniChart: React.FC<MiniChartProps> = ({ data, labels }) => {

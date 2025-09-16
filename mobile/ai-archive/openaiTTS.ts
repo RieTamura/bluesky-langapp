@@ -1,6 +1,7 @@
-// @ts-nocheck
-/* eslint-disable */
 // Archived original: src/services/openaiTTS.ts
+// NOTE: This archived file is kept for reference. We avoid file-wide
+// TypeScript/ESLint suppression. If specific lint/type errors are
+// reported, add focused per-line or per-rule disables instead.
 // This file was archived because AI features are temporarily disabled.
 
 import * as Speech from 'expo-speech';

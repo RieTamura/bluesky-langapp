@@ -21,5 +21,5 @@ module.exports = {
     '@typescript-eslint/no-explicit-any': 'off',
     '@typescript-eslint/explicit-module-boundary-types': 'off'
   },
-  ignorePatterns: ['node_modules/', 'dist/', 'build/']
+  ignorePatterns: ['node_modules/', 'dist/', 'build/', 'ai-archive/']
 };

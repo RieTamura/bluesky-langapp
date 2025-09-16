@@ -1,24 +1,29 @@
 // Placeholder API key store: AI features are disabled in this build.
 // Keep the same API surface as the original so imports resolve.
 
-export async function saveApiKey(provider: string, key: string, _opts?: any): Promise<void> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function saveApiKey(_provider: string, _key: string, _opts?: any): Promise<void> {
   // no-op when AI disabled
   return;
 }
 
-export async function getApiKey(provider: string): Promise<string | null> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function getApiKey(_provider: string): Promise<string | null> {
   return null;
 }
 
-export async function deleteApiKey(provider: string): Promise<void> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function deleteApiKey(_provider: string): Promise<void> {
   return;
 }
 
-export async function hasApiKey(provider: string): Promise<boolean> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function hasApiKey(_provider: string): Promise<boolean> {
   return false;
 }
 
-export async function validateRawKey(provider: string, key: string): Promise<{ ok: boolean; status?: number; body?: string; error?: string }> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function validateRawKey(provider: string, _key: string): Promise<{ ok: boolean; status?: number; body?: string; error?: string }> {
   // Return a deterministic 'ai-disabled' result so tests can be tolerant
   // of either the real implementation or this disabled stub.
   if (provider !== 'openai' && provider !== 'anthropic') {
