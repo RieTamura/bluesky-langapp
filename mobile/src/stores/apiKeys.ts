@@ -12,6 +12,7 @@ export async function getApiKey(_provider: string): Promise<string | null> {
   return null;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function deleteApiKey(_provider: string): Promise<void> {
   return;
 }
