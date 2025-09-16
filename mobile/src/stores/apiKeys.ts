@@ -12,7 +12,6 @@ export async function getApiKey(_provider: string): Promise<string | null> {
   return null;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function deleteApiKey(_provider: string): Promise<void> {
   return;
 }
@@ -22,7 +21,6 @@ export async function hasApiKey(_provider: string): Promise<boolean> {
   return false;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function validateRawKey(_provider: string, _key: string): Promise<{ ok: boolean; status?: number; body?: string; error?: string }> {
   // Return a deterministic 'ai-disabled' result so tests can be tolerant
