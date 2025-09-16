@@ -32,8 +32,12 @@ export async function validateRawKey(_provider: string, _key: string): Promise<{
 }
 
 export async function validateApiKey(provider: string): Promise<boolean> {
-  const r = await validateRawKey(provider, '');
-  return !!r.ok;
+  // Attempt to retrieve a stored API key for the provider and validate it.
+  // If no key is stored, pass an empty string to the validator (the
+  // placeholder validateRawKey will return a deterministic 'ai-disabled').
+  const key = await getApiKey(provider as any);
+  const r = await validateRawKey(provider, key ?? '');
+  return Boolean(r?.ok);
 }
 
 export default {
