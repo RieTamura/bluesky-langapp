@@ -8,6 +8,9 @@ type MiniChartProps = {
   // localize and thin them to at most maxLabels entries.
   labels?: string[];
   // max number of labels to show on x-axis (will be thinned evenly)
+  // NOTE: `_maxLabels` is intentionally unused in the current implementation.
+  // It is kept here for backward-compatibility and potential future use.
+  // The leading underscore prevents ESLint's 'no-unused-vars' complaints.
   _maxLabels?: number;
 };
 
