@@ -7,8 +7,7 @@ import Slider from '@react-native-community/slider';
 import { useTTSStore } from '../stores/tts';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../stores/theme';
-import { useAIModeStore } from '../stores/aiMode';
-import { deleteApiKey, hasApiKey } from '../stores/apiKeys';
+// AI features removed: imports for aiMode and apiKeys have been removed.
 
 
 // progress fetching removed — progress UI was removed from settings
@@ -55,93 +54,145 @@ export const SettingsScreen: React.FC = () => {
 
   // Open profile in Bluesky app if possible, otherwise fall back to web
 
-  const aiEnabled = useAIModeStore(s => s.enabled);
-  const setAiEnabled = useAIModeStore(s => s.setEnabled);
-
   return (
-    <ScrollView style={[styles.container,{ backgroundColor: colors.background }]} contentContainerStyle={{ paddingBottom: 40, paddingTop: insets.top + 30 }}>
-  <Text style={[styles.title,{ color: colors.text }]}>設定</Text>
-  <View style={[styles.section,{ backgroundColor: colors.surface, borderColor: colors.border }] }>
-    <Text style={[styles.sectionTitle,{ color: colors.text }]}>テーマ (システム固定)</Text>
-  <Text style={[styles.help,{ color: colors.secondaryText }]}>現在適用: {resolved}. 端末の外観設定を変更すると自動で切替わります。</Text>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={{ paddingBottom: 40, paddingTop: insets.top + 30 }}
+    >
+      <Text style={[styles.title, { color: colors.text }]}>設定</Text>
+
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>テーマ (システム固定)</Text>
+        <Text style={[styles.help, { color: colors.secondaryText }]}>現在適用: {resolved}. 端末の外観設定を変更すると自動で切替わります。</Text>
       </View>
-  {/* Bluesky profile moved to a reusable component and shown on Progress screen */}
-  {/* Progress section removed from settings */}
-  <View style={[styles.section,{ backgroundColor: colors.surface, borderColor: colors.border }] }>
-        <Text style={[styles.sectionTitle,{ color: colors.text }]}>読み上げ (TTS)</Text>
-        <View style={styles.row}> 
-          {(['auto','auto-multi','manual'] as const).map(m => {
+
+      {/* Bluesky profile moved to a reusable component and shown on Progress screen */}
+      {/* Progress section removed from settings */}
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>読み上げ (TTS)</Text>
+
+        <View style={styles.row}>
+          {(['auto', 'auto-multi', 'manual'] as const).map(m => {
             const active = ttsMode === m;
             return (
-              <TouchableOpacity key={m} style={[styles.modeBtn, { borderColor: active ? colors.accent : colors.border }, active && { backgroundColor: colors.accent }]} onPress={()=> setMode(m)} accessibilityRole="button" accessibilityState={{ selected: active }}>
+              <TouchableOpacity
+                key={m}
+                style={[styles.modeBtn, { borderColor: active ? colors.accent : colors.border }, active && { backgroundColor: colors.accent }]}
+                onPress={() => setMode(m)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+              >
                 <Text style={[styles.modeBtnText, { color: active ? '#fff' : colors.accent }]}>{m === 'auto' ? '自動' : '手動'}</Text>
               </TouchableOpacity>
             );
           })}
         </View>
+
         {ttsMode === 'manual' && (
           <View style={{ marginTop: 12 }}>
-            <Text style={[styles.label,{ color: colors.text }]}>言語コード (例: en-US, ja-JP)</Text>
+            <Text style={[styles.label, { color: colors.text }]}>言語コード (例: en-US, ja-JP)</Text>
             <TextInput
               value={manualLanguage}
               onChangeText={setManualLanguage}
               placeholder="en-US"
-              style={[styles.input,{ borderColor: colors.border, color: colors.text }]}
+              style={[styles.input, { borderColor: colors.border, color: colors.text }]}
               autoCapitalize='none'
               autoCorrect={false}
               accessibilityLabel='TTS manual language code'
             />
           </View>
         )}
+
         {ttsMode === 'auto' && (
-          <Text style={[styles.help,{ color: colors.secondaryText }]}>自動: 投稿全体で主要言語を 1 つ判定します。</Text>
+          <Text style={[styles.help, { color: colors.secondaryText }]}>自動: 投稿全体で主要言語を 1 つ判定します。</Text>
         )}
         {ttsMode === 'auto-multi' && (
-          <Text style={[styles.help,{ color: colors.secondaryText }]}>複数: 単語ごとに文字種を見て最適な言語へ切替えます (精度は簡易)。</Text>
+          <Text style={[styles.help, { color: colors.secondaryText }]}>複数: 単語ごとに文字種を見て最適な言語へ切替えます (精度は簡易)。</Text>
         )}
+
         <View style={{ marginTop: 16 }}>
-          <Text style={[styles.label,{ color: colors.text }]}>言語判定信頼度しきい値 (0-1)</Text>
-          <TextInput value={String(detectionConfidenceThreshold)} onChangeText={(v)=> {
-            const num = parseFloat(v); if (!isNaN(num)) setDetectionConfidenceThreshold(Math.max(0, Math.min(1, num)));
-          }} style={[styles.input,{ borderColor: colors.border, color: colors.text }]} keyboardType='decimal-pad' accessibilityLabel='Detection confidence threshold' />
+          <Text style={[styles.label, { color: colors.text }]}>言語判定信頼度しきい値 (0-1)</Text>
+          <TextInput
+            value={String(detectionConfidenceThreshold)}
+            onChangeText={(v) => { const num = parseFloat(v); if (!isNaN(num)) setDetectionConfidenceThreshold(Math.max(0, Math.min(1, num))); }}
+            style={[styles.input, { borderColor: colors.border, color: colors.text }]}
+            keyboardType='decimal-pad'
+            accessibilityLabel='Detection confidence threshold'
+          />
         </View>
+
         <View style={{ marginTop: 16 }}>
-          <Text style={[styles.label,{ color: colors.text }]}>ポーズ (ms)</Text>
-          <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
-            <View style={styles.pauseBox}><Text style={[styles.pauseLabel,{ color: colors.secondaryText }]}>文末</Text><TextInput value={String(pauseSentenceMs)} onChangeText={(v)=> { const n = parseInt(v, 10); if(!Number.isNaN(n)) setPauseSentenceMs(n); }} style={[styles.pauseInput,{ borderColor: colors.border, color: colors.text }]} keyboardType='number-pad' /></View>
-            <View style={styles.pauseBox}><Text style={[styles.pauseLabel,{ color: colors.secondaryText }]}>区切り</Text><TextInput value={String(pauseShortMs)} onChangeText={(v)=> { const n = parseInt(v, 10); if(!Number.isNaN(n)) setPauseShortMs(n); }} style={[styles.pauseInput,{ borderColor: colors.border, color: colors.text }]} keyboardType='number-pad' /></View>
-            <View style={styles.pauseBox}><Text style={[styles.pauseLabel,{ color: colors.secondaryText }]}>単語</Text><TextInput value={String(pauseWordMs)} onChangeText={(v)=> { const n = parseInt(v, 10); if(!Number.isNaN(n)) setPauseWordMs(n); }} style={[styles.pauseInput,{ borderColor: colors.border, color: colors.text }]} keyboardType='number-pad' /></View>
-            <View style={styles.pauseBox}><Text style={[styles.pauseLabel,{ color: colors.secondaryText }]}>Chunk</Text><TextInput value={String(chunkMaxWords)} onChangeText={(v)=> { const n = parseInt(v, 10); if(!Number.isNaN(n)) setChunkMaxWords(Math.max(1, n)); }} style={[styles.pauseInput,{ borderColor: colors.border, color: colors.text }]} keyboardType='number-pad' /></View>
+          <Text style={[styles.label, { color: colors.text }]}>ポーズ (ms)</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            <View style={styles.pauseBox}>
+              <Text style={[styles.pauseLabel, { color: colors.secondaryText }]}>文末</Text>
+              <TextInput
+                value={String(pauseSentenceMs)}
+                onChangeText={(v) => { const n = parseInt(v, 10); if (!Number.isNaN(n)) setPauseSentenceMs(n); }}
+                style={[styles.pauseInput, { borderColor: colors.border, color: colors.text }]}
+                keyboardType='number-pad'
+              />
+            </View>
+
+            <View style={styles.pauseBox}>
+              <Text style={[styles.pauseLabel, { color: colors.secondaryText }]}>区切り</Text>
+              <TextInput
+                value={String(pauseShortMs)}
+                onChangeText={(v) => { const n = parseInt(v, 10); if (!Number.isNaN(n)) setPauseShortMs(n); }}
+                style={[styles.pauseInput, { borderColor: colors.border, color: colors.text }]}
+                keyboardType='number-pad'
+              />
+            </View>
+
+            <View style={styles.pauseBox}>
+              <Text style={[styles.pauseLabel, { color: colors.secondaryText }]}>単語</Text>
+              <TextInput
+                value={String(pauseWordMs)}
+                onChangeText={(v) => { const n = parseInt(v, 10); if (!Number.isNaN(n)) setPauseWordMs(n); }}
+                style={[styles.pauseInput, { borderColor: colors.border, color: colors.text }]}
+                keyboardType='number-pad'
+              />
+            </View>
+
+            <View style={styles.pauseBox}>
+              <Text style={[styles.pauseLabel, { color: colors.secondaryText }]}>Chunk</Text>
+              <TextInput
+                value={String(chunkMaxWords)}
+                onChangeText={(v) => { const n = parseInt(v, 10); if (!Number.isNaN(n)) setChunkMaxWords(Math.max(1, n)); }}
+                style={[styles.pauseInput, { borderColor: colors.border, color: colors.text }]}
+                keyboardType='number-pad'
+              />
+            </View>
           </View>
         </View>
+
         <View style={{ marginTop: 16 }}>
-          <Text style={[styles.label,{ color: colors.text }]}>速度 / ピッチ</Text>
+          <Text style={[styles.label, { color: colors.text }]}>速度 / ピッチ</Text>
           <View style={{ marginTop: 8 }}>
-            <Text style={[styles.pauseLabel,{ color: colors.secondaryText }]}>Rate: {ttsRate.toFixed(2)}</Text>
+            <Text style={[styles.pauseLabel, { color: colors.secondaryText }]}>Rate: {ttsRate.toFixed(2)}</Text>
             <Slider
               minimumValue={10}
               maximumValue={200}
               step={5}
               value={rateScaled}
-              onValueChange={(v)=> setTtsRate(v/100)}
+              onValueChange={(v) => setTtsRate(v / 100)}
               minimumTrackTintColor={colors.accent}
               maximumTrackTintColor={colors.border}
               accessibilityLabel="読み上げ速度"
               accessibilityHint="読み上げの再生速度を遅くから速くへ調整します"
               accessibilityRole="adjustable"
-              // NOTE: Slider の min/max/value は 10-200 の整数スケールを使用しているため
-              // accessibilityValue も同一スケールに合わせる (以前は 0.1-2.0 で変換ミス -> 精度警告発生)
               accessibilityValue={{ min: 10, max: 200, now: rateScaled, text: `速度 ${clampedRate.toFixed(2)}` }}
             />
           </View>
+
           <View style={{ marginTop: 12 }}>
-            <Text style={[styles.pauseLabel,{ color: colors.secondaryText }]}>Pitch: {ttsPitch.toFixed(2)}</Text>
+            <Text style={[styles.pauseLabel, { color: colors.secondaryText }]}>Pitch: {ttsPitch.toFixed(2)}</Text>
             <Slider
               minimumValue={50}
               maximumValue={200}
               step={5}
               value={pitchScaled}
-              onValueChange={(v)=> setTtsPitch(v/100)}
+              onValueChange={(v) => setTtsPitch(v / 100)}
               minimumTrackTintColor={colors.accent}
               maximumTrackTintColor={colors.border}
               accessibilityLabel="ピッチ"
@@ -153,52 +204,21 @@ export const SettingsScreen: React.FC = () => {
           </View>
         </View>
       </View>
-  <View style={[styles.section,{ backgroundColor: colors.surface, borderColor: colors.border }] }>
-    <Text style={[styles.logout,{ color: colors.error || '#e53935' }]} onPress={logout}>ログアウト</Text>
+
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+        <Text style={[styles.logout, { color: colors.error || '#e53935' }]} onPress={logout}>ログアウト</Text>
       </View>
-    <View style={[styles.section,{ backgroundColor: colors.surface, borderColor: colors.border }] }>
-    <Text style={[styles.sectionTitle,{ color: colors.text }]}>AI / API Keys</Text>
-    <Text style={[styles.help,{ color: colors.secondaryText }]}>API keys can be entered to enable AI features (OpenAI/Anthropic). You can add keys or disable AI mode here.</Text>
-    <View style={{ marginTop: 12 }}>
-      <TouchableOpacity style={[styles.licenseBtn,{ backgroundColor: colors.accent }]} onPress={() => (navigation as any).navigate('APISetup')}>
-        <Text style={styles.licenseBtnText}>API キーを設定</Text>
-      </TouchableOpacity>
-    </View>
-    <View style={{ marginTop: 12 }}>
-      <Text style={[styles.help,{ color: colors.secondaryText }]}>AI mode: {aiEnabled ? '有効' : '無効'}</Text>
-      {aiEnabled && (
-        <TouchableOpacity style={[styles.licenseBtn,{ backgroundColor: colors.error, marginTop:8 }]} onPress={async () => {
-          try {
-            // remove stored OpenAI key and disable AI mode
-            await deleteApiKey('openai');
-            setAiEnabled(false);
-            Alert.alert('AI disabled', 'OpenAI key removed and AI mode disabled');
-          } catch (e) {
-            Alert.alert('Error', String(e));
-          }
-        }}>
-          <Text style={styles.licenseBtnText}>AI を無効化</Text>
-        </TouchableOpacity>
-      )}
-      <View style={{ marginTop: 8 }}>
-        <TouchableOpacity style={[styles.licenseBtn,{ backgroundColor: '#666', marginTop:4 }]} onPress={async () => {
-          try {
-            await deleteApiKey('anthropic');
-            Alert.alert('Anthropic key removed', 'Anthropic の API キーを削除しました。');
-          } catch (e) {
-            Alert.alert('Error', String(e));
-          }
-        }}>
-          <Text style={styles.licenseBtnText}>Anthropic キーを削除</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-      </View>
-  <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-    <Text style={[styles.licenseTitle,{ color: colors.text }]}>ライセンス / 使用ライブラリ</Text>
-    <Text style={[styles.licenseItem,{ color: colors.secondaryText }]}>アイコン: Lucide Icons (ISC)</Text>
-    <TouchableOpacity accessibilityRole='button' accessibilityLabel='ライセンス全文を表示' onPress={()=> (navigation as any).navigate('License')} style={[styles.licenseBtn,{ backgroundColor: colors.accent }]}>
-      <Text style={styles.licenseBtnText}>ライセンスを表示</Text>
+
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+        <Text style={[styles.licenseTitle, { color: colors.text }]}>ライセンス / 使用ライブラリ</Text>
+        <Text style={[styles.licenseItem, { color: colors.secondaryText }]}>アイコン: Lucide Icons (ISC)</Text>
+        <TouchableOpacity
+          accessibilityRole='button'
+          accessibilityLabel='ライセンス全文を表示'
+          onPress={() => (navigation as any).navigate('License')}
+          style={[styles.licenseBtn, { backgroundColor: colors.accent }]}
+        >
+          <Text style={styles.licenseBtnText}>ライセンスを表示</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
