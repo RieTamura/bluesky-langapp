@@ -23,10 +23,11 @@ export async function hasApiKey(_provider: string): Promise<boolean> {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function validateRawKey(provider: string, _key: string): Promise<{ ok: boolean; status?: number; body?: string; error?: string }> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function validateRawKey(_provider: string, _key: string): Promise<{ ok: boolean; status?: number; body?: string; error?: string }> {
   // Return a deterministic 'ai-disabled' result so tests can be tolerant
   // of either the real implementation or this disabled stub.
-  if (provider !== 'openai' && provider !== 'anthropic') {
+  if (_provider !== 'openai' && _provider !== 'anthropic') {
     return { ok: false, error: 'unsupported-provider' };
   }
   return { ok: false, error: 'ai-disabled' };
