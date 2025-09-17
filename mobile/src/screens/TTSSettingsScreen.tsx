@@ -29,6 +29,15 @@ export const TTSSettingsScreen: React.FC = () => {
   const { colors } = useTheme();
   React.useEffect(()=> { hydrate(); }, [hydrate]);
 
+  // UI-level mode: 'simple' = かんたんモード, 'custom' = カスタムモード (manual)
+  const [uiMode, setUiMode] = React.useState<'simple' | 'custom'>(ttsMode === 'manual' ? 'custom' : 'simple');
+
+  // Keep uiMode in sync if external ttsMode changes elsewhere
+  React.useEffect(() => {
+    if (ttsMode === 'manual' && uiMode !== 'custom') setUiMode('custom');
+    if (ttsMode !== 'manual' && uiMode !== 'simple') setUiMode('simple');
+  }, [ttsMode]);
+
   const safeRate = Number.isFinite(ttsRate) ? ttsRate : 1.0;
   const safePitch = Number.isFinite(ttsPitch) ? ttsPitch : 1.0;
   const clampedRate = Math.min(2.0, Math.max(0.1, safeRate));
@@ -45,49 +54,73 @@ export const TTSSettingsScreen: React.FC = () => {
   <Text style={[styles.title, { color: colors.text, marginLeft: 16 }]}>読み上げ設定画面</Text>
   <View style={[styles.section, { backgroundColor: 'transparent' }]}> 
         {/* Section title */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>動作モード</Text>
-        <View style={styles.row}>
-          {(['auto', 'auto-multi', 'manual'] as const).map(m => {
-            const active = ttsMode === m;
-            const labelMap: Record<typeof m, string> = {
-              auto: '自動',
-              'auto-multi': '自動（マルチ）',
-              manual: '手動'
-            };
-            return (
-              <TouchableOpacity
-                key={m}
-                style={[styles.modeBtn, { borderColor: active ? colors.accent : colors.border }, active && { backgroundColor: colors.accent }]}
-                onPress={() => setMode(m)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-              >
-                <Text style={[styles.modeBtnText, { color: active ? '#fff' : colors.accent }]}>{labelMap[m]}</Text>
-              </TouchableOpacity>
-            );
-          })}
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>操作モード</Text>
+        <View style={[styles.row, { marginBottom: 12 }]}> 
+          <TouchableOpacity
+            style={[styles.modeBtn, { borderColor: uiMode === 'simple' ? colors.accent : colors.border }, uiMode === 'simple' && { backgroundColor: colors.accent }]}
+            onPress={() => { setUiMode('simple'); setMode('auto'); }}
+            accessibilityRole="button"
+            accessibilityState={{ selected: uiMode === 'simple' }}
+          >
+            <Text style={[styles.modeBtnText, { color: uiMode === 'simple' ? '#fff' : colors.accent }]}>かんたん</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.modeBtn, { borderColor: uiMode === 'custom' ? colors.accent : colors.border }, uiMode === 'custom' && { backgroundColor: colors.accent }]}
+            onPress={() => { setUiMode('custom'); setMode('manual'); }}
+            accessibilityRole="button"
+            accessibilityState={{ selected: uiMode === 'custom' }}
+          >
+            <Text style={[styles.modeBtnText, { color: uiMode === 'custom' ? '#fff' : colors.accent }]}>カスタム</Text>
+          </TouchableOpacity>
         </View>
 
-        {ttsMode === 'manual' && (
-          <View style={{ marginTop: 12 }}>
-            <Text style={[styles.label, { color: colors.text }]}>言語コード (例: en-US, ja-JP)</Text>
-            <TextInput
-              value={manualLanguage}
-              onChangeText={setManualLanguage}
-              placeholder="en-US"
-              style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-              autoCapitalize='none'
-              autoCorrect={false}
-              accessibilityLabel='TTS manual language code'
-            />
-          </View>
+        {uiMode === 'custom' && (
+          <>
+            {/* Existing manual UI: keep unchanged */}
+            <View style={{ marginTop: 0 }}>
+              <Text style={[styles.label, { color: colors.text }]}>言語コード (例: en-US, ja-JP)</Text>
+              <TextInput
+                value={manualLanguage}
+                onChangeText={setManualLanguage}
+                placeholder="en-US"
+                style={[styles.input, { borderColor: colors.border, color: colors.text }]}
+                autoCapitalize='none'
+                autoCorrect={false}
+                accessibilityLabel='TTS manual language code'
+              />
+            </View>
+          </>
         )}
 
-        {ttsMode === 'auto' && (
-          <Text style={[styles.help, { color: colors.secondaryText }]}>自動: 投稿全体で主要言語を 1 つ判定します。</Text>
-        )}
-        {ttsMode === 'auto-multi' && (
-          <Text style={[styles.help, { color: colors.secondaryText }]}>複数: 単語ごとに文字種を見て最適な言語へ切替えます (精度は簡易)。</Text>
+        {uiMode === 'simple' && (
+          <View style={{ marginTop: 8 }}>
+            <Text style={[styles.help, { color: colors.secondaryText }]}>かんたんモード: よく使う設定から選んでボタンで適用します。</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+              {[
+                { key: 'slow', label: 'ゆっくり', rate: 0.85, pitch: 0.9, pauseSentenceMs: 600, pauseShortMs: 250, pauseWordMs: 120, chunkMaxWords: 12, detectionConfidenceThreshold: 0.5 },
+                { key: 'normal', label: '標準', rate: 1.0, pitch: 1.0, pauseSentenceMs: 400, pauseShortMs: 180, pauseWordMs: 80, chunkMaxWords: 10, detectionConfidenceThreshold: 0.6 },
+                { key: 'fast', label: 'はやい', rate: 1.25, pitch: 1.05, pauseSentenceMs: 250, pauseShortMs: 120, pauseWordMs: 50, chunkMaxWords: 20, detectionConfidenceThreshold: 0.55 }
+              ].map(p => (
+                <TouchableOpacity
+                  key={p.key}
+                  onPress={() => {
+                    setTtsRate(p.rate);
+                    setTtsPitch(p.pitch);
+                    setPauseSentenceMs(p.pauseSentenceMs);
+                    setPauseShortMs(p.pauseShortMs);
+                    setPauseWordMs(p.pauseWordMs);
+                    setChunkMaxWords(p.chunkMaxWords);
+                    setDetectionConfidenceThreshold(p.detectionConfidenceThreshold);
+                  }}
+                  style={[styles.modeBtn, { borderColor: colors.border, paddingHorizontal: 14 }]}
+                  accessibilityRole='button'
+                >
+                  <Text style={[styles.modeBtnText, { color: colors.accent }]}>{p.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
         )}
 
         <View style={{ marginTop: 16 }}>
