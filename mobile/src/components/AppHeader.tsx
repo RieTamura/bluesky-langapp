@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, TouchableOpacity } from 'react-native';
 // navigation import intentionally omitted for now
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '../stores/theme';
 import { useFeedStore } from '../stores/feed';
+import { Settings as SettingsIcon } from './Icons';
 
 interface Props { onOpenMenu: () => void; showFeedTabs?: boolean; }
 
@@ -18,32 +19,9 @@ export const AppHeader: React.FC<Props> = ({ onOpenMenu, showFeedTabs }) => {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 8, backgroundColor: c.background, borderColor: c.border }]}> 
-      {showFeedTabs ? (
-        <View style={styles.tabsRow} accessibilityRole="tablist">
-          {([
-            { key: 'posts', label: 'Posts' },
-            { key: 'following', label: 'Following' },
-            { key: 'discover', label: 'Discover' }
-          ] as const).map(t => {
-            const active = feedTab === t.key;
-            return (
-              <Pressable
-                key={t.key}
-                onPress={() => setFeedTab(t.key)}
-                style={[styles.tabBtn, active && { borderBottomColor: c.accent }]}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: active }}
-              >
-                <Text style={[styles.tabText, { color: active ? c.accent : c.text }]}>{t.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      ) : (
-        <View style={{ flex: 1 }} />
-      )}
+      <View style={{ flex: 1 }} />
       <Pressable onPress={onOpenMenu} style={styles.menuBtn} accessibilityLabel="設定メニューを開く">
-        <Text style={[styles.menuText,{ color: c.text }]}>☰</Text>
+        <SettingsIcon color={c.text} size={22} accessibilityLabel="設定メニューを開く" />
       </Pressable>
     </View>
   );

@@ -4,7 +4,7 @@ import { useTheme } from '../stores/theme';
 import { api } from '../services/api';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
-import { Home, BookOpen, Pencil, BarChart3 } from 'lucide-react-native';
+import { Home, BookOpen, Pencil, BarChart3 } from './Icons';
 // useNavigation は本コンポーネントが Stack.Navigator 外にあるため利用できない。
 // 代わりに navigationRef を使用。
 import { navigationRef, navigate, getCurrentRouteName } from '../navigation/rootNavigation';

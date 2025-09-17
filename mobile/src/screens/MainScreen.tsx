@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, SafeAreaView, NativeSyntheticEvent, NativeScrollEvent, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, RefreshControl, TouchableOpacity, SafeAreaView, NativeSyntheticEvent, NativeScrollEvent, ScrollView, Alert, Animated, ActivityIndicator, Linking } from 'react-native';
 import * as Speech from 'expo-speech';
 import { useTTSStore } from '../stores/tts';
 import { detectLanguage, mapToSpeechCode } from '../utils/langDetect';
@@ -7,6 +7,9 @@ import { useThemeColors, useResolvedTheme } from '../stores/theme';
 import { useAuth } from '../hooks/useAuth';
 import { useUserPosts, useFollowingFeed, useDiscoverFeed } from '../hooks/usePosts';
 import { useFeedStore } from '../stores/feed';
+import { ListFilter } from '../components/Icons';
+import Svg, { Path, Rect } from 'react-native-svg';
+import { SquareArrowOutUpRight } from '../components/Icons';
 import { WordDetailModal } from '../components/WordDetailModal';
 import { useWords } from '../hooks/useWords';
 
@@ -23,6 +26,7 @@ export const MainScreen: React.FC = () => {
   const following = useFollowingFeed(limit);
   const discover = useDiscoverFeed(limit);
   const feedTab = useFeedStore(s => s.feedTab);
+  const setFeedTab = useFeedStore(s => s.setFeedTab);
   const loadingFeed = userPosts.isLoading || following.isLoading || discover.isLoading;
   const currentFeed = useMemo(() => {
     switch (feedTab) {
@@ -59,34 +63,82 @@ export const MainScreen: React.FC = () => {
     if (!showTopBtn && y > 200) setShowTopBtn(true); else if (showTopBtn && y <= 200) setShowTopBtn(false);
   }, [showTopBtn]);
 
+  // Feed filter modal state from store
+  const showFeedFilters = useFeedStore(s => s.showFeedFilters);
+  const setShowFeedFilters = useFeedStore(s => s.setShowFeedFilters);
+  const feedAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (showFeedFilters) {
+      Animated.timing(feedAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    } else {
+      Animated.timing(feedAnim, { toValue: 0, duration: 160, useNativeDriver: true }).start();
+    }
+  }, [showFeedFilters, feedAnim]);
+
   return (
     <>
     <SafeAreaView style={[styles.container,{ backgroundColor: c.background }]}> 
-      <View style={styles.limitRowContainer}>
-        <View style={styles.limitRow} accessibilityRole="adjustable" accessible accessibilityLabel="Posts fetch limit selector">
-          {[10,20,50,100].map(v => {
-            const active = limit === v;
+      {/* Tabs moved from header to below header */}
+      <View style={{ width: '100%', maxWidth: 680, alignSelf: 'center', paddingHorizontal: 16, position: 'relative' }}>
+        <View style={{ flexDirection: 'row', marginTop: 6, alignItems: 'center', justifyContent: 'space-between' }} accessibilityRole="tablist">
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          {([
+            { key: 'posts', label: 'Posts' },
+            { key: 'following', label: 'Following' },
+            { key: 'discover', label: 'Discover' }
+          ] as const).map(t => {
+            const active = feedTab === t.key;
             return (
               <TouchableOpacity
-                key={v}
-                style={[
-                  styles.limitOption,
-                  {
-                    backgroundColor: active ? c.accent : c.surface,
-                    borderColor: active ? c.accent : c.border
-                  }
-                ]}
-                onPress={() => setLimit(v)}
-                accessibilityRole="button"
+                key={t.key}
+                onPress={() => setFeedTab(t.key)}
+                accessibilityRole="tab"
                 accessibilityState={{ selected: active }}
-                accessibilityLabel={`Limit ${v}`}
+                style={{ paddingVertical: 8, paddingHorizontal: 12, marginRight: 8, borderBottomWidth: 2, borderBottomColor: active ? c.accent : 'transparent' }}
               >
-                <Text style={[styles.limitText, { color: active ? '#fff' : c.text }]}>{v}</Text>
+                <Text style={{ color: active ? c.accent : c.text, fontWeight: '600' }}>{t.label}</Text>
               </TouchableOpacity>
             );
           })}
+          </View>
+          {/* Filter icon aligned to tab row right end with badge */}
+          <TouchableOpacity onPress={() => setShowFeedFilters(!showFeedFilters)} accessibilityRole="button" accessibilityLabel="フィルター" style={{ padding: 8 }}>
+            <View style={{ width: 28, height: 28, justifyContent: 'center', alignItems: 'center' }}>
+              <ListFilter size={20} color={c.text} />
+              <View style={{ position: 'absolute', top: -6, right: -6, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: c.accent, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 }}>
+                <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>{limit}</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
         </View>
+        {/* Feed filters (animated) - positioned directly under the tab row */}
+        {showFeedFilters && (
+          <Animated.View style={{ position: 'absolute', top: '100%', right: 0, opacity: feedAnim, transform: [{ translateY: feedAnim.interpolate({ inputRange: [0,1], outputRange: [-6,0] }) }], zIndex: 30 }} pointerEvents={showFeedFilters ? 'auto' : 'none'}>
+            <View style={{ alignItems: 'flex-end', paddingHorizontal: 0 }}>
+              <View style={{ backgroundColor: c.surface, borderRadius: 10, padding: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, elevation: 4 }}>
+                {/* moved limit selector into filter modal */}
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  {[10,20,50,100].map(v => {
+                    const active = limit === v;
+                    return (
+                      <TouchableOpacity
+                        key={v}
+                        style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 12, marginRight: 8, backgroundColor: active ? c.accent : c.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: active ? c.accent : c.border }}
+                        onPress={() => { setLimit(v); setShowFeedFilters(false); }}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                      >
+                        <Text style={{ color: active ? '#fff' : c.text, fontWeight: '600' }}>{v}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+          </Animated.View>
+        )}
       </View>
+      {/* limit selector moved into filter modal (see below) */}
       <ScrollView
         ref={scrollRef}
         onScroll={onScroll}
@@ -94,11 +146,44 @@ export const MainScreen: React.FC = () => {
         refreshControl={<RefreshControl refreshing={loadingFeed} onRefresh={refetchCurrentFeed} />}
         contentContainerStyle={styles.scrollContent}
       >
-        {loadingFeed && <ActivityIndicator style={{ marginVertical: 12 }} />}
-        {!loadingFeed && currentFeed.map((item: any, i: number) => (
-          <FeedItem key={feedTab + '-' + i} item={item} index={i} accentColor={c.accent} secondaryColor={c.secondaryText} borderColor={c.border} knownWords={knownWords} />
-        ))}
+      {/* Show a centered ActivityIndicator when initially loading and the feed is empty. Keep RefreshControl for pull-to-refresh. */}
+            {loadingFeed && (!currentFeed || currentFeed.length === 0) ? (
+              <View style={{ width: '100%', flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
+                <ActivityIndicator />
+              </View>
+            ) : (
+              currentFeed.map((item: any, i: number) => (
+                <FeedItem key={feedTab + '-' + i} item={item} index={i} accentColor={c.accent} secondaryColor={c.secondaryText} borderColor={c.border} knownWords={knownWords} />
+              ))
+            )}
       </ScrollView>
+      {/* Feed filters (animated) */}
+      {showFeedFilters && (
+        <Animated.View style={{ position: 'absolute', left: 16, right: 16, top: 88, opacity: feedAnim, transform: [{ translateY: feedAnim.interpolate({ inputRange: [0,1], outputRange: [-8,0] }) }] }} pointerEvents={showFeedFilters ? 'auto' : 'none'}>
+          <View style={{ alignItems: 'flex-end', paddingHorizontal: 16 }}>
+            <View style={{ backgroundColor: c.surface, borderRadius: 10, padding: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border }}>
+              {/* Simple filter options: allow switching tab here as well */}
+              {/* moved limit selector into filter modal */}
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                {[10,20,50,100].map(v => {
+                  const active = limit === v;
+                  return (
+                    <TouchableOpacity
+                      key={v}
+                      style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 12, marginRight: 8, backgroundColor: active ? c.accent : c.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: active ? c.accent : c.border }}
+                      onPress={() => { setLimit(v); setShowFeedFilters(false); }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                    >
+                      <Text style={{ color: active ? '#fff' : c.text, fontWeight: '600' }}>{v}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+        </Animated.View>
+      )}
       {showTopBtn && (
         <TouchableOpacity
           style={[styles.scrollTopButton, { backgroundColor: c.accent }]}
@@ -138,6 +223,11 @@ const getTokenStyles = (params: {
   return dynamic;
 };
 
+// helper to safely pick an accent color or fallback
+function accentColorOrDefault(colors: any) {
+  return colors?.accent || '#007AFF';
+}
+
 const SelectableText: React.FC<{ text: string; highlightWordIndex?: number; onLongPressWord?: (wordIndex: number)=>void; knownWords: Set<string>; }> = ({ text, highlightWordIndex, onLongPressWord, knownWords }) => {
   // restore previous whitespace-based tokenization/display
   // but when a token is tapped, pass a punctuation-stripped word to the modal
@@ -162,8 +252,12 @@ const SelectableText: React.FC<{ text: string; highlightWordIndex?: number; onLo
           const dynamicStyles = getTokenStyles({ noBg: false, playing: false, resolved, tokenBg, tokenPlayingBg, colors });
           return <Text key={i} style={[dynamicStyles, { color: colors.text }]}>{tok}</Text>;
         }
-        const isHashtag = cleaned.startsWith('#') && cleaned.length > 1;
-        const isUrl = /^(https?:\/\/\S+|www\.[^\s]+)$/i.test(cleaned);
+  const isHashtag = cleaned.startsWith('#') && cleaned.length > 1;
+  // broader URL detection: accept http(s)://..., www...., and bare domains like example.com/path or youtu.be/...
+  const strictUrlRegex = /^(?:https?:\/\/\S+|www\.[^\s]+|[a-z0-9.-]+\.[a-z]{2,}(?:\/\S*)?)$/i;
+  // fallback: if token contains a dot and letters (no spaces) treat as URL to catch things like "ja.m.wikipedia.org/..." or "youtu.be/..." even if truncated
+  const dotLike = /^[^\s]*\.[^\s]*$/i.test(cleaned) && /[A-Za-z]/.test(cleaned);
+  const isUrl = strictUrlRegex.test(cleaned) || dotLike;
         let currentIdx: number | null = null;
         if (!isHashtag && !isUrl) { wordCounter += 1; currentIdx = wordCounter; }
         const playing = currentIdx !== null && highlightWordIndex === currentIdx;
@@ -171,10 +265,23 @@ const SelectableText: React.FC<{ text: string; highlightWordIndex?: number; onLo
         const isKnown = knownWords.has(lw);
         const noBg = isKnown || isHashtag || isUrl;
         const dynamicStyles = getTokenStyles({ noBg, playing, resolved, tokenBg, tokenPlayingBg, colors });
+        // URL はタップで外部ブラウザを開く
+        if (isUrl) {
+          const href = cleaned.startsWith('http') ? cleaned : `https://${cleaned}`;
+          return (
+            <Text
+              key={i}
+              onPress={() => { Linking.openURL(href).catch(() => Alert.alert('リンクを開けませんでした', href)); }}
+              onLongPress={() => { /* 長押しは単語選択対象外 */ }}
+              style={[dynamicStyles, { color: accentColorOrDefault(colors), textDecorationLine: 'underline' }]}
+            >{tok}</Text>
+          );
+        }
+
         return (
           <Text
             key={i}
-            onPress={() => { if (cleaned && !isHashtag && !isUrl) setWord && setWord(cleaned); }}
+            onPress={() => { if (cleaned && !isHashtag) setWord && setWord(cleaned); }}
             onLongPress={() => currentIdx !== null && onLongPressWord && onLongPressWord(currentIdx)}
             style={[dynamicStyles,{ color: colors.text }]}
           >{tok}</Text>
@@ -183,6 +290,8 @@ const SelectableText: React.FC<{ text: string; highlightWordIndex?: number; onLo
     </View>
   );
 };
+
+// (helper moved above)
 
 
 const styles = StyleSheet.create({
@@ -213,8 +322,8 @@ const styles = StyleSheet.create({
   // Scroll To Top Button
   scrollTopButton: { position: 'absolute', bottom: 32, right: 24, width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   scrollTopButtonText: { fontSize: 24, color: '#fff', fontWeight: '700', lineHeight: 28 },
-  dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
-  ttsBtn: { marginLeft: 12, flexDirection: 'row', alignItems: 'center' },
+  dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  ttsBtn: { marginLeft: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   ttsBtnText: { fontSize: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
   // 再生中トークン背景は動的適用 (tokenPlaying スタイルは削除)
   waveWrap: { flexDirection:'row', alignItems:'center', marginRight:8 },
@@ -250,9 +359,10 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
   const buildTokens = useCallback(() => {
     const text = item?.text || '';
     const isHashtag = (s: string) => /^#[\p{L}\p{N}_]+$/u.test(s);
-    const isUrl = (s: string) => /^(https?:\/\/\S+|www\.[^\s]+)$/i.test(s);
+    const isUrl = (s: string) => /^(?:https?:\/\/\S+|www\.[^\s]+|[a-z0-9.-]+\.[a-z]{2,}(?:\/\S*)?)$/i.test(s);
     // Find word-like runs (letters/digits and allowed internal chars) and URLs/hashtags.
-  const matches = Array.from(text.matchAll(/(https?:\/\/\S+|www\.[^\s]+)|(#?[\p{L}\p{N}'’-]+)/gu));
+  // capture: full URLs, www-prefixed, domain-like tokens (e.g. youtu.be/..., example.com/path), or word-like tokens
+  const matches = Array.from(text.matchAll(/(https?:\/\/\S+|www\.[^\s]+|[a-z0-9.-]+\.[a-z]{2,}(?:\/\S*)?)|(#?[\p{L}\p{N}'’-]+)/gu));
     tokensRef.current = matches
       .map((m:any) => {
         const raw = m[0];
@@ -481,20 +591,105 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
   }, [currentPostId, postId, speaking]);
   const resolved = useResolvedTheme();
   const highlightBg = resolved === 'dark' ? 'rgba(51,145,255,0.14)' : 'rgba(0,122,255,0.08)';
+  const openBlueskyProfile = (handle?: string) => {
+    if (!handle) return;
+    // remove underscores for the profile URL but keep display as-is
+    const sanitized = handle.replace(/_/g, '');
+    const url = `https://bsky.app/profile/${sanitized}`;
+    Linking.openURL(url).catch(() => Alert.alert('リンクを開けませんでした', url));
+  };
+
+  const openBlueskyPost = async (item?: any) => {
+    if (!item) return;
+    const tryOpen = async (url: string) => {
+      try { await Linking.openURL(url); return true; } catch (e) { return false; }
+    };
+
+    // Prefer a direct web URL if available on the item
+    if (typeof item.url === 'string' && item.url) { const ok = await tryOpen(item.url); if (!ok) Alert.alert('リンクを開けませんでした', item.url); return; }
+    if (typeof item.postUrl === 'string' && item.postUrl) { const ok = await tryOpen(item.postUrl); if (!ok) Alert.alert('リンクを開けませんでした', item.postUrl); return; }
+
+    const uri = item.uri || item.id || item.cid || item.record?.uri || item.post?.uri;
+    if (typeof uri === 'string') {
+      // Try direct open of at-protocol uri (some clients may handle it)
+      const atUri = uri.startsWith('at://') ? uri : undefined;
+      if (atUri) {
+        // Try app deep link first using the at-protocol URI encoded (works on some Bluesky clients)
+        const appDeep = `bsky://post?uri=${encodeURIComponent(atUri)}`;
+        try {
+          const can = await Linking.canOpenURL(appDeep);
+          if (can) { const ok = await tryOpen(appDeep); if (ok) return; }
+        } catch (e) { /* ignore */ }
+      }
+
+      // Extract rkey from at://.../app.bsky.feed.post/<rkey>
+      const m = String(uri).match(/app\.bsky\.feed\.post\/(.+)$/);
+      const handle = item.author?.handle || item.handle || item.author?.did;
+      if (m && m[1]) {
+        const rkey = m[1];
+        // Try app deep link with profile+post if possible
+        if (handle) {
+          const sanitized = String(handle).replace(/_/g, '');
+          const appDeepProfilePost = `bsky://profile?handle=${encodeURIComponent(sanitized)}&post=${encodeURIComponent(rkey)}`;
+          try {
+            const can2 = await Linking.canOpenURL(appDeepProfilePost);
+            if (can2) { const ok = await tryOpen(appDeepProfilePost); if (ok) return; }
+          } catch (e) { /* ignore */ }
+          const web = `https://bsky.app/profile/${encodeURIComponent(sanitized)}/post/${encodeURIComponent(rkey)}`;
+          const okWeb = await tryOpen(web);
+          if (!okWeb) Alert.alert('リンクを開けませんでした', web);
+          return;
+        }
+        // No handle: fallback to web post by rkey
+        const web2 = `https://bsky.app/post/${encodeURIComponent(rkey)}`;
+        const okWeb2 = await tryOpen(web2);
+        if (!okWeb2) Alert.alert('リンクを開けませんでした', web2);
+        return;
+      }
+
+      // If uri already looks like https
+      if (/^https?:\/\//.test(String(uri))) { const ok = await tryOpen(String(uri)); if (!ok) Alert.alert('リンクを開けませんでした', String(uri)); return; }
+
+      // As a last resort, try opening post with the raw uri encoded
+      const webFallback = `https://bsky.app/post/${encodeURIComponent(String(uri))}`;
+      const okFallback = await tryOpen(webFallback);
+      if (!okFallback) Alert.alert('元投稿が見つかりません');
+      return;
+    }
+    Alert.alert('元投稿が見つかりません');
+  };
+
+  // Icon component moved to ../components/Icons.tsx
+
   return (
-    <View style={[styles.feedRow,{ borderColor, backgroundColor: currentPostId === postId ? highlightBg : 'transparent' }]}> 
-      <Text style={[styles.handle,{ color: accentColor }]}>@{item.author?.handle}</Text>
-  <SelectableText text={item.text} highlightWordIndex={currentWordIdx ?? undefined} onLongPressWord={resumeFrom} knownWords={knownWords} />
+    <View style={[styles.feedRow, { borderColor, backgroundColor: currentPostId === postId ? highlightBg : 'transparent' }]}> 
+      <Text
+        style={[styles.handle, { color: accentColor }]}
+        onPress={() => openBlueskyProfile(item.author?.handle)}
+        accessibilityRole="link"
+      >
+        @{item.author?.handle}
+      </Text>
+
+      <SelectableText text={item.text} highlightWordIndex={currentWordIdx ?? undefined} onLongPressWord={resumeFrom} knownWords={knownWords} />
+
       <View style={styles.dateRow}>
-        <Text style={[styles.time,{ color: secondaryColor }]}>{new Date(item.createdAt).toLocaleString()}</Text>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel={speaking ? '音声停止' : '読み上げ'} onPress={onPressSpeak} style={styles.ttsBtn}>
-          {speaking && (
-            <View style={styles.waveWrap} accessibilityLabel="再生中インジケータ">
-              {[0,1,2,3].map(b => <AnimatedBar key={b} delay={b * 90} color={accentColor} />)}
-            </View>
-          )}
-          <Text style={[styles.ttsBtnText,{ color: speaking ? '#fff' : accentColor, backgroundColor: speaking ? accentColor : 'transparent', borderColor: accentColor }]}>{speaking ? '■' : '▶'}</Text>
-        </TouchableOpacity>
+        <Text style={[styles.time, { color: secondaryColor }]}>{new Date(item.createdAt).toLocaleString()}</Text>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity accessibilityRole="link" accessibilityLabel="元投稿を開く" onPress={() => openBlueskyPost(item)} style={{ padding: 8, marginRight: 8 }}>
+            <SquareArrowOutUpRight color={accentColor} size={18} accessibilityLabel="元投稿を開くアイコン" />
+          </TouchableOpacity>
+
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={speaking ? '音声停止' : '読み上げ'} onPress={onPressSpeak} style={styles.ttsBtn}>
+            {speaking && (
+              <View style={styles.waveWrap} accessibilityLabel="再生中インジケータ">
+                {[0,1,2,3].map(b => <AnimatedBar key={b} delay={b * 90} color={accentColor} />)}
+              </View>
+            )}
+            <Text style={[styles.ttsBtnText, { color: speaking ? '#fff' : accentColor, backgroundColor: speaking ? accentColor : 'transparent', borderColor: accentColor }]}>{speaking ? '■' : '▶'}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );

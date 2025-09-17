@@ -16,7 +16,7 @@ import { getWordsForLevel } from '../services/ngslService';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '../stores/theme';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft } from '../components/Icons';
 
 export default function APISetupScreen() {
   const [openaiKey, setOpenaiKey] = useState('');

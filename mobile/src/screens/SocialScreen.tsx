@@ -56,13 +56,24 @@ export const SocialScreen: React.FC = () => {
         data={currentData}
         keyExtractor={(_, i) => String(i)}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refetchCurrent} />}
-        renderItem={({ item }) => (
-          <View style={[styles.card,{ backgroundColor: colors.surface, borderColor: colors.border }] }>
-            <Text style={[styles.handle,{ color: colors.accent }]}>@{item.author?.handle}</Text>
-            <Text style={[styles.text,{ color: colors.text }]}>{item.text}</Text>
-            <Text style={[styles.time,{ color: colors.secondaryText }]}>{new Date(item.createdAt).toLocaleString()}</Text>
-          </View>
-        )}
+        renderItem={({ item }) => {
+          const openBlueskyProfile = (handle?: string) => {
+            if (!handle) return;
+            const sanitized = handle.replace(/_/g, '');
+            const url = `https://bsky.app/profile/${sanitized}`;
+            // Using global Linking to open URL
+            // import not needed here as React Native's Linking is globally available via React Native
+            // but to be explicit, we'll require it lazily to avoid top-level import changes
+            try { const { Linking, Alert } = require('react-native'); Linking.openURL(url).catch(() => Alert.alert('リンクを開けませんでした', url)); } catch (e) { /* fallback */ }
+          };
+          return (
+            <View style={[styles.card,{ backgroundColor: colors.surface, borderColor: colors.border }] }>
+              <Text style={[styles.handle,{ color: colors.accent }]} onPress={() => openBlueskyProfile(item.author?.handle)} accessibilityRole="link">@{item.author?.handle}</Text>
+              <Text style={[styles.text,{ color: colors.text }]}>{item.text}</Text>
+              <Text style={[styles.time,{ color: colors.secondaryText }]}>{new Date(item.createdAt).toLocaleString()}</Text>
+            </View>
+          );
+        }}
         ListHeaderComponent={<Text style={[styles.header,{ color: colors.text }]}>{tab === 'posts' ? 'My Posts' : tab === 'following' ? 'Following Feed' : 'Discovery Feed'}</Text>}
         ListEmptyComponent={loading ? <Text style={[styles.empty,{ color: colors.secondaryText }]}>Loading...</Text> : <Text style={[styles.empty,{ color: colors.secondaryText }]}>No posts</Text>}
       />

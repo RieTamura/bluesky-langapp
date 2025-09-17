@@ -3,7 +3,7 @@ import { View, Text, ActivityIndicator, StyleSheet, FlatList, TouchableOpacity, 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ViewShot from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
-import { Share2 } from 'lucide-react-native';
+import { Share2 } from '../components/Icons';
 import { useThemeColors } from '../stores/theme';
 import MiniChart from '../components/MiniChart';
 import BlueskyProfile from '../components/BlueskyProfile';

@@ -6,7 +6,7 @@ import { isPaidUser } from '../utils/featureFlags';
 import { useSyncQueue } from '../hooks/useSyncQueue';
 import { useWords } from '../hooks/useWords';
 import { WordCard } from '../components/WordCard';
-import { ListFilter, RefreshCw } from 'lucide-react-native';
+import { ListFilter, RefreshCw } from '../components/Icons';
 import { authApi } from '../services/api';
 
 export const WordsScreen: React.FC = () => {
