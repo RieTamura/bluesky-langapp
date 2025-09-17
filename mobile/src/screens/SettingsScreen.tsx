@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
 import { useTTSStore } from '../stores/tts';
 import { useAuth } from '../hooks/useAuth';
-import { useTheme } from '../stores/theme';
+import { useTheme, ThemeColors } from '../stores/theme';
 // AI features removed: imports for aiMode and apiKeys have been removed.
 
 
@@ -210,12 +210,7 @@ export const SettingsScreen: React.FC = () => {
       <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
         <Text style={[styles.sectionTitle, { color: colors.text }]}>カレンダー</Text>
         <Text style={[styles.help, { color: colors.secondaryText }]}>カレンダーの週開始を選択します。</Text>
-        <View style={{ flexDirection: 'row', marginTop: 8 }}>
-          {(['sunday','monday'] as const).map(v => {
-            const active = false; // will initialize below via state
-            return null;
-          })}
-        </View>
+        {/* spacer removed; calendar week setting handled by CalendarWeekSetting component below */}
         <CalendarWeekSetting colors={colors} />
       </View>
 
@@ -284,7 +279,7 @@ const styles = StyleSheet.create({
 
 // Calendar week start setting component
 const CALENDAR_KEY = 'calendar_week_start';
-const CalendarWeekSetting: React.FC<{ colors: any }> = ({ colors }) => {
+const CalendarWeekSetting: React.FC<{ colors: ThemeColors }> = ({ colors }) => {
   const [val, setVal] = React.useState<'sunday'|'monday'>('sunday');
   React.useEffect(() => {
     let mounted = true;
@@ -294,23 +289,41 @@ const CalendarWeekSetting: React.FC<{ colors: any }> = ({ colors }) => {
         if (!mounted) return;
         if (raw === 'monday') setVal('monday');
         else setVal('sunday');
-      } catch (e) {}
+      } catch (e: any) {
+        if (typeof __DEV__ !== 'undefined' && __DEV__) console.error('[Settings] failed to read calendar_week_start', e);
+      }
     })();
     return () => { mounted = false; };
   }, []);
 
   const setAndPersist = async (v: 'sunday'|'monday') => {
     setVal(v);
-    try { await AsyncStorage.setItem(CALENDAR_KEY, v); } catch (e) { /* ignore */ }
-    try { DeviceEventEmitter.emit('calendar_week_start_changed', v); } catch (e) { /* ignore */ }
+    try { await AsyncStorage.setItem(CALENDAR_KEY, v); } catch (e: any) { if (typeof __DEV__ !== 'undefined' && __DEV__) console.error('[Settings] failed to persist calendar_week_start', e); }
+    try { DeviceEventEmitter.emit('calendar_week_start_changed', v); } catch (e: any) { if (typeof __DEV__ !== 'undefined' && __DEV__) console.error('[Settings] failed to emit calendar_week_start_changed', e); }
   };
 
   return (
     <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-      <TouchableOpacity onPress={() => setAndPersist('sunday')} style={[{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: val === 'sunday' ? colors.accent : colors.border, backgroundColor: val === 'sunday' ? colors.accent : 'transparent' }]}>
+      <TouchableOpacity
+        accessible={true}
+        accessibilityRole='button'
+        accessibilityLabel='日曜開始'
+        accessibilityState={{ selected: val === 'sunday' }}
+        accessibilityHint='週の開始曜日を設定します'
+        onPress={() => setAndPersist('sunday')}
+        style={[{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: val === 'sunday' ? colors.accent : colors.border, backgroundColor: val === 'sunday' ? colors.accent : 'transparent' }]}
+      >
         <Text style={{ color: val === 'sunday' ? '#fff' : colors.text }}>日曜開始</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => setAndPersist('monday')} style={[{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: val === 'monday' ? colors.accent : colors.border, backgroundColor: val === 'monday' ? colors.accent : 'transparent' }]}>
+      <TouchableOpacity
+        accessible={true}
+        accessibilityRole='button'
+        accessibilityLabel='月曜開始'
+        accessibilityState={{ selected: val === 'monday' }}
+        accessibilityHint='週の開始曜日を設定します'
+        onPress={() => setAndPersist('monday')}
+        style={[{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: val === 'monday' ? colors.accent : colors.border, backgroundColor: val === 'monday' ? colors.accent : 'transparent' }]}
+      >
         <Text style={{ color: val === 'monday' ? '#fff' : colors.text }}>月曜開始</Text>
       </TouchableOpacity>
     </View>
