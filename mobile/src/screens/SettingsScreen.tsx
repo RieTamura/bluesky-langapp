@@ -3,8 +3,9 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DeviceEventEmitter } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/rootNavigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Slider from '@react-native-community/slider';
 import { useTTSStore } from '../stores/tts';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme, ThemeColors } from '../stores/theme';
@@ -14,27 +15,9 @@ import { useTheme, ThemeColors } from '../stores/theme';
 // progress fetching removed — progress UI was removed from settings
 
 export const SettingsScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Settings'>>();
   const insets = useSafeAreaInsets();
   const { logout } = useAuth();
-  const ttsMode = useTTSStore(s => s.mode);
-  const setMode = useTTSStore(s => s.setMode);
-  const manualLanguage = useTTSStore(s => s.manualLanguage);
-  const setManualLanguage = useTTSStore(s => s.setManualLanguage);
-  const detectionConfidenceThreshold = useTTSStore(s => s.detectionConfidenceThreshold);
-  const setDetectionConfidenceThreshold = useTTSStore(s => s.setDetectionConfidenceThreshold);
-  const pauseSentenceMs = useTTSStore(s => s.pauseSentenceMs);
-  const setPauseSentenceMs = useTTSStore(s => s.setPauseSentenceMs);
-  const pauseShortMs = useTTSStore(s => s.pauseShortMs);
-  const setPauseShortMs = useTTSStore(s => s.setPauseShortMs);
-  const pauseWordMs = useTTSStore(s => s.pauseWordMs);
-  const setPauseWordMs = useTTSStore(s => s.setPauseWordMs);
-  const chunkMaxWords = useTTSStore(s => s.chunkMaxWords);
-  const setChunkMaxWords = useTTSStore(s => s.setChunkMaxWords);
-  const ttsRate = useTTSStore(s => s.ttsRate);
-  const setTtsRate = (useTTSStore as any).getState().setTtsRate as (v: number)=>void;
-  const ttsPitch = useTTSStore(s => s.ttsPitch);
-  const setTtsPitch = (useTTSStore as any).getState().setTtsPitch as (v: number)=>void;
   const hydrate = useTTSStore(s => s.hydrate);
   const { resolved, colors } = useTheme();
   React.useEffect(()=> { hydrate(); }, [hydrate]);
@@ -42,14 +25,7 @@ export const SettingsScreen: React.FC = () => {
   // Slider: iOS/Android ネイティブ側で 0.1 / 0.05 などの浮動小数ステップが精度警告を出すケースがあるため
   // 内部的に 100 倍した整数スケール (rate 10-200, pitch 50-200) に変換して扱う。
   // 防御: NaN / 非有限 / 範囲外値をここで補正 (UI 表示用)。ストア側でもクランプ済みだが二重防御。
-  const safeRate = Number.isFinite(ttsRate) ? ttsRate : 1.0;
-  const safePitch = Number.isFinite(ttsPitch) ? ttsPitch : 1.0;
-  const clampedRate = Math.min(2.0, Math.max(0.1, safeRate));
-  const clampedPitch = Math.min(2.0, Math.max(0.5, safePitch));
-  const rateScaled = Math.round(clampedRate * 100);   // 10 - 200
-  const pitchScaled = Math.round(clampedPitch * 100); // 50 - 200
-  // NOTE: ストア setTtsRate / setTtsPitch でもクランプ + NaN 防御を実施し、persist 前に不正値を排除。
-  // NOTE: ストア setTtsRate / setTtsPitch でもクランプ + NaN 防御を実施し、persist 前に不正値を排除。
+  // TTS store hydrate only (detailed controls moved to dedicated screen)
 
   // progress data removed
 
@@ -73,7 +49,7 @@ export const SettingsScreen: React.FC = () => {
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel="読み上げ設定を開く"
-          onPress={() => (navigation as any).navigate('TTSSettings')}
+          onPress={() => navigation.navigate('TTSSettings')}
           style={{ paddingVertical: 12 }}
         >
           <Text style={[styles.sectionTitle, { color: colors.text }]}>読み上げ (TTS)</Text>
@@ -99,7 +75,7 @@ export const SettingsScreen: React.FC = () => {
         <TouchableOpacity
           accessibilityRole='button'
           accessibilityLabel='ライセンス全文を表示'
-          onPress={() => (navigation as any).navigate('License')}
+          onPress={() => navigation.navigate('License')}
           style={[styles.licenseBtn, { backgroundColor: colors.accent }]}
         >
           <Text style={styles.licenseBtnText}>ライセンスを表示</Text>

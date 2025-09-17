@@ -12,12 +12,19 @@ export type RootStackParamList = {
 };
 
 // グローバルに参照可能な NavigationContainerRef
-export const navigationRef = createNavigationContainerRef<any>(); // 型安全にする場合は createNavigationContainerRef<RootStackParamList>() ただし依存箇所の遷移汎用化のため any
+export const navigationRef = createNavigationContainerRef<RootStackParamList>();
+
+// 型安全化: navigationRef を RootStackParamList として作成しました。
+// もしアプリ内で汎用的な名前/params を渡している箇所があれば、呼び出し側を
+// `navigate<Name extends keyof RootStackParamList>(name: Name, params?: RootStackParamList[Name])`
+// の形で型に合わせるか、ここでオーバーロードを追加してください。
 
 // 型簡略化用ユーティリティ
-export function navigate(name: string, params?: any) {
+export function navigate<Name extends keyof RootStackParamList>(name: Name, params?: RootStackParamList[Name]) {
   if (navigationRef.isReady()) {
-  (navigationRef as any).navigate(name, params);
+    // navigationRef.navigate のシグネチャはジェネリックなので、型安全に渡せます。
+    // 一部の環境で呼び出し側の params が any の場合は呼び出し側を調整してください。
+    (navigationRef as any).navigate(name as any, params as any);
   }
 }
 

@@ -7,13 +7,13 @@ import { useAuth } from '../hooks/useAuth';
 import { Home, BookOpen, Pencil, BarChart3 } from './Icons';
 // useNavigation は本コンポーネントが Stack.Navigator 外にあるため利用できない。
 // 代わりに navigationRef を使用。
-import { navigationRef, navigate, getCurrentRouteName } from '../navigation/rootNavigation';
+import { navigationRef, navigate, getCurrentRouteName, type RootStackParamList } from '../navigation/rootNavigation';
 import getCachedProfile from '../utils/getCachedProfile';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Lucide React Native icons受け取り props を最小限に絞った型 (size/color + a11y ラベル程度)
 type IconComponent = React.ComponentType<{ size?: number; color?: string; accessibilityLabel?: string }>;
-interface Item { key: string; target: string; accessibilityLabel: string; Icon: IconComponent; }
+interface Item { key: string; target: keyof RootStackParamList; accessibilityLabel: string; Icon: IconComponent; }
 // ホームボタンを含め、ラベルテキストは表示せずアイコンのみ
 const items: Item[] = [
   { key: 'home', target: 'Main', accessibilityLabel: 'ホーム', Icon: Home },

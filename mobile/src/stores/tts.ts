@@ -22,6 +22,8 @@ export interface TTSState {
   setPauseShortMs: (v: number) => void;
   setPauseWordMs: (v: number) => void;
   setChunkMaxWords: (v: number) => void;
+  setTtsRate: (v: number) => void;
+  setTtsPitch: (v: number) => void;
   hydrated: boolean;
   hydrate: () => Promise<void>;
 }

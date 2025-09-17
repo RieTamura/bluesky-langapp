@@ -3,16 +3,18 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '../stores/theme';
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/rootNavigation';
 import { ArrowLeft } from './Icons';
 
 export const SettingsHeader: React.FC = () => {
   const insets = useSafeAreaInsets();
-  const c = useThemeColors();
-  const navigation = useNavigation();
+  const colors = useThemeColors();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   return (
-  <View style={[styles.container, { paddingTop: insets.top + 4, backgroundColor: c.background, borderColor: c.border }]}> 
-      <Pressable onPress={() => (navigation as any).goBack()} style={styles.back} accessibilityLabel="戻る">
-        <ArrowLeft color={c.accent || '#007aff'} size={20} accessibilityLabel="戻る" />
+  <View style={[styles.header, { paddingTop: insets.top + 4, backgroundColor: colors.background, borderColor: colors.border }]}> 
+  <Pressable onPress={() => navigation.goBack()} style={styles.back} accessibilityLabel="戻る">
+    <ArrowLeft color={colors.accent || '#007aff'} size={20} accessible={false} />
       </Pressable>
       <View style={{ flex: 1 }} />
       <View style={{ width: 64 }} />
@@ -21,8 +23,7 @@ export const SettingsHeader: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, paddingBottom: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'transparent' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, paddingBottom: 8, borderBottomWidth: StyleSheet.hairlineWidth },
   back: { padding: 8, minWidth: 64 },
-  backText: { fontSize: 16, fontWeight: '600' },
-  title: { fontSize: 16, fontWeight: '700' }
+  
 });

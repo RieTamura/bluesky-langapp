@@ -22,9 +22,9 @@ export const TTSSettingsScreen: React.FC = () => {
   const chunkMaxWords = useTTSStore(s => s.chunkMaxWords);
   const setChunkMaxWords = useTTSStore(s => s.setChunkMaxWords);
   const ttsRate = useTTSStore(s => s.ttsRate);
-  const setTtsRate = (useTTSStore as any).getState().setTtsRate as (v: number)=>void;
+  const setTtsRate = useTTSStore(s => s.setTtsRate) as (v: number) => void;
   const ttsPitch = useTTSStore(s => s.ttsPitch);
-  const setTtsPitch = (useTTSStore as any).getState().setTtsPitch as (v: number)=>void;
+  const setTtsPitch = useTTSStore(s => s.setTtsPitch) as (v: number) => void;
   const hydrate = useTTSStore(s => s.hydrate);
   const { colors } = useTheme();
   React.useEffect(()=> { hydrate(); }, [hydrate]);
@@ -49,6 +49,11 @@ export const TTSSettingsScreen: React.FC = () => {
         <View style={styles.row}>
           {(['auto', 'auto-multi', 'manual'] as const).map(m => {
             const active = ttsMode === m;
+            const labelMap: Record<typeof m, string> = {
+              auto: '自動',
+              'auto-multi': '自動（マルチ）',
+              manual: '手動'
+            };
             return (
               <TouchableOpacity
                 key={m}
@@ -57,7 +62,7 @@ export const TTSSettingsScreen: React.FC = () => {
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
               >
-                <Text style={[styles.modeBtnText, { color: active ? '#fff' : colors.accent }]}>{m === 'auto' ? '自動' : '手動'}</Text>
+                <Text style={[styles.modeBtnText, { color: active ? '#fff' : colors.accent }]}>{labelMap[m]}</Text>
               </TouchableOpacity>
             );
           })}
@@ -103,7 +108,11 @@ export const TTSSettingsScreen: React.FC = () => {
               <Text style={[styles.pauseLabel, { color: colors.secondaryText }]}>文末</Text>
               <TextInput
                 value={String(pauseSentenceMs)}
-                onChangeText={(v) => { const n = parseInt(v, 10); if (!Number.isNaN(n)) setPauseSentenceMs(n); }}
+                onChangeText={(v) => {
+                  const n = parseInt(v, 10);
+                  if (Number.isNaN(n)) return;
+                  setPauseSentenceMs(n >= 0 ? n : 0);
+                }}
                 style={[styles.pauseInput, { borderColor: colors.border, color: colors.text }]}
                 keyboardType='number-pad'
               />
@@ -113,7 +122,11 @@ export const TTSSettingsScreen: React.FC = () => {
               <Text style={[styles.pauseLabel, { color: colors.secondaryText }]}>区切り</Text>
               <TextInput
                 value={String(pauseShortMs)}
-                onChangeText={(v) => { const n = parseInt(v, 10); if (!Number.isNaN(n)) setPauseShortMs(n); }}
+                onChangeText={(v) => {
+                  const n = parseInt(v, 10);
+                  if (Number.isNaN(n)) return;
+                  setPauseShortMs(n >= 0 ? n : 0);
+                }}
                 style={[styles.pauseInput, { borderColor: colors.border, color: colors.text }]}
                 keyboardType='number-pad'
               />
@@ -123,7 +136,11 @@ export const TTSSettingsScreen: React.FC = () => {
               <Text style={[styles.pauseLabel, { color: colors.secondaryText }]}>単語</Text>
               <TextInput
                 value={String(pauseWordMs)}
-                onChangeText={(v) => { const n = parseInt(v, 10); if (!Number.isNaN(n)) setPauseWordMs(n); }}
+                onChangeText={(v) => {
+                  const n = parseInt(v, 10);
+                  if (Number.isNaN(n)) return;
+                  setPauseWordMs(n >= 0 ? n : 0);
+                }}
                 style={[styles.pauseInput, { borderColor: colors.border, color: colors.text }]}
                 keyboardType='number-pad'
               />
@@ -170,7 +187,6 @@ export const TTSSettingsScreen: React.FC = () => {
               maximumTrackTintColor={colors.border}
               accessibilityLabel="ピッチ"
               accessibilityHint="テキスト読み上げのピッチを調整します"
-              accessible={true}
             />
           </View>
         </View>
