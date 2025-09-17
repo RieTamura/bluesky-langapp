@@ -5,6 +5,24 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTTSStore } from '../stores/tts';
 import { useTheme } from '../stores/theme';
 
+export type TtsPreset = Readonly<{
+  key: string;
+  label: string;
+  rate: number;
+  pitch: number;
+  pauseSentenceMs: number;
+  pauseShortMs: number;
+  pauseWordMs: number;
+  chunkMaxWords: number;
+  detectionConfidenceThreshold: number;
+}>;
+
+export const TTS_PRESETS = [
+  { key: 'slow', label: 'ゆっくり', rate: 0.85, pitch: 0.9, pauseSentenceMs: 600, pauseShortMs: 250, pauseWordMs: 120, chunkMaxWords: 12, detectionConfidenceThreshold: 0.5 },
+  { key: 'normal', label: '標準', rate: 1.0, pitch: 1.0, pauseSentenceMs: 400, pauseShortMs: 180, pauseWordMs: 80, chunkMaxWords: 10, detectionConfidenceThreshold: 0.6 },
+  { key: 'fast', label: 'はやい', rate: 1.25, pitch: 1.05, pauseSentenceMs: 250, pauseShortMs: 120, pauseWordMs: 50, chunkMaxWords: 20, detectionConfidenceThreshold: 0.55 }
+] as const as ReadonlyArray<TtsPreset>;
+
 export const TTSSettingsScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const ttsMode = useTTSStore(s => s.mode);
@@ -36,7 +54,7 @@ export const TTSSettingsScreen: React.FC = () => {
   React.useEffect(() => {
     if (ttsMode === 'manual' && uiMode !== 'custom') setUiMode('custom');
     if (ttsMode !== 'manual' && uiMode !== 'simple') setUiMode('simple');
-  }, [ttsMode]);
+  }, [ttsMode, uiMode]);
 
   const safeRate = Number.isFinite(ttsRate) ? ttsRate : 1.0;
   const safePitch = Number.isFinite(ttsPitch) ? ttsPitch : 1.0;
@@ -44,6 +62,18 @@ export const TTSSettingsScreen: React.FC = () => {
   const clampedPitch = Math.min(2.0, Math.max(0.5, safePitch));
   const rateScaled = Math.round(clampedRate * 100);
   const pitchScaled = Math.round(clampedPitch * 100);
+
+  // Local string state for inputs to allow editing and commit on blur
+  const [localPauseSentence, setLocalPauseSentence] = React.useState(String(pauseSentenceMs));
+  const [localPauseShort, setLocalPauseShort] = React.useState(String(pauseShortMs));
+  const [localPauseWord, setLocalPauseWord] = React.useState(String(pauseWordMs));
+  const [localChunkMax, setLocalChunkMax] = React.useState(String(chunkMaxWords));
+
+  // Sync local state when store values change (e.g., preset applied)
+  React.useEffect(() => { setLocalPauseSentence(String(pauseSentenceMs)); }, [pauseSentenceMs]);
+  React.useEffect(() => { setLocalPauseShort(String(pauseShortMs)); }, [pauseShortMs]);
+  React.useEffect(() => { setLocalPauseWord(String(pauseWordMs)); }, [pauseWordMs]);
+  React.useEffect(() => { setLocalChunkMax(String(chunkMaxWords)); }, [chunkMaxWords]);
 
   return (
     <ScrollView
@@ -97,11 +127,7 @@ export const TTSSettingsScreen: React.FC = () => {
           <View style={{ marginTop: 8 }}>
             <Text style={[styles.help, { color: colors.secondaryText }]}>かんたんモード: よく使う設定から選んでボタンで適用します。</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-              {[
-                { key: 'slow', label: 'ゆっくり', rate: 0.85, pitch: 0.9, pauseSentenceMs: 600, pauseShortMs: 250, pauseWordMs: 120, chunkMaxWords: 12, detectionConfidenceThreshold: 0.5 },
-                { key: 'normal', label: '標準', rate: 1.0, pitch: 1.0, pauseSentenceMs: 400, pauseShortMs: 180, pauseWordMs: 80, chunkMaxWords: 10, detectionConfidenceThreshold: 0.6 },
-                { key: 'fast', label: 'はやい', rate: 1.25, pitch: 1.05, pauseSentenceMs: 250, pauseShortMs: 120, pauseWordMs: 50, chunkMaxWords: 20, detectionConfidenceThreshold: 0.55 }
-              ].map(p => (
+              {TTS_PRESETS.map(p => (
                 <TouchableOpacity
                   key={p.key}
                   onPress={() => {
@@ -140,8 +166,11 @@ export const TTSSettingsScreen: React.FC = () => {
             <View style={styles.pauseBox}>
               <Text style={[styles.pauseLabel, { color: colors.secondaryText }]}>文末</Text>
               <TextInput
-                value={String(pauseSentenceMs)}
-                onChangeText={(v) => {
+                value={localPauseSentence}
+                onChangeText={(v) => setLocalPauseSentence(v)}
+                onEndEditing={() => {
+                  const v = localPauseSentence.trim();
+                  if (v === '') { setPauseSentenceMs(0); return; }
                   const n = parseInt(v, 10);
                   if (Number.isNaN(n)) return;
                   setPauseSentenceMs(n >= 0 ? n : 0);
@@ -154,8 +183,11 @@ export const TTSSettingsScreen: React.FC = () => {
             <View style={styles.pauseBox}>
               <Text style={[styles.pauseLabel, { color: colors.secondaryText }]}>区切り</Text>
               <TextInput
-                value={String(pauseShortMs)}
-                onChangeText={(v) => {
+                value={localPauseShort}
+                onChangeText={(v) => setLocalPauseShort(v)}
+                onEndEditing={() => {
+                  const v = localPauseShort.trim();
+                  if (v === '') { setPauseShortMs(0); return; }
                   const n = parseInt(v, 10);
                   if (Number.isNaN(n)) return;
                   setPauseShortMs(n >= 0 ? n : 0);
@@ -168,8 +200,11 @@ export const TTSSettingsScreen: React.FC = () => {
             <View style={styles.pauseBox}>
               <Text style={[styles.pauseLabel, { color: colors.secondaryText }]}>単語</Text>
               <TextInput
-                value={String(pauseWordMs)}
-                onChangeText={(v) => {
+                value={localPauseWord}
+                onChangeText={(v) => setLocalPauseWord(v)}
+                onEndEditing={() => {
+                  const v = localPauseWord.trim();
+                  if (v === '') { setPauseWordMs(0); return; }
                   const n = parseInt(v, 10);
                   if (Number.isNaN(n)) return;
                   setPauseWordMs(n >= 0 ? n : 0);
@@ -182,8 +217,15 @@ export const TTSSettingsScreen: React.FC = () => {
             <View style={styles.pauseBox}>
               <Text style={[styles.pauseLabel, { color: colors.secondaryText }]}>Chunk</Text>
               <TextInput
-                value={String(chunkMaxWords)}
-                onChangeText={(v) => { const n = parseInt(v, 10); if (!Number.isNaN(n)) setChunkMaxWords(Math.max(1, n)); }}
+                value={localChunkMax}
+                onChangeText={(v) => setLocalChunkMax(v)}
+                onEndEditing={() => {
+                  const v = localChunkMax.trim();
+                  if (v === '') { setChunkMaxWords(0); return; }
+                  const n = parseInt(v, 10);
+                  if (Number.isNaN(n)) return;
+                  setChunkMaxWords(Math.max(0, n));
+                }}
                 style={[styles.pauseInput, { borderColor: colors.border, color: colors.text }]}
                 keyboardType='number-pad'
               />
