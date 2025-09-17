@@ -7,6 +7,7 @@ export type RootStackParamList = {
   Quiz: undefined;
   Progress: undefined;
   Settings: undefined;
+  TTSSettings: undefined;
   License: undefined;
 };
 

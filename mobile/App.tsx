@@ -21,6 +21,8 @@ import { MainScreen } from './src/screens/MainScreen';
 import { AppHeader, SettingsMenu, FooterNav } from './src/components';
 import { navigationRef } from './src/navigation/rootNavigation';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { TTSSettingsScreen } from './src/screens/TTSSettingsScreen';
+import { SettingsHeader } from './src/components/SettingsHeader';
 import { LicenseScreen } from './src/screens/LicenseScreen';
 import { loadOfflineQueue } from './src/stores/offlineQueue';
 import { useAIModeStore } from './src/stores/aiMode';
@@ -167,7 +169,8 @@ function AuthedStack() {
           <Stack.Screen name="Words" component={WordsScreen} options={{ header: () => <AppHeader onOpenMenu={() => setMenuOpen(true)} /> }} />
           <Stack.Screen name="Quiz" component={QuizScreen} options={{ header: () => <AppHeader onOpenMenu={() => setMenuOpen(true)} /> }} />
           <Stack.Screen name="Progress" component={ProgressScreen} options={{ header: () => <AppHeader onOpenMenu={() => setMenuOpen(true)} /> }} />
-          <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false, title: '設定' }} />
+          <Stack.Screen name="TTSSettings" component={TTSSettingsScreen} options={{ header: () => <SettingsHeader /> }} />
           <Stack.Screen name="License" component={LicenseScreen} options={{ title: 'ライセンス' }} />
         </Stack.Navigator>
         <FooterNav />

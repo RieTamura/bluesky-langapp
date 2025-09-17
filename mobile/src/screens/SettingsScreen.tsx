@@ -70,140 +70,15 @@ export const SettingsScreen: React.FC = () => {
       {/* Bluesky profile moved to a reusable component and shown on Progress screen */}
       {/* Progress section removed from settings */}
       <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>読み上げ (TTS)</Text>
-
-        <View style={styles.row}>
-          {(['auto', 'auto-multi', 'manual'] as const).map(m => {
-            const active = ttsMode === m;
-            return (
-              <TouchableOpacity
-                key={m}
-                style={[styles.modeBtn, { borderColor: active ? colors.accent : colors.border }, active && { backgroundColor: colors.accent }]}
-                onPress={() => setMode(m)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-              >
-                <Text style={[styles.modeBtnText, { color: active ? '#fff' : colors.accent }]}>{m === 'auto' ? '自動' : '手動'}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {ttsMode === 'manual' && (
-          <View style={{ marginTop: 12 }}>
-            <Text style={[styles.label, { color: colors.text }]}>言語コード (例: en-US, ja-JP)</Text>
-            <TextInput
-              value={manualLanguage}
-              onChangeText={setManualLanguage}
-              placeholder="en-US"
-              style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-              autoCapitalize='none'
-              autoCorrect={false}
-              accessibilityLabel='TTS manual language code'
-            />
-          </View>
-        )}
-
-        {ttsMode === 'auto' && (
-          <Text style={[styles.help, { color: colors.secondaryText }]}>自動: 投稿全体で主要言語を 1 つ判定します。</Text>
-        )}
-        {ttsMode === 'auto-multi' && (
-          <Text style={[styles.help, { color: colors.secondaryText }]}>複数: 単語ごとに文字種を見て最適な言語へ切替えます (精度は簡易)。</Text>
-        )}
-
-        <View style={{ marginTop: 16 }}>
-          <Text style={[styles.label, { color: colors.text }]}>言語判定信頼度しきい値 (0-1)</Text>
-          <TextInput
-            value={String(detectionConfidenceThreshold)}
-            onChangeText={(v) => { const num = parseFloat(v); if (!isNaN(num)) setDetectionConfidenceThreshold(Math.max(0, Math.min(1, num))); }}
-            style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-            keyboardType='decimal-pad'
-            accessibilityLabel='Detection confidence threshold'
-          />
-        </View>
-
-        <View style={{ marginTop: 16 }}>
-          <Text style={[styles.label, { color: colors.text }]}>ポーズ (ms)</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            <View style={styles.pauseBox}>
-              <Text style={[styles.pauseLabel, { color: colors.secondaryText }]}>文末</Text>
-              <TextInput
-                value={String(pauseSentenceMs)}
-                onChangeText={(v) => { const n = parseInt(v, 10); if (!Number.isNaN(n)) setPauseSentenceMs(n); }}
-                style={[styles.pauseInput, { borderColor: colors.border, color: colors.text }]}
-                keyboardType='number-pad'
-              />
-            </View>
-
-            <View style={styles.pauseBox}>
-              <Text style={[styles.pauseLabel, { color: colors.secondaryText }]}>区切り</Text>
-              <TextInput
-                value={String(pauseShortMs)}
-                onChangeText={(v) => { const n = parseInt(v, 10); if (!Number.isNaN(n)) setPauseShortMs(n); }}
-                style={[styles.pauseInput, { borderColor: colors.border, color: colors.text }]}
-                keyboardType='number-pad'
-              />
-            </View>
-
-            <View style={styles.pauseBox}>
-              <Text style={[styles.pauseLabel, { color: colors.secondaryText }]}>単語</Text>
-              <TextInput
-                value={String(pauseWordMs)}
-                onChangeText={(v) => { const n = parseInt(v, 10); if (!Number.isNaN(n)) setPauseWordMs(n); }}
-                style={[styles.pauseInput, { borderColor: colors.border, color: colors.text }]}
-                keyboardType='number-pad'
-              />
-            </View>
-
-            <View style={styles.pauseBox}>
-              <Text style={[styles.pauseLabel, { color: colors.secondaryText }]}>Chunk</Text>
-              <TextInput
-                value={String(chunkMaxWords)}
-                onChangeText={(v) => { const n = parseInt(v, 10); if (!Number.isNaN(n)) setChunkMaxWords(Math.max(1, n)); }}
-                style={[styles.pauseInput, { borderColor: colors.border, color: colors.text }]}
-                keyboardType='number-pad'
-              />
-            </View>
-          </View>
-        </View>
-
-        <View style={{ marginTop: 16 }}>
-          <Text style={[styles.label, { color: colors.text }]}>速度 / ピッチ</Text>
-          <View style={{ marginTop: 8 }}>
-            <Text style={[styles.pauseLabel, { color: colors.secondaryText }]}>Rate: {ttsRate.toFixed(2)}</Text>
-            <Slider
-              minimumValue={10}
-              maximumValue={200}
-              step={5}
-              value={rateScaled}
-              onValueChange={(v) => setTtsRate(v / 100)}
-              minimumTrackTintColor={colors.accent}
-              maximumTrackTintColor={colors.border}
-              accessibilityLabel="読み上げ速度"
-              accessibilityHint="読み上げの再生速度を遅くから速くへ調整します"
-              accessibilityRole="adjustable"
-              accessibilityValue={{ min: 10, max: 200, now: rateScaled, text: `速度 ${clampedRate.toFixed(2)}` }}
-            />
-          </View>
-
-          <View style={{ marginTop: 12 }}>
-            <Text style={[styles.pauseLabel, { color: colors.secondaryText }]}>Pitch: {ttsPitch.toFixed(2)}</Text>
-            <Slider
-              minimumValue={50}
-              maximumValue={200}
-              step={5}
-              value={pitchScaled}
-              onValueChange={(v) => setTtsPitch(v / 100)}
-              minimumTrackTintColor={colors.accent}
-              maximumTrackTintColor={colors.border}
-              accessibilityLabel="ピッチ"
-              accessibilityHint="テキスト読み上げのピッチを調整します"
-              accessibilityRole="adjustable"
-              accessibilityValue={{ min: 50, max: 200, now: pitchScaled, text: `ピッチ ${clampedPitch.toFixed(2)}` }}
-              accessible={true}
-            />
-          </View>
-        </View>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="読み上げ設定を開く"
+          onPress={() => (navigation as any).navigate('TTSSettings')}
+          style={{ paddingVertical: 12 }}
+        >
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>読み上げ (TTS)</Text>
+          <Text style={[styles.help, { color: colors.secondaryText }]}>タップして読み上げの詳細設定を開きます</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Calendar settings */}
