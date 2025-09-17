@@ -1,5 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DeviceEventEmitter } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
@@ -204,6 +206,19 @@ export const SettingsScreen: React.FC = () => {
         </View>
       </View>
 
+      {/* Calendar settings */}
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>カレンダー</Text>
+        <Text style={[styles.help, { color: colors.secondaryText }]}>カレンダーの週開始を選択します。</Text>
+        <View style={{ flexDirection: 'row', marginTop: 8 }}>
+          {(['sunday','monday'] as const).map(v => {
+            const active = false; // will initialize below via state
+            return null;
+          })}
+        </View>
+        <CalendarWeekSetting colors={colors} />
+      </View>
+
       <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
         <Text style={[styles.logout, { color: colors.error || '#e53935' }]} onPress={logout}>ログアウト</Text>
       </View>
@@ -266,3 +281,38 @@ const styles = StyleSheet.create({
   ,avatarSpacing: { marginBottom: 4 }
   
 });
+
+// Calendar week start setting component
+const CALENDAR_KEY = 'calendar_week_start';
+const CalendarWeekSetting: React.FC<{ colors: any }> = ({ colors }) => {
+  const [val, setVal] = React.useState<'sunday'|'monday'>('sunday');
+  React.useEffect(() => {
+    let mounted = true;
+    (async ()=>{
+      try {
+        const raw = await AsyncStorage.getItem(CALENDAR_KEY);
+        if (!mounted) return;
+        if (raw === 'monday') setVal('monday');
+        else setVal('sunday');
+      } catch (e) {}
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  const setAndPersist = async (v: 'sunday'|'monday') => {
+    setVal(v);
+    try { await AsyncStorage.setItem(CALENDAR_KEY, v); } catch (e) { /* ignore */ }
+    try { DeviceEventEmitter.emit('calendar_week_start_changed', v); } catch (e) { /* ignore */ }
+  };
+
+  return (
+    <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+      <TouchableOpacity onPress={() => setAndPersist('sunday')} style={[{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: val === 'sunday' ? colors.accent : colors.border, backgroundColor: val === 'sunday' ? colors.accent : 'transparent' }]}>
+        <Text style={{ color: val === 'sunday' ? '#fff' : colors.text }}>日曜開始</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => setAndPersist('monday')} style={[{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: val === 'monday' ? colors.accent : colors.border, backgroundColor: val === 'monday' ? colors.accent : 'transparent' }]}>
+        <Text style={{ color: val === 'monday' ? '#fff' : colors.text }}>月曜開始</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
