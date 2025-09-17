@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, FlatList, RefreshControl, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, FlatList, RefreshControl, StyleSheet, TouchableOpacity, Linking, Alert } from 'react-native';
 import { useTheme } from '../stores/theme';
 import { useAuth } from '../hooks/useAuth';
 import { useUserPosts, useFollowingFeed, useDiscoverFeed } from '../hooks/usePosts';
@@ -59,12 +59,15 @@ export const SocialScreen: React.FC = () => {
         renderItem={({ item }) => {
           const openBlueskyProfile = (handle?: string) => {
             if (!handle) return;
-            const sanitized = handle.replace(/_/g, '');
-            const url = `https://bsky.app/profile/${sanitized}`;
-            // Using global Linking to open URL
-            // import not needed here as React Native's Linking is globally available via React Native
-            // but to be explicit, we'll require it lazily to avoid top-level import changes
-            try { const { Linking, Alert } = require('react-native'); Linking.openURL(url).catch(() => Alert.alert('リンクを開けませんでした', url)); } catch (e) { /* fallback */ }
+            // Trim whitespace and remove a single leading '@' if present.
+            // Do NOT remove underscores or other valid characters. Preserve domain suffix like .bsky.social.
+            let sanitized = handle.trim();
+            if (sanitized.startsWith('@')) sanitized = sanitized.slice(1);
+            // URL-encode the handle when constructing the profile URL to safely include characters.
+            const encoded = encodeURIComponent(sanitized);
+            const url = `https://bsky.app/profile/${encoded}`;
+            // Open the URL using statically imported Linking and Alert for type-safety and bundler friendliness
+            Linking.openURL(url).catch(() => Alert.alert('リンクを開けませんでした', url));
           };
           return (
             <View style={[styles.card,{ backgroundColor: colors.surface, borderColor: colors.border }] }>

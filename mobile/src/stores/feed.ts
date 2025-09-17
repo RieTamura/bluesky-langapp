@@ -11,6 +11,7 @@ interface FeedState {
 export const useFeedStore = create<FeedState>((set) => ({
   feedTab: 'posts',
   setFeedTab: (feedTab) => set({ feedTab })
-  , showFeedFilters: false,
-  setShowFeedFilters: (showFeedFilters) => set({ showFeedFilters })
+  ,
+  showFeedFilters: false,
+  setShowFeedFilters: (showFeedFilters) => set({ showFeedFilters }),
 }));

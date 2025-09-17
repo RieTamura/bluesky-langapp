@@ -8,7 +8,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useUserPosts, useFollowingFeed, useDiscoverFeed } from '../hooks/usePosts';
 import { useFeedStore } from '../stores/feed';
 import { ListFilter } from '../components/Icons';
-import Svg, { Path, Rect } from 'react-native-svg';
+// Svg imports removed (unused)
 import { SquareArrowOutUpRight } from '../components/Icons';
 import { WordDetailModal } from '../components/WordDetailModal';
 import { useWords } from '../hooks/useWords';
@@ -157,33 +157,7 @@ export const MainScreen: React.FC = () => {
               ))
             )}
       </ScrollView>
-      {/* Feed filters (animated) */}
-      {showFeedFilters && (
-        <Animated.View style={{ position: 'absolute', left: 16, right: 16, top: 88, opacity: feedAnim, transform: [{ translateY: feedAnim.interpolate({ inputRange: [0,1], outputRange: [-8,0] }) }] }} pointerEvents={showFeedFilters ? 'auto' : 'none'}>
-          <View style={{ alignItems: 'flex-end', paddingHorizontal: 16 }}>
-            <View style={{ backgroundColor: c.surface, borderRadius: 10, padding: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border }}>
-              {/* Simple filter options: allow switching tab here as well */}
-              {/* moved limit selector into filter modal */}
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                {[10,20,50,100].map(v => {
-                  const active = limit === v;
-                  return (
-                    <TouchableOpacity
-                      key={v}
-                      style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 12, marginRight: 8, backgroundColor: active ? c.accent : c.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: active ? c.accent : c.border }}
-                      onPress={() => { setLimit(v); setShowFeedFilters(false); }}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: active }}
-                    >
-                      <Text style={{ color: active ? '#fff' : c.text, fontWeight: '600' }}>{v}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          </View>
-        </Animated.View>
-      )}
+      
       {showTopBtn && (
         <TouchableOpacity
           style={[styles.scrollTopButton, { backgroundColor: c.accent }]}

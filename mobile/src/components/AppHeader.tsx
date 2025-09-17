@@ -1,27 +1,25 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Pressable, StyleSheet } from 'react-native';
 // navigation import intentionally omitted for now
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '../stores/theme';
-import { useFeedStore } from '../stores/feed';
 import { Settings as SettingsIcon } from './Icons';
 
 interface Props { onOpenMenu: () => void; showFeedTabs?: boolean; }
 
 // グローバルヘッダー: Feed | 単語集 | ☰
-export const AppHeader: React.FC<Props> = ({ onOpenMenu, showFeedTabs }) => {
+export const AppHeader: React.FC<Props> = ({ onOpenMenu }) => {
   // navigation 参照は今後の拡張用（現状未使用）
   // (unused) const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const c = useThemeColors();
-  const feedTab = useFeedStore(s => s.feedTab);
-  const setFeedTab = useFeedStore(s => s.setFeedTab);
+  // feedTab and setFeedTab intentionally unused in header; kept for future if needed
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 8, backgroundColor: c.background, borderColor: c.border }]}> 
       <View style={{ flex: 1 }} />
       <Pressable onPress={onOpenMenu} style={styles.menuBtn} accessibilityLabel="設定メニューを開く">
-        <SettingsIcon color={c.text} size={22} accessibilityLabel="設定メニューを開く" />
+        <SettingsIcon color={c.text} size={22} />
       </Pressable>
     </View>
   );
