@@ -80,6 +80,7 @@ async function makeCacheKeyAsync(text: string, targetLang: string) {
 }
 
 // synchronous wrapper (not recommended) - returns a placeholder if called synchronously
+/* eslint-disable-next-line @typescript-eslint/no-unused-vars */
 function makeCacheKey(text: string, targetLang: string) {
   // callers should use makeCacheKeyAsync; fallback to a simple encoded key
   const safeLang = /^[A-Za-z0-9_-]+$/.test(targetLang) ? targetLang : encodeURIComponent(targetLang);
@@ -89,6 +90,7 @@ function makeCacheKey(text: string, targetLang: string) {
 
 // Minimal SHA-256 implementation (synchronous) producing hex string.
 // Source: small public-domain implementation adapted for this file. Accepts UTF-8 strings.
+/* eslint-disable-next-line @typescript-eslint/no-unused-vars */
 function sha256Hex(message: string): string {
   // Helper functions
   function rightRotate(value: number, amount: number) {

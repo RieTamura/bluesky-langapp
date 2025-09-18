@@ -8,6 +8,8 @@ import { useAuth } from '../hooks/useAuth';
 import { useUserPosts, useFollowingFeed, useDiscoverFeed } from '../hooks/usePosts';
 import { useFeedStore } from '../stores/feed';
 import { ListFilter } from '../components/Icons';
+import { Languages } from 'lucide-react-native';
+import { translate as translateService } from '../services/translation';
 // Svg imports removed (unused)
 import { SquareArrowOutUpRight } from '../components/Icons';
 import { WordDetailModal } from '../components/WordDetailModal';
@@ -663,8 +665,52 @@ const FeedItem: React.FC<{ item: any; index: number; accentColor: string; second
             )}
             <Text style={[styles.ttsBtnText, { color: speaking ? '#fff' : accentColor, backgroundColor: speaking ? accentColor : 'transparent', borderColor: accentColor }]}>{speaking ? '■' : '▶'}</Text>
           </TouchableOpacity>
+          {/* Translation button: shows Languages icon, taps will fetch translation */}
+          <TranslationButton item={item} accentColor={accentColor} secondaryColor={secondaryColor} />
         </View>
       </View>
+    </View>
+  );
+};
+
+// TranslationButton component: small wrapper to call translate service and display translated text
+const TranslationButton: React.FC<{ item:any; accentColor:string; secondaryColor:string }> = ({ item, accentColor, secondaryColor }) => {
+  const [loading, setLoading] = React.useState(false);
+  const [translated, setTranslated] = React.useState<string | null>(null);
+  const mountedRef = React.useRef(true);
+  React.useEffect(()=> { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+  const onPress = async () => {
+    if (loading) return;
+    if (translated) { setTranslated(null); return; } // toggle off
+    const text = item?.text || '';
+    if (!text.trim()) return;
+    setLoading(true);
+  try {
+  // determine device locale fallback to 'en'
+  let target = 'en';
+  try { target = (Intl as any)?.DateTimeFormat?.resolvedOptions?.().locale?.split('-')[0] || 'en'; } catch (e) { target = 'en'; }
+  const res = await translateService(text, target);
+      if (!mountedRef.current) return;
+      setTranslated(res.text || '');
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[translation] failed', e);
+      if (!mountedRef.current) return;
+      setTranslated('');
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
+  };
+
+  return (
+    <View style={{ alignItems: 'center', marginLeft: 6 }}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="翻訳" onPress={onPress} style={{ padding: 6 }}>
+        <Languages size={18} color={accentColor} />
+      </TouchableOpacity>
+      {loading ? <Text style={{ fontSize: 11, color: secondaryColor }}>翻訳中…</Text> : null}
+      {translated !== null ? (
+        <Text style={{ marginTop: 6, fontSize: 13, color: secondaryColor }}>{translated}</Text>
+      ) : null}
     </View>
   );
 };

@@ -26,6 +26,8 @@ import { SettingsHeader } from './src/components/SettingsHeader';
 import { LicenseScreen } from './src/screens/LicenseScreen';
 import { loadOfflineQueue } from './src/stores/offlineQueue';
 import { useAIModeStore } from './src/stores/aiMode';
+import { setTranslatorProvider } from './src/services/translation';
+import FreeDictionaryProvider from './src/services/translationProviders/freeDictionary';
 
 const Stack = createNativeStackNavigator();
 // Hoist a separate navigator for onboarding so it's not recreated on every render
@@ -44,6 +46,10 @@ export default function App() {
   }, [hydrate]);
   // Restore offline queue from storage at startup
   useEffect(()=> { loadOfflineQueue().catch(() => {}); }, []);
+  // Register fallback translator provider (Free Dictionary) at startup
+  useEffect(()=> {
+    try { setTranslatorProvider(FreeDictionaryProvider); } catch (e) { /* ignore */ }
+  }, []);
   // Hydrate AI mode from stored OpenAI key
   useEffect(()=> {
     let mounted = true;
