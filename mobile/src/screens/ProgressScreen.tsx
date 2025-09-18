@@ -56,7 +56,9 @@ export const ProgressScreen: React.FC = () => {
           if (!Number.isNaN(parsed) && allowed.includes(parsed)) setDays(parsed);
         }
       } catch (e) {
-        // ignore
+        // Intentionally ignore errors when reading persisted progress_days.
+        // Assign to void to satisfy ESLint `no-empty` rule and make the intention explicit.
+        void e;
       }
     })();
     return () => { mounted = false; };
@@ -71,7 +73,10 @@ export const ProgressScreen: React.FC = () => {
         if (!mounted) return;
         if (raw === 'monday') setWeekStart('monday');
         else setWeekStart('sunday');
-      } catch (e) { }
+      } catch (e) {
+        // Intentionally ignore errors reading calendar_week_start preference.
+        void e;
+      }
     })();
     return () => { mounted = false; };
   }, []);
@@ -85,7 +90,10 @@ export const ProgressScreen: React.FC = () => {
           const raw = await AsyncStorage.getItem('calendar_week_start');
           if (!active) return;
           if (raw === 'monday') setWeekStart('monday'); else setWeekStart('sunday');
-        } catch (e) { }
+        } catch (e) {
+          // Intentionally ignore; explicit no-op to satisfy linter
+          void e;
+        }
       })();
       // Listen for explicit events from Settings so changes reflect while screen is mounted
       const sub = DeviceEventEmitter.addListener('calendar_week_start_changed', (v: any) => {
@@ -94,7 +102,7 @@ export const ProgressScreen: React.FC = () => {
           if (v === 'monday') setWeekStart('monday'); else setWeekStart('sunday');
         } catch (e) { /* ignore */ }
       });
-      return () => { active = false; try { sub.remove(); } catch (e) { /* ignore */ } };
+    return () => { active = false; try { sub.remove(); } catch (e) { /* ignore (intentionally empty) */ } };
     }, [])
   );
 
@@ -103,7 +111,7 @@ export const ProgressScreen: React.FC = () => {
   React.useEffect(() => {
     // Clear any existing timer then start a new one
     if (saveTimerRef.current != null) {
-      try { clearTimeout(saveTimerRef.current); } catch (e) { /* ignore */ }
+      try { clearTimeout(saveTimerRef.current); } catch (e) { void e; }
       saveTimerRef.current = null;
     }
     saveTimerRef.current = setTimeout(() => {
@@ -113,7 +121,7 @@ export const ProgressScreen: React.FC = () => {
 
     return () => {
       if (saveTimerRef.current != null) {
-        try { clearTimeout(saveTimerRef.current); } catch (e) { /* ignore */ }
+        try { clearTimeout(saveTimerRef.current); } catch (e) { void e; }
         saveTimerRef.current = null;
       }
     };
@@ -146,7 +154,7 @@ export const ProgressScreen: React.FC = () => {
         await Share.share({ url: uri });
       }
     } catch (e) {
-      // ignore share errors
+      // ignore share errors (intentionally empty)
     }
   };
 
@@ -155,7 +163,7 @@ export const ProgressScreen: React.FC = () => {
 
   const stats: any = data?.data || (data as any);
 
-  const schedule = stats?.reviewSchedule || {};
+  // reviewSchedule is available via stats when needed
 
   // The detailed list below the chart has been removed per request.
 

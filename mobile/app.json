@@ -13,7 +13,15 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "userInterfaceStyle": "automatic"
+      "userInterfaceStyle": "automatic",
+      "bundleIdentifier": "com.rietamura.bluelang",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsLocalNetworking": true
+        },
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,10 +31,14 @@
     },
     "web": {},
     "extra": {
-      "apiUrl": "http://192.168.11.27:3000"
+      "apiUrl": "http://192.168.11.27:3000",
+      "eas": {
+        "projectId": "0bb8f270-fb24-4e9a-aa12-fcccc40bdc4c"
+      }
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-font"
     ]
   }
 }

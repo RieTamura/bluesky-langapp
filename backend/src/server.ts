@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import os from 'os';
 import dataRoutes from './routes/data.js';
 import gitDataRoutes from './routes/gitData.js';
 import authRoutes from './routes/auth.js';
@@ -39,7 +40,15 @@ app.use(express.urlencoded({ extended: true }));
 
 // Debug middleware
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  const line = `${new Date().toISOString()} - ${req.method} ${req.url}\n`;
+  console.log(line.trim());
+  try {
+    const fs = require('fs');
+    const logPath = path.join(__dirname, '../../request.log');
+    fs.appendFile(logPath, line, (err: any) => { if (err) console.error('Failed to write request log', err); });
+  } catch (e) {
+    // ignore file logging errors
+  }
   next();
 });
 
@@ -153,9 +162,23 @@ app.get('*', (req, res) => {
 });
 
 async function start(port: number, attempt = 0) {
-  const server = app.listen(port, () => {
+  // Bind to all interfaces so LAN devices can reach the server when testing from mobile devices
+  const server = app.listen(port, '0.0.0.0', () => {
+  const ifaces = os.networkInterfaces();
+    let lanIp = 'localhost';
+    for (const name of Object.keys(ifaces)) {
+      for (const iface of ifaces[name] || []) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          lanIp = iface.address;
+          break;
+        }
+      }
+      if (lanIp !== 'localhost') break;
+    }
+
     console.log(`🚀 Bluesky LangApp API Server running at http://localhost:${port}`);
-    console.log(`📊 Health check available at http://localhost:${port}/health`);
+    console.log(`� LAN address: http://${lanIp}:${port}`);
+    console.log(`�📊 Health check available at http://${lanIp}:${port}/health`);
 
     // Run async initialization in an IIFE so the listen callback remains synchronous
     (async () => {
