@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import { promises as fs } from 'fs';
 import { fileURLToPath } from 'url';
 import os from 'os';
 import dataRoutes from './routes/data.js';
@@ -17,6 +18,9 @@ import { atProtocolService } from './services/atProtocolService.js';
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// File path for request logging (used by debug middleware)
+const LOG_PATH = path.join(__dirname, '../../request.log');
 
 // Load environment variables
 dotenv.config();
@@ -36,19 +40,18 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// ファイルの先頭でログパスを定義 (defined above)
 
 // Debug middleware
 app.use((req, res, next) => {
   const line = `${new Date().toISOString()} - ${req.method} ${req.url}\n`;
   console.log(line.trim());
-  try {
-    const fs = require('fs');
-    const logPath = path.join(__dirname, '../../request.log');
-    fs.appendFile(logPath, line, (err: any) => { if (err) console.error('Failed to write request log', err); });
-  } catch (e) {
-    // ignore file logging errors
-  }
+  // Fire-and-forget async logging
+  fs.appendFile(LOG_PATH, line).catch(err => {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Failed to write request log:', err);
+    }
+  });
   next();
 });
 
@@ -162,8 +165,35 @@ app.get('*', (req, res) => {
 });
 
 async function start(port: number, attempt = 0) {
-  // Bind to all interfaces so LAN devices can reach the server when testing from mobile devices
-  const server = app.listen(port, '0.0.0.0', () => {
+  // Determine bind address from environment with a safe default.
+  // For security, bind to localhost in production unless an explicit override is provided.
+  const envBind = (process.env.BIND_ADDRESS || process.env.HOST || '').trim();
+  const DEFAULT_BIND = '127.0.0.1';
+  const bindAllOverride = String(process.env.BIND_ALL_OVERRIDE || process.env.ALLOW_BIND_ALL || '').toLowerCase() === 'true';
+
+  let bindAddress = envBind || DEFAULT_BIND;
+
+  // If user requested bind-all via explicit value
+  if (bindAddress === '0.0.0.0') {
+    if (process.env.NODE_ENV === 'production' && !bindAllOverride) {
+      // Fail fast in production unless override flag is set
+      console.error(`Refusing to bind to 0.0.0.0 in production. Set BIND_ALL_OVERRIDE=true to override (not recommended).`);
+      process.exit(1);
+    }
+    // Allow 0.0.0.0 in non-production or when override present
+  }
+
+  // Validate the bindAddress is a plausible IPv4/IPv6 or hostname
+  try {
+    // Basic validation: non-empty and not contain control characters
+    if (!bindAddress || /[\0-\x1F]/.test(bindAddress)) throw new Error('Invalid bind address');
+  } catch (err) {
+    console.error('Invalid BIND_ADDRESS/HOST provided:', err);
+    process.exit(1);
+  }
+
+  // Bind server to the selected address
+  const server = app.listen(port, bindAddress, () => {
   const ifaces = os.networkInterfaces();
     let lanIp = 'localhost';
     for (const name of Object.keys(ifaces)) {
@@ -177,6 +207,10 @@ async function start(port: number, attempt = 0) {
     }
 
     console.log(`🚀 Bluesky LangApp API Server running at http://localhost:${port}`);
+    console.log(`Bound to address: ${bindAddress}`);
+    if (bindAddress === '0.0.0.0') {
+      console.warn('Server is bound to 0.0.0.0 (all interfaces). This is unsafe in production unless explicitly allowed.');
+    }
     console.log(`� LAN address: http://${lanIp}:${port}`);
     console.log(`�📊 Health check available at http://${lanIp}:${port}/health`);
 

@@ -17,8 +17,16 @@
       "bundleIdentifier": "com.rietamura.bluelang",
       "infoPlist": {
         "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true,
-          "NSAllowsLocalNetworking": true
+          "// NOTE": "NSAllowsArbitraryLoads is disabled by default for release builds. Use NSExceptionDomains for specific HTTP hosts.",
+          "NSAllowsArbitraryLoads": false,
+          "NSAllowsLocalNetworking": true,
+          "NSExceptionDomains": {
+            "192.168.11.27": {
+              "NSIncludesSubdomains": false,
+              "NSTemporaryExceptionAllowsInsecureHTTPLoads": true,
+              "NSTemporaryExceptionMinimumTLSVersion": "TLSv1.0"
+            }
+          }
         },
         "ITSAppUsesNonExemptEncryption": false
       }

@@ -12,6 +12,7 @@
       "react",
       "react-native"
     ],
+    "typeRoots": ["./src/types", "./node_modules/@types"],
     "baseUrl": "./src",
     "paths": {
       "@/*": [
