@@ -11,3 +11,7 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Ignore mobile README files that should not be pushed to GitHub
+README_EAS_SETUP.md
+README_PHASE1.md
