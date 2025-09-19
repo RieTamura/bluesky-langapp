@@ -1,5 +1,9 @@
 // Mock expo-secure-store before importing the module under test so Jest doesn't try to
 // parse ESM-only files from node_modules during module evaluation.
+/// <reference types="jest" />
+// Allow use of the global test environment helper in this file
+declare const global: any;
+
 jest.mock('expo-secure-store', () => ({
   setItemAsync: jest.fn(),
   getItemAsync: jest.fn(),

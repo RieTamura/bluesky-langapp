@@ -10,6 +10,7 @@ import { useFeedStore } from '../stores/feed';
 import { ListFilter } from '../components/Icons';
 import { Languages } from 'lucide-react-native';
 import { translate as translateService } from '../services/translation';
+import { getDeviceLocale } from '../utils/deviceLocale';
 // Svg imports removed (unused)
 import { SquareArrowOutUpRight } from '../components/Icons';
 import { WordDetailModal } from '../components/WordDetailModal';
@@ -685,11 +686,10 @@ const TranslationButton: React.FC<{ item:any; accentColor:string; secondaryColor
     const text = item?.text || '';
     if (!text.trim()) return;
     setLoading(true);
-  try {
-  // determine device locale fallback to 'en'
-  let target = 'en';
-  try { target = (Intl as any)?.DateTimeFormat?.resolvedOptions?.().locale?.split('-')[0] || 'en'; } catch (e) { target = 'en'; }
-  const res = await translateService(text, target);
+    try {
+      // determine device locale with safe fallback. Extract primary subtag (e.g. 'en' from 'en-US').
+      const target = getDeviceLocale();
+      const res = await translateService(text, target);
       if (!mountedRef.current) return;
       setTranslated(res.text || '');
     } catch (e) {

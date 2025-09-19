@@ -11,15 +11,15 @@ describe('TranslateButton', () => {
   translation.translate.mockResolvedValue({ text: '[mock ja] Hello', detectedLanguage: 'en' });
 
   const { getByText, queryByText } = render(<TranslateButton text="Hello" targetLang="ja" />);
-  const btn = getByText('翻訳');
-  expect(btn).toBeTruthy();
+  const { getByText: g, queryByText: q } = { getByText, queryByText };
+  // press the initial button
+  expect(g('翻訳')).toBeTruthy();
+  fireEvent.press(g('翻訳'));
 
-  fireEvent.press(btn);
+  await waitFor(() => expect(g('[mock ja] Hello')).toBeTruthy());
 
-  await waitFor(() => expect(getByText('[mock ja] Hello')).toBeTruthy());
-
-  // press again to revert
-  fireEvent.press(btn);
-  await waitFor(() => expect(queryByText('[mock ja] Hello')).toBeNull());
+  // press again to revert: re-query the button by its updated label to avoid using a stale node
+  fireEvent.press(g('原文に戻す'));
+  await waitFor(() => expect(q('[mock ja] Hello')).toBeNull());
   });
 });
