@@ -3,24 +3,185 @@ import { LearningProgressPost } from '../services/atProtocolService.js';
 import type { ApiResponse } from '../types/data.js';
 
 import { atProtocolService } from '../services/atProtocolService.js';
+import { importJWK, generateKeyPair, exportJWK, SignJWT } from 'jose';
 
 /**
  * Initialize AT Protocol service with Bluesky credentials
  */
 export async function initializeATProtocol(req: Request, res: Response): Promise<void> {
   try {
-    const { identifier, password } = req.body;
-    
-    if (!identifier || !password) {
-      const response: ApiResponse = {
-        success: false,
-        error: 'Bluesky identifier and password are required'
-      };
-      res.status(400).json(response);
-      return;
-    }
+    const { identifier, password, oauth } = req.body;
 
-    await atProtocolService.initialize({ identifier, password });
+    // Support two modes: credentials or oauth code exchange
+    if (oauth && oauth.code) {
+      // Exchange OAuth code for token with provider token_endpoint (bsky.social)
+      try {
+        const tokenEndpoint = 'https://bsky.social/oauth/token';
+
+        // Build form data per OAuth2 spec (authorization_code grant with PKCE)
+        const params = new URLSearchParams();
+        params.append('grant_type', 'authorization_code');
+        params.append('code', oauth.code);
+        if (oauth.code_verifier) params.append('code_verifier', oauth.code_verifier);
+        if (oauth.redirect_uri) params.append('redirect_uri', oauth.redirect_uri);
+        // Optionally include client_id if provided by client (e.g., public client metadata URL)
+        if (oauth.client_id) params.append('client_id', oauth.client_id);
+
+        // Create a DPoP proof header (provider requires DPoP for dpop_bound_access_tokens)
+        // Generate ephemeral ES256 key pair and include the public JWK in the DPoP JWT header
+        const { publicKey, privateKey } = await generateKeyPair('ES256');
+        const jwk = await exportJWK(publicKey) as any;
+        // Ensure 'use' and 'alg' are present
+        jwk.alg = jwk.alg || 'ES256';
+        jwk.use = jwk.use || 'sig';
+
+        // Build DPoP JWT: htu (HTTP URI), htm (HTTP method), iat, jti
+        const dpopPayload = {
+          htu: tokenEndpoint,
+          htm: 'POST',
+          iat: Math.floor(Date.now() / 1000),
+        } as any;
+
+        const dpopJti = crypto.randomUUID ? crypto.randomUUID() : (Math.random().toString(36).slice(2) + Date.now().toString(36));
+        (dpopPayload as any).jti = dpopJti;
+
+        const dpopJwt = await new SignJWT(dpopPayload)
+          .setProtectedHeader({ alg: 'ES256', typ: 'dpop+jwt', jwk })
+          .sign(privateKey as any);
+
+        let tokenRes = await fetch(tokenEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'DPoP': dpopJwt },
+          body: params.toString()
+        });
+
+        // If the server requires a nonce in the DPoP proof, extract it from headers and retry
+        if (!tokenRes.ok) {
+          const text = await tokenRes.text();
+          let parsedBody: any = null;
+          try { parsedBody = JSON.parse(text); } catch (_) { parsedBody = null; }
+          const wantsNonce = parsedBody && parsedBody.error === 'use_dpop_nonce';
+          if (wantsNonce) {
+            // Try to extract nonce from WWW-Authenticate or DPoP-Nonce header
+            const www = tokenRes.headers.get('www-authenticate') || tokenRes.headers.get('WWW-Authenticate') || '';
+            let nonceMatch = www.match(/nonce="?([^"]+)"?/i);
+            let nonceVal: string | null = null;
+            if (nonceMatch && nonceMatch[1]) nonceVal = nonceMatch[1];
+            if (!nonceVal) {
+              const dpopNonce = tokenRes.headers.get('dpop-nonce') || tokenRes.headers.get('DPoP-Nonce');
+              if (dpopNonce) nonceVal = dpopNonce;
+            }
+
+            if (nonceVal) {
+              // rebuild DPoP JWT including nonce claim
+              const dpopPayloadWithNonce = {
+                htu: tokenEndpoint,
+                htm: 'POST',
+                iat: Math.floor(Date.now() / 1000),
+                jti: dpopJti,
+                nonce: nonceVal
+              } as any;
+
+              const dpopJwtWithNonce = await new SignJWT(dpopPayloadWithNonce)
+                .setProtectedHeader({ alg: 'ES256', typ: 'dpop+jwt', jwk })
+                .sign(privateKey as any);
+
+              tokenRes = await fetch(tokenEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'DPoP': dpopJwtWithNonce },
+                body: params.toString()
+              });
+            }
+          }
+        }
+
+        if (!tokenRes.ok) {
+          const bodyText = await tokenRes.text();
+          console.error('Token endpoint error:', tokenRes.status, bodyText);
+          throw new Error(`Token endpoint responded ${tokenRes.status}`);
+        }
+
+        const tokenJson = await tokenRes.json();
+        if (!tokenJson) throw new Error('No token returned from provider');
+        // Debug: inspect token response for scopes and keys
+        try {
+          const scopeDebug = tokenJson.scope || tokenJson.scopes || tokenJson.scopeString || '';
+          console.log('Token response keys:', Object.keys(tokenJson));
+          console.log('Token scopes (raw):', scopeDebug);
+        } catch (_) { /* ignore */ }
+
+        // Map common OAuth token fields to the session shape expected by our ATProtocol service
+        const sessionForAtp: any = {};
+        // Access token: provider may return 'access_token' or 'accessJwt'
+        sessionForAtp.accessJwt = tokenJson.accessJwt || tokenJson.access_token || tokenJson.accessToken;
+        // Refresh token mapping
+        sessionForAtp.refreshJwt = tokenJson.refreshJwt || tokenJson.refresh_token || tokenJson.refreshToken;
+        // DID / handle if provided by provider
+        if (tokenJson.did) sessionForAtp.did = tokenJson.did;
+        if (tokenJson.handle) sessionForAtp.handle = tokenJson.handle;
+        // Also include raw tokenJson for debugging/compatibility if needed
+        sessionForAtp.raw = tokenJson;
+        // If the returned token does not include the required atproto scope, fail fast with a clear error
+        const returnedScopes = (tokenJson.scope || tokenJson.scopes || tokenJson.scopeString || '').toString();
+        if (!/\batproto\b/.test(returnedScopes)) {
+          console.error('Received token does not include required "atproto" scope:', returnedScopes);
+          const response: ApiResponse = { success: false, error: 'Token missing required scope: atproto', data: { scopes: returnedScopes } };
+          res.status(400).json(response);
+          return;
+        }
+        // Debug: log that we received a token (do not log secrets in production)
+        console.log('Received token from provider, mapping to session:', {
+          hasAccess: !!sessionForAtp.accessJwt,
+          hasRefresh: !!sessionForAtp.refreshJwt,
+          hasDid: !!sessionForAtp.did,
+          hasHandle: !!sessionForAtp.handle
+        });
+
+        // Pass the session object to the ATProtocol service to initialize
+        // If the service supports resuming with a session object, pass it through.
+        try {
+          // Allow initializeWithOAuth to optionally return the internal BlueskyService
+          const maybeService: any = await atProtocolService.initializeWithOAuth({ session: sessionForAtp, returnService: true } as any);
+
+          // If the service returned an actual BlueskyService instance, create a server session
+          if (maybeService && typeof maybeService === 'object') {
+            // Lazy import to avoid circular types
+            const { createSessionFromService } = await import('../controllers/authController.js');
+            const identifier = sessionForAtp?.handle || sessionForAtp?.did || tokenJson?.handle || tokenJson?.did || 'bluesky_user';
+            const sessionId = createSessionFromService(maybeService as any, identifier);
+            const response: ApiResponse = { success: true, data: { sessionId } };
+            res.json(response);
+            return;
+          }
+
+          // Fallback: if initializeWithOAuth did not return a service, still respond success
+          const response: ApiResponse = { success: true, message: 'Initialized with OAuth' };
+          res.json(response);
+          return;
+        } catch (innerErr) {
+          console.error('Failed to initialize ATProtocol service with OAuth session:', innerErr);
+          const response: ApiResponse = { success: false, error: 'Failed to initialize session after token exchange' };
+          res.status(500).json(response);
+          return;
+        }
+      } catch (e) {
+        console.error('OAuth code exchange failed:', e);
+        const response: ApiResponse = { success: false, error: 'OAuth code exchange failed' };
+        res.status(500).json(response);
+        return;
+      }
+    } else {
+      if (!identifier || !password) {
+        const response: ApiResponse = {
+          success: false,
+          error: 'Bluesky identifier and password are required'
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      await atProtocolService.initialize({ identifier, password });
+    }
     
     const response: ApiResponse = {
       success: true,

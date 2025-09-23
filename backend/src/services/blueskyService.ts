@@ -30,9 +30,9 @@ export class BlueskyService {
   async login(credentials: BlueskyCredentials): Promise<void> {
     try {
       console.log('BlueskyService.login called for:', credentials.identifier);
-      await this.agent.login({
+      await (this.agent as any).login({
         identifier: credentials.identifier,
-        password: credentials.password
+        password: credentials.password,
       });
       this.isAuthenticated = true;
       console.log('BlueskyService authentication successful');
@@ -44,49 +44,112 @@ export class BlueskyService {
   }
 
   /**
-   * Check if the service is authenticated
+   * Initialize agent session using an OAuth-issued access token (accessJwt).
+   * This method is best-effort because different @atproto/api versions expose
+   * different session shapes. We attempt a few strategies and verify by
+   * performing a small authenticated call.
    */
+  async loginWithOAuthToken(token: string): Promise<void> {
+    try {
+      // Attempt to extract a DID from the token payload (if present)
+      let did: string | undefined;
+      try {
+        const parts = token.split('.');
+        if (parts.length >= 2) {
+          const payload = parts[1];
+          const b64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+          const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+          const decoded = Buffer.from(padded, 'base64').toString('utf8');
+          const obj = JSON.parse(decoded);
+          did = obj?.did || obj?.sub || obj?.identity;
+        }
+      } catch (e) {
+        // ignore parsing errors
+      }
+
+      // Strategy 1: set agent.session directly (works on some SDK versions)
+      try {
+        // @ts-ignore
+        (this.agent as any).session = { accessJwt: token, did };
+        try {
+          if (did) {
+            await (this.agent as any).getProfile({ actor: did });
+          } else {
+            await (this.agent as any).getTimeline({ limit: 1 });
+          }
+          this.isAuthenticated = true;
+          console.log('BlueskyService: session restored via setting agent.session');
+          return;
+        } catch (e) {
+          console.warn('BlueskyService: verification after setting agent.session failed', e);
+        }
+      } catch (e) {
+        console.warn('BlueskyService: failed to set agent.session directly', e);
+      }
+
+      // Strategy 2: use agent.login({ accessJwt }) if exposed
+      try {
+        // @ts-ignore
+        await (this.agent as any).login({ accessJwt: token });
+        if (did) await (this.agent as any).getProfile({ actor: did });
+        this.isAuthenticated = true;
+        console.log('BlueskyService: session restored via agent.login(accessJwt)');
+        return;
+      } catch (e) {
+        console.warn('BlueskyService: agent.login(accessJwt) failed', e);
+      }
+
+      throw new Error('Unable to initialize Bluesky session from OAuth token');
+    } catch (error) {
+      console.error('BlueskyService.loginWithOAuthToken failed:', error);
+      this.isAuthenticated = false;
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  }
+
+  /**
+   * Resume a full AtpAgent session object produced by the provider or AtpAgent
+   * session management APIs. This will call the underlying agent.resumeSession
+   * to validate and hydrate the agent.
+   */
+  async resumeWithSession(session: any): Promise<void> {
+    try {
+      // AtpAgent exposes resumeSession(session) which will validate the session
+      await (this.agent as any).resumeSession(session);
+      this.isAuthenticated = true;
+      console.log('BlueskyService: resumed session via agent.resumeSession');
+    } catch (e) {
+      this.isAuthenticated = false;
+      console.error('BlueskyService.resumeWithSession failed:', e);
+      throw e;
+    }
+  }
+
+  /** Check if the service is authenticated */
   isLoggedIn(): boolean {
     return this.isAuthenticated;
   }
 
-  /**
-   * Get user's own posts from their timeline
-   */
+  /** Get user's own posts from their author feed */
   async getUserPosts(identifier: string, limit: number = 10): Promise<BlueskyPost[]> {
     console.log('BlueskyService.getUserPosts called:', { identifier, limit, isAuthenticated: this.isAuthenticated });
-    
-    if (!this.isAuthenticated) {
-      throw new Error('Not authenticated. Please login first.');
-    }
+    if (!this.isAuthenticated) throw new Error('Not authenticated. Please login first.');
 
     try {
-      console.log('Calling agent.getAuthorFeed...');
-      const timeline = await this.agent.getAuthorFeed({
-        actor: identifier,
-        limit: limit
-      });
-
-      console.log('Raw timeline response:', {
-        feedLength: timeline.data.feed.length,
-        cursor: timeline.data.cursor
-      });
-
-      const posts = timeline.data.feed.map(item => {
+      const timeline = await (this.agent as any).getAuthorFeed({ actor: identifier, limit });
+      const posts = timeline.data.feed.map((item: any) => {
         const record = item.post.record as any;
         return {
           id: item.post.uri,
-          text: record.text || '',
-          createdAt: record.createdAt || item.post.indexedAt,
+          text: record?.text || '',
+          createdAt: record?.createdAt || item.post.indexedAt,
           author: {
             did: item.post.author.did,
             handle: item.post.author.handle,
-            displayName: item.post.author.displayName
-          }
+            displayName: item.post.author.displayName,
+          },
         };
       });
-
-      console.log('Processed posts:', posts.length);
       return posts;
     } catch (error) {
       console.error('BlueskyService.getUserPosts error:', error);
@@ -94,42 +157,26 @@ export class BlueskyService {
     }
   }
 
-  /**
-   * Get posts from the user's following timeline (home feed)
-   */
+  /** Get posts from the user's following timeline (home feed) */
   async getFollowingFeed(limit: number = 10): Promise<BlueskyPost[]> {
     console.log('BlueskyService.getFollowingFeed called:', { limit, isAuthenticated: this.isAuthenticated });
-    
-    if (!this.isAuthenticated) {
-      throw new Error('Not authenticated. Please login first.');
-    }
+    if (!this.isAuthenticated) throw new Error('Not authenticated. Please login first.');
 
     try {
-      console.log('Calling agent.getTimeline...');
-      const timeline = await this.agent.getTimeline({
-        limit: limit
-      });
-
-      console.log('Raw timeline response:', {
-        feedLength: timeline.data.feed.length,
-        cursor: timeline.data.cursor
-      });
-
-      const posts = timeline.data.feed.map(item => {
+      const timeline = await (this.agent as any).getTimeline({ limit });
+      const posts = timeline.data.feed.map((item: any) => {
         const record = item.post.record as any;
         return {
           id: item.post.uri,
-          text: record.text || '',
-          createdAt: record.createdAt || item.post.indexedAt,
+          text: record?.text || '',
+          createdAt: record?.createdAt || item.post.indexedAt,
           author: {
             did: item.post.author.did,
             handle: item.post.author.handle,
-            displayName: item.post.author.displayName
-          }
+            displayName: item.post.author.displayName,
+          },
         };
       });
-
-      console.log('Processed following posts:', posts.length);
       return posts;
     } catch (error) {
       console.error('BlueskyService.getFollowingFeed error:', error);
@@ -137,38 +184,26 @@ export class BlueskyService {
     }
   }
 
-  /**
-   * Get "discover" (popular) feed posts
-   * Bluesky currently exposes a popular feed endpoint. We map it into the same
-   * simplified BlueskyPost shape used elsewhere.
-   */
+  /** Get "discover" (popular) feed posts */
   async getDiscoverFeed(limit: number = 10): Promise<BlueskyPost[]> {
     console.log('BlueskyService.getDiscoverFeed called:', { limit, isAuthenticated: this.isAuthenticated });
-    if (!this.isAuthenticated) {
-      throw new Error('Not authenticated. Please login first.');
-    }
+    if (!this.isAuthenticated) throw new Error('Not authenticated. Please login first.');
+
     try {
-      // The SDK exposes nested namespace access for less common endpoints
-      // Using (this.agent as any) to avoid adding types for experimental endpoints
       const response = await (this.agent as any).app.bsky.feed.getPopular({ limit });
-      console.log('Raw discover(popular) response:', {
-        feedLength: response.data.feed.length,
-        cursor: response.data.cursor
-      });
       const posts: BlueskyPost[] = response.data.feed.map((item: any) => {
         const record = item.post.record as any;
         return {
           id: item.post.uri,
-            text: record?.text || '',
-            createdAt: record?.createdAt || item.post.indexedAt,
-            author: {
-              did: item.post.author.did,
-              handle: item.post.author.handle,
-              displayName: item.post.author.displayName
-            }
+          text: record?.text || '',
+          createdAt: record?.createdAt || item.post.indexedAt,
+          author: {
+            did: item.post.author.did,
+            handle: item.post.author.handle,
+            displayName: item.post.author.displayName,
+          },
         };
       });
-      console.log('Processed discover posts:', posts.length);
       return posts;
     } catch (error) {
       console.error('BlueskyService.getDiscoverFeed error:', error);
@@ -176,36 +211,20 @@ export class BlueskyService {
     }
   }
 
-  /**
-   * Create a new post on Bluesky
-   */
+  /** Create a new post on Bluesky */
   async createPost(text: string): Promise<{ uri: string; cid: string }> {
-    if (!this.isAuthenticated) {
-      throw new Error('Not authenticated. Please login first.');
-    }
+    if (!this.isAuthenticated) throw new Error('Not authenticated. Please login first.');
 
     try {
-      console.log('Creating Bluesky post:', text.substring(0, 50) + '...');
-      
-      const response = await this.agent.post({
-        text: text,
-        createdAt: new Date().toISOString()
-      });
-
-      console.log('Post created successfully:', response.uri);
-      return {
-        uri: response.uri,
-        cid: response.cid
-      };
+      const response = await (this.agent as any).post({ text, createdAt: new Date().toISOString() });
+      return { uri: response.uri, cid: response.cid };
     } catch (error) {
       console.error('Failed to create post:', error);
       throw new Error(`Failed to create post: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
-  /**
-   * Get current user profile
-   */
+  /** Get current user profile */
   async getProfile(): Promise<{
     did: string;
     handle: string;
@@ -216,15 +235,11 @@ export class BlueskyService {
     followsCount?: number;
     postsCount?: number;
   }> {
-    if (!this.isAuthenticated) {
-      throw new Error('Not authenticated. Please login first.');
-    }
+    if (!this.isAuthenticated) throw new Error('Not authenticated. Please login first.');
 
     try {
-      const profile = await this.agent.getProfile({
-        actor: this.agent.session?.did || ''
-      });
-
+      const actor = (this.agent as any).session?.did || '';
+      const profile = await (this.agent as any).getProfile({ actor });
       return {
         did: profile.data.did,
         handle: profile.data.handle,
@@ -233,7 +248,7 @@ export class BlueskyService {
         avatar: profile.data.avatar,
         followersCount: profile.data.followersCount,
         followsCount: profile.data.followsCount,
-        postsCount: profile.data.postsCount
+        postsCount: profile.data.postsCount,
       };
     } catch (error) {
       console.error('Failed to get profile:', error);
@@ -241,11 +256,7 @@ export class BlueskyService {
     }
   }
 
-  /**
-   * Get profile for an arbitrary actor (handle or DID).
-   * This does not require the service to be authenticated and can be used
-   * to look up public profiles.
-   */
+  /** Get profile for an arbitrary actor (handle or DID). This can be public. */
   async getProfileByActor(actor: string): Promise<{
     did: string;
     handle: string;
@@ -256,97 +267,42 @@ export class BlueskyService {
     followsCount?: number;
     postsCount?: number;
   }> {
-    // Normalize actor: strip leading @ if present
-    const normalize = (a: string) => a.startsWith('@') ? a.slice(1) : a;
-    let tryActors = [normalize(actor)];
-
-    // If actor looks like a short handle without a dot, try appending the common host
-    if (!actor.includes('.') && !actor.startsWith('did:')) {
-      tryActors.push(`${normalize(actor)}.bsky.social`);
-    }
-
-    // Create a public (unauthenticated) agent to prefer public lookups first
-    const serviceUrl = process.env.BLUESKY_SERVICE_URL || 'https://bsky.social';
-    const publicAgent = new AtpAgent({ service: serviceUrl });
-
-    let lastErr: any = null;
-
-    for (const a of tryActors) {
-      // 1) Try public, unauthenticated lookup first
-      try {
-        console.log('BlueskyService.getProfileByActor (public) trying actor=', a);
-        const profile = await publicAgent.getProfile({ actor: a });
-        return {
-          did: profile.data.did,
-          handle: profile.data.handle,
-          displayName: profile.data.displayName,
-          description: profile.data.description,
-          avatar: profile.data.avatar,
-          followersCount: profile.data.followersCount,
-          followsCount: profile.data.followsCount,
-          postsCount: profile.data.postsCount
-        };
-      } catch (errPublic) {
-        // Dump full error object for debugging (include non-enumerable props)
+    let lastErr: unknown = null;
+    // First attempt: public unauthenticated fetch
+    try {
+      const profile = await (this.agent as any).getProfile({ actor });
+      return {
+        did: profile.data.did,
+        handle: profile.data.handle,
+        displayName: profile.data.displayName,
+        description: profile.data.description,
+        avatar: profile.data.avatar,
+        followersCount: profile.data.followersCount,
+        followsCount: profile.data.followsCount,
+        postsCount: profile.data.postsCount,
+      };
+    } catch (errPublic) {
+      lastErr = errPublic;
+      // If we are authenticated, try an authenticated call as a fallback
+      if (this.isAuthenticated) {
         try {
-          const errDump = JSON.stringify(errPublic, Object.getOwnPropertyNames(errPublic), 2);
-          console.warn('BlueskyService.getProfileByActor public attempt failed for', a, 'errorDump=', errDump);
-        } catch (dumpErr) {
-          console.warn('BlueskyService.getProfileByActor public attempt failed for', a, 'errorMessage=', errPublic instanceof Error ? errPublic.message : String(errPublic));
+          const profile = await (this.agent as any).getProfile({ actor });
+          return {
+            did: profile.data.did,
+            handle: profile.data.handle,
+            displayName: profile.data.displayName,
+            description: profile.data.description,
+            avatar: profile.data.avatar,
+            followersCount: profile.data.followersCount,
+            followsCount: profile.data.followsCount,
+            postsCount: profile.data.postsCount,
+          };
+        } catch (errAuth) {
+          lastErr = errAuth;
+          console.warn('BlueskyService.getProfileByActor authenticated attempt failed for', actor, errAuth instanceof Error ? errAuth.message : errAuth);
         }
-
-        lastErr = errPublic;
-
-        // Try to detect authentication-required by inspecting known shapes
-        let errMsg = '';
-        try { errMsg = errPublic instanceof Error ? errPublic.message : String(errPublic); } catch { errMsg = '' }
-
-        // If the agent provided a response object, try to inspect status and body
-        let statusCode: number | undefined = undefined;
-        try {
-          const anyErr: any = errPublic;
-          if (anyErr && anyErr.response && typeof anyErr.response.status === 'number') {
-            statusCode = anyErr.response.status;
-            console.warn('Public attempt response status:', anyErr.response.status);
-            if (anyErr.response.data) {
-              try {
-                console.warn('Public attempt response data:', JSON.stringify(anyErr.response.data));
-              } catch (jsonErr) {
-                console.warn('Public attempt response data (string):', String(anyErr.response.data));
-              }
-            }
-          }
-        } catch (inspectErr) {
-          console.warn('Failed to inspect public attempt error response:', inspectErr instanceof Error ? inspectErr.message : inspectErr);
-        }
-
-        // Prefer an explicit 401 status check. If no status is available, fall back
-        // to a conservative message-based test that looks for phrases like
-        // "authentication required" or "auth required" to avoid false positives.
-        const indicatesAuthRequired = statusCode === 401 ||
-          (statusCode === undefined && /\b(?:auth|authentication)\s+(?:required|needed)\b/i.test(errMsg));
-
-        if (indicatesAuthRequired && this.isAuthenticated) {
-          try {
-            console.log('BlueskyService.getProfileByActor falling back to authenticated agent for', a);
-            const profile = await this.agent.getProfile({ actor: a });
-            return {
-              did: profile.data.did,
-              handle: profile.data.handle,
-              displayName: profile.data.displayName,
-              description: profile.data.description,
-              avatar: profile.data.avatar,
-              followersCount: profile.data.followersCount,
-              followsCount: profile.data.followsCount,
-              postsCount: profile.data.postsCount
-            };
-          } catch (errAuth) {
-            console.warn('BlueskyService.getProfileByActor authenticated attempt failed for', a, errAuth instanceof Error ? errAuth.message : errAuth);
-            lastErr = errAuth;
-          }
-        } else {
-          console.log('BlueskyService.getProfileByActor: public attempt failed and no authenticated fallback available for', a);
-        }
+      } else {
+        console.log('BlueskyService.getProfileByActor: public attempt failed and no authenticated fallback available for', actor);
       }
     }
 
@@ -354,13 +310,9 @@ export class BlueskyService {
     throw new Error(`Failed to get profile for ${actor}: ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`);
   }
 
-  /**
-   * Logout and clear authentication
-   */
+  /** Logout and clear authentication */
   logout(): void {
     this.isAuthenticated = false;
-    // Note: AtpAgent doesn't have explicit logout method, 
-    // but we can create a new instance to clear session
     this.agent = new AtpAgent({ service: 'https://bsky.social' });
   }
 }

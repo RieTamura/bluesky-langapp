@@ -1,5 +1,7 @@
 {
   "expo": {
+  "owner": "rietamura",
+      "scheme": "blueskylearning",
     "name": "BlueskyLangApp",
     "slug": "bluesky-langapp",
     "version": "0.1.0",
@@ -16,6 +18,12 @@
       "userInterfaceStyle": "automatic",
       "bundleIdentifier": "com.rietamura.bluelang",
       "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "blueskylearning",
+            "CFBundleURLSchemes": ["blueskylearning"]
+          }
+        ],
         "NSAppTransportSecurity": {
           "// NOTE": "NSAllowsArbitraryLoads is disabled by default for release builds. Use NSExceptionDomains for specific HTTP hosts.",
           "NSAllowsArbitraryLoads": false,
@@ -36,10 +44,19 @@
         "backgroundColor": "#ffffff"
       },
       "userInterfaceStyle": "automatic"
+      ,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "category": ["DEFAULT", "BROWSABLE"],
+          "data": { "scheme": "blueskylearning" }
+        }
+      ]
     },
     "web": {},
     "extra": {
       "apiUrl": "http://192.168.11.27:3000",
+  "blueskyClientId": "https://rietamura.github.io/bluelang-oauth/.well-known/atproto_client_metadata.json",
       "eas": {
         "projectId": "0bb8f270-fb24-4e9a-aa12-fcccc40bdc4c"
       }

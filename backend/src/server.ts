@@ -68,6 +68,18 @@ app.options('*', (req, res) => {
 const frontendPath = path.join(__dirname, '../../frontend');
 app.use(express.static(frontendPath));
 
+// Serve a development client-metadata JSON for OAuth client discovery
+app.get('/client-metadata.json', async (req, res) => {
+  try {
+    const filePath = path.join(__dirname, '../../client-metadata.json');
+    const content = await fs.readFile(filePath, 'utf8');
+    res.setHeader('Content-Type', 'application/json');
+    res.send(content);
+  } catch (err) {
+    res.status(404).json({ error: 'client-metadata.json not found' });
+  }
+});
+
 // Basic route
 app.get('/', (req, res) => {
   res.json({ 
@@ -168,7 +180,7 @@ async function start(port: number, attempt = 0) {
   // Determine bind address from environment with a safe default.
   // For security, bind to localhost in production unless an explicit override is provided.
   const envBind = (process.env.BIND_ADDRESS || process.env.HOST || '').trim();
-  const DEFAULT_BIND = '127.0.0.1';
+  const DEFAULT_BIND = process.env.NODE_ENV !== 'production' ? '0.0.0.0' : '127.0.0.1';
   const bindAllOverride = String(process.env.BIND_ALL_OVERRIDE || process.env.ALLOW_BIND_ALL || '').toLowerCase() === 'true';
 
   let bindAddress = envBind || DEFAULT_BIND;

@@ -210,3 +210,19 @@ export class AuthController {
 }
 
 export default AuthController;
+
+/**
+ * Create a server session from an existing BlueskyService instance.
+ * Returns the generated sessionId.
+ */
+export function createSessionFromService(blueskyService: BlueskyService, identifier: string): string {
+  const sessionId = crypto.randomBytes(32).toString('hex');
+  sessions.set(sessionId, {
+    userId: identifier,
+    blueskyIdentifier: identifier,
+    blueskyService: blueskyService,
+    createdAt: new Date(),
+    lastAccessed: new Date()
+  });
+  return sessionId;
+}

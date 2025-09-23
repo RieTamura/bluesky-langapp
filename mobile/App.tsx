@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WordsScreen } from './src/screens/WordsScreen';
 import { QuizScreen } from './src/screens/QuizScreen';
 import { ProgressScreen } from './src/screens/ProgressScreen';
-import { LoginScreen } from './src/screens/LoginScreen';
+import LoginScreen from './src/screens/LoginScreen';
 import LevelSelectionScreen from './src/screens/LevelSelectionScreen';
 import APISetupScreen from './src/screens/APISetupScreen';
 import { useAuth } from './src/hooks/useAuth';

@@ -15,6 +15,7 @@ export interface ThemeColors {
   border: string;
   accent: string;
   error: string;      // 追加: エラー表示用 (従来ハードコード #ff5959)
+  errorBackground: string; // 追加: エラー用背景色
   success: string;    // 追加: 成功/ポジティブ表示用 (従来 accent / badgeKnown を流用)
   badgeUnknown: string;
   badgeLearning: string;
@@ -39,6 +40,7 @@ const palette = (mode: 'light' | 'dark'): ThemeColors => {
       border: '#2a2f33',
       accent: '#3391ff',
       error: '#ff5f56',      // vivid but accessible on dark bg
+      errorBackground: '#1f1f1f',
       success: '#10b981',    // tailwind emerald-500-ish
       badgeUnknown: '#6b7280',
       badgeLearning: '#d97706',
@@ -53,6 +55,7 @@ const palette = (mode: 'light' | 'dark'): ThemeColors => {
     border: '#e5e7eb',
     accent: '#007aff',
     error: '#dc2626',        // tailwind red-600
+    errorBackground: '#fef2f2',
     success: '#059669',      // tailwind green-600 (近似) ※ badgeKnown とは微妙に差
     badgeUnknown: '#9ca3af',
     badgeLearning: '#f59e0b',

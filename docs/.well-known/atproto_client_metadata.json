@@ -1,0 +1,16 @@
+{
+  "client_name": "Bluesky LangApp Dev",
+  "client_id": "https://rietamura.github.io/bluelang-oauth/.well-known/atproto_client_metadata.json",
+  "client_uri": "https://rietamura.github.io/bluelang-oauth",
+  "logo_uri": "https://rietamura.github.io/bluelang-oauth/logo.png",
+  "redirect_uris": [
+    "https://auth.expo.io/@rietamura/bluesky-langapp",
+    "http://127.0.0.1/callback"
+  ],
+  "scope": "all atproto",
+  "dpop_bound_access_tokens": true,
+  "grant_types": ["authorization_code","refresh_token"],
+  "response_types": ["code"],
+  "application_type": "native",
+  "token_endpoint_auth_method": "none"
+}

@@ -1,0 +1,14 @@
+{
+  "client_id": "http://localhost/langapp-client-metadata.json",
+  "client_name": "LangApp Dev",
+  "application_type": "native",
+  "dpop_bound_access_tokens": true,
+  "redirect_uris": [
+    "langapp://auth",
+    "http://127.0.0.1/callback"
+  ],
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "scope": ["offline_access", "profile", "email"],
+  "token_endpoint_auth_method": "none"
+}
