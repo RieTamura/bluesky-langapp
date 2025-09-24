@@ -70,6 +70,26 @@ FRONTEND_URL=http://localhost:4321
 NODE_ENV=development
 ```
 
+### ローカル開発での redirect_uri の設定
+
+開発者ごとにローカルのIPやデバイス接続が異なるため、`client-metadata.json`に直接ローカルIPをハードコードしない運用を推奨します。
+
+このリポジトリではデフォルトで`exp://localhost:8081`を`client-metadata.json`の最初の`redirect_uris`に入れています。別のホスト/IP（例：スマホと同一ネットワーク上の開発ホスト）を使う場合は、環境変数`DEV_REDIRECT_URI`を設定してから付属スクリプトで上書きできます。
+
+例（PowerShell）：
+
+```powershell
+$env:DEV_REDIRECT_URI='exp://192.168.11.27:8081'; node scripts\generate-client-metadata.js
+```
+
+あるいは一時的に実行するだけなら：
+
+```powershell
+$env:DEV_REDIRECT_URI='exp://192.168.11.27:8081'; node scripts\generate-client-metadata.js
+```
+
+スクリプトは`client-metadata.json`の先頭の`redirect_uris[0]`を置き換えます。CIや本番ではこのスクリプトを自動実行しないでください。本番向けの`redirect_uris`はHTTPSや正しいカスタムURIスキームにしてください。
+
 ## 使用方法
 
 1. バックエンドサーバーを起動: `cd backend && npm run dev`

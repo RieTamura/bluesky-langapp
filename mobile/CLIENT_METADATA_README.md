@@ -1,52 +1,169 @@
-How to use the test client metadata JSON for local development (AT Protocol / Bluesky)
+# How to use the test client metadata JSON for local development (AT Protocol / Bluesky)
 
-1) File location
-    - `mobile/client-metadata.json` (already added)
+## File location
 
-2) Goal
-    - Provide a minimal client metadata document you can use for local development and for exercising the authorization flow endpoints. This file is a development convenience: real deployments must host a HTTPS-accessible client metadata document and follow the AT Protocol OAuth requirements (PAR, PKCE, DPoP, proper client_id format).
+- `mobile/client-metadata.json` (already added)
 
-3) Local development workflows (recommended)
+## Goal
+
+- Provide a minimal client metadata document for local development.
+- Use it to exercise the authorization flow endpoints.
+- This file is a development convenience. Real deployments must host an HTTPS-accessible client metadata document.
+- Real deployments must also follow AT Protocol OAuth requirements. Examples: PAR, PKCE, DPoP.
+
+## Local development workflows (recommended)
 
 Option A — Loopback / localhost client_id (fast, local only)
-   - Use the client metadata with a `client_id` that starts with `http://localhost` as in the AT Protocol draft. The AS may accept a derived metadata document for `http://localhost` clients.
-   - In our sample, `client_id` is `http://localhost/langapp-client-metadata.json` and `redirect_uris` includes `http://127.0.0.1/callback`. You can run a small local static server in the `mobile` folder to serve the file:
 
-```powershell
+- Use a `client_id` that starts with `http://localhost` for local testing.
+- The AS may accept a derived metadata document for `http://localhost` clients.
+- Run a local static server in the `mobile` folder to serve the metadata.
+
+```bash
 cd mobile
 npx http-server -p 8000
-# or if you prefer serve
+# or
 npx serve -s . -p 8000
 ```
 
-   - Use `ngrok` to expose an HTTPS URL if your device or environment requires HTTPS:
+- When running on port 8000, use this client_id example:
 
-```powershell
+  `http://localhost:8000/langapp-client-metadata.json`
+
+- Include the port in redirect URIs. Example:
+
+  `http://127.0.0.1:8000/callback`
+
+- If you need HTTPS for a device, use a tunnel service such as ngrok.
+
+```bash
 npx ngrok http 8000
 ```
 
-   - Paste the resulting URL (or the raw GitHub URL — see Option B) into the app's "手動: client metadata URL を入力 (開発用)" field. If you use ngrok you will get an `https://` URL which Expo can fetch.
+- Paste the resulting URL（またはOption BのGitHub raw URL）をアプリの手動フィールドに貼ってください。
+
+Security note about tunnels
+
+- Exposing a local server makes it reachable from the public internet.
+- This can expose sensitive data if your host serves more than the client metadata file.
+- Treat any tunnel URL as sensitive.
+
+Actionable security precautions
+
+- Never commit secrets. Do not commit `client_secret` or private keys.
+- Remove secrets before committing and add those files to `.gitignore`.
+- If a secret was committed, rotate or revoke it immediately.
+- Purge secrets from git history when feasible.
+- Use environment variables or a secrets manager.
+  - Examples: Vault, AWS Secrets Manager, GCP Secret Manager, GitHub Actions secrets.
+- Prefer server-side token exchange. Do not embed client secrets in mobile apps.
+- For native apps, use Authorization Code with PKCE instead of a client secret.
+- Store tokens in platform secure storage (Keychain or Keystore).
+- Restrict credentials to least-privilege scopes and specific redirect URIs.
+- Use short-lived tokens. Rotate and revoke credentials regularly.
+- Avoid logging secrets. Scrub tokens from logs and telemetry.
+
+Checklist for safe local development and deployment
+
+- Add dev-only secret files to `.gitignore`.
+- Verify `mobile/client-metadata.json` has only development values.
+- When using ngrok, configure an auth token or reserved subdomain.
+- Restrict access and enable basic auth if needed.
+- After testing, stop tunnels and inspect server logs.
+- Use HTTPS in production. For dev, use short-lived tunnels.
+- Audit scopes and redirect URIs in the authorization server.
+- If a secret is leaked, rotate it and search commit history.
 
 Option B — Host on GitHub (quick public HTTPS)
-   - Commit `mobile/client-metadata.json` and push to GitHub. Use the raw URL, for example:
-      `https://raw.githubusercontent.com/<your-user>/<your-repo>/main/mobile/client-metadata.json`
-   - Paste that raw URL into the app's manual client metadata field.
 
-4) Important notes from the AT Protocol spec (what to expect)
-   - The AT Protocol OAuth flow expects:
-      - PAR (Pushed Authorization Requests) — client should POST to the AS `pushed_authorization_request_endpoint` and receive a `request_uri`.
-      - PKCE (S256) for authorization code flow.
-      - DPoP for token requests (DPoP-bound access tokens).
-   - For local development you can often bypass full PAR/DPOP handling and validate the authorization page flow manually by opening the `authorization_endpoint` URL shown by the app in the debug UI. But for production or full E2E, implement PAR on the backend and perform token exchange on the server (recommended architecture: Backend-for-Frontend).
+- Commit `mobile/client-metadata.json` and push to GitHub.
+- Use the raw URL, for example:
 
-5) Quick test steps
-   1. Start Metro (`npx expo start -c`) and open the app on your device.
- 2. Host `mobile/client-metadata.json` (Option A or B above) and paste the HTTPS/raw URL into the app's manual field.
- 3. Press "Open auth URL in browser (debug)" to see which URL the app would open.
- 4. If you see a PAR-based `request_uri` flow in the AS metadata, the proper flow is: POST to PAR endpoint → receive `request_uri` → redirect user to `authorization_endpoint?request_uri=...`.
+  `https://raw.githubusercontent.com/<your-user>/<your-repo>/main/mobile/client-metadata.json`
 
-6) Security
-   - This JSON is for development only. Never store `client_secret` or other secrets in public repos. For production, server-side token exchange with secrets stored in environment variables is recommended.
+- Paste that raw URL into the app's manual client metadata field.
 
-7) Need help publishing the file?
-   - I can push this file to your GitHub repo or create a public gist and return a raw URL you can paste into the app. Tell me which you prefer and the target repo (or say "gist").
+Notes about `app.json` and the `extra` section
+
+- The `extra` section in `mobile/app.json` holds runtime configuration.
+- Example keys: `apiUrl`, `blueskyClientId`, `useAuthProxy`, `authProxyUrl`.
+- Keep secrets out of `extra`. Load secrets from env vars or a secure endpoint.
+
+How to verify deep links / intentFilters (quick guide)
+
+1. Confirm `intentFilters` exists in `mobile/app.json` under `android`.
+   It should look like:
+
+   ```json
+   "intentFilters": [
+     {
+       "action": "VIEW",
+       "category": ["DEFAULT", "BROWSABLE"],
+       "data": { "scheme": "blueskylearning" }
+     }
+   ]
+   ```
+
+2. On Android emulator or device
+
+   - Build and install the app (Expo or EAS). For local dev with expo-cli:
+
+     ```bash
+     expo prebuild
+     expo run:android
+     ```
+
+   - From the device or emulator shell, send an intent:
+
+     ```bash
+     adb shell am start -a android.intent.action.VIEW -d "blueskylearning://auth" com.rietamura.bluelang
+     ```
+
+   - The app should open and handle the URL. Check `adb logcat` if it does not.
+
+3. On iOS simulator or device
+
+   - For custom URL schemes, open the URL from Safari or use simctl:
+
+     ```bash
+     xcrun simctl openurl booted "blueskylearning://auth"
+     ```
+
+   - The app should open and handle the URL.
+
+4. Verify the app receives the incoming URL in your code.
+   - Check the deep link handler or auth callback processing.
+   - Add debug logging while testing.
+
+Important notes from the AT Protocol spec (what to expect)
+
+- The AT Protocol OAuth flow expects PAR, PKCE, and DPoP.
+- PAR: client POSTs to `pushed_authorization_request_endpoint` and receives `request_uri`.
+- PKCE: use S256 for authorization code flow.
+- DPoP: use for token requests where required.
+
+- For local development you can often bypass full PAR/DPoP handling.
+- Manually inspect the `authorization_endpoint` URL shown by the app for quick checks.
+- For production or full E2E, implement PAR on the backend and perform server-side token exchange.
+
+Quick test steps
+
+1. Start Metro: `npx expo start -c` and open the app.
+2. Host `mobile/client-metadata.json` (Option A or B) and paste the URL into the app.
+3. Press "Open auth URL in browser (debug)" to see the URL the app would open.
+4. If AS metadata indicates a PAR-based `request_uri` flow, follow this sequence:
+
+   - POST to the PAR endpoint.
+   - Receive the `request_uri`.
+   - Redirect the user to `authorization_endpoint?request_uri=...`.
+
+Security
+
+- This JSON is for development only. Never store `client_secret` or other secrets in public repos.
+- For production, perform token exchange server-side and store secrets in env vars.
+
+Need help publishing the file?
+
+- I can push this file to your GitHub repo or create a public gist and return a raw URL.
+- Tell me which you prefer and the target repo, or say "gist".
+

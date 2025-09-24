@@ -46,15 +46,18 @@ export class AuthController {
 
       // Generate secure session ID
       const sessionId = crypto.randomBytes(32).toString('hex');
-      
-      // Store session data
-      sessions.set(sessionId, {
-        userId: identifier,
-        blueskyIdentifier: identifier,
-        blueskyService: blueskyService,
-        createdAt: new Date(),
-        lastAccessed: new Date()
-      });
+
+      // Validate and store session via helper
+      try {
+        createSessionEntry(sessionId, blueskyService, identifier);
+      } catch (err) {
+        console.error('Failed to create session entry after login:', err);
+        res.status(500).json({
+          error: 'Session creation failed',
+          message: err instanceof Error ? err.message : 'Unknown error'
+        });
+        return;
+      }
 
       res.json({
         success: true,
@@ -216,7 +219,39 @@ export default AuthController;
  * Returns the generated sessionId.
  */
 export function createSessionFromService(blueskyService: BlueskyService, identifier: string): string {
+  // Basic input validation
+  if (!blueskyService) {
+    throw new Error('Missing blueskyService');
+  }
+  if (!identifier || typeof identifier !== 'string') {
+    throw new Error('Invalid identifier');
+  }
+
+  // Ensure the provided service is logged in
+  if (typeof blueskyService.isLoggedIn !== 'function' || !blueskyService.isLoggedIn()) {
+    throw new Error('BlueskyService is not logged in');
+  }
+
   const sessionId = crypto.randomBytes(32).toString('hex');
+  createSessionEntry(sessionId, blueskyService, identifier);
+  return sessionId;
+}
+
+/**
+ * Internal helper to store a session entry in the sessions map.
+ * Validates inputs minimally and sets metadata fields.
+ */
+function createSessionEntry(sessionId: string, blueskyService: BlueskyService, identifier: string): void {
+  if (!sessionId || typeof sessionId !== 'string') {
+    throw new Error('Invalid sessionId');
+  }
+  if (!blueskyService) {
+    throw new Error('Missing blueskyService');
+  }
+  if (!identifier || typeof identifier !== 'string') {
+    throw new Error('Invalid identifier');
+  }
+
   sessions.set(sessionId, {
     userId: identifier,
     blueskyIdentifier: identifier,
@@ -224,5 +259,4 @@ export function createSessionFromService(blueskyService: BlueskyService, identif
     createdAt: new Date(),
     lastAccessed: new Date()
   });
-  return sessionId;
 }

@@ -1,7 +1,7 @@
 {
   "expo": {
-  "owner": "rietamura",
-      "scheme": "blueskylearning",
+    "owner": "rietamura",
+    "scheme": "blueskylearning",
     "name": "BlueskyLangApp",
     "slug": "bluesky-langapp",
     "version": "0.1.0",
@@ -10,9 +10,7 @@
     "updates": {
       "fallbackToCacheTimeout": 0
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "userInterfaceStyle": "automatic",
@@ -43,8 +41,7 @@
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
       },
-      "userInterfaceStyle": "automatic"
-      ,
+      "userInterfaceStyle": "automatic",
       "intentFilters": [
         {
           "action": "VIEW",
@@ -56,14 +53,13 @@
     "web": {},
     "extra": {
       "apiUrl": "http://192.168.11.27:3000",
-  "blueskyClientId": "https://rietamura.github.io/bluelang-oauth/.well-known/atproto_client_metadata.json",
+      "blueskyClientId": "https://rietamura.github.io/bluelang-oauth/.well-known/atproto_client_metadata.json",
+      "useAuthProxy": true,
+      "authProxyUrl": "https://auth.expo.io/@rietamura/bluesky-langapp",
       "eas": {
         "projectId": "0bb8f270-fb24-4e9a-aa12-fcccc40bdc4c"
       }
     },
-    "plugins": [
-      "expo-secure-store",
-      "expo-font"
-    ]
+    "plugins": ["expo-secure-store", "expo-font"]
   }
 }

@@ -75,6 +75,26 @@ export interface PostTemplate {
   examples: string[];
 }
 
+// Minimal shape for an OAuth session object passed from controllers.
+// Expand fields as needed where other properties are consumed.
+export interface OAuthSession {
+  // Common token fields
+  accessJwt?: string;
+  refreshJwt?: string;
+  access_token?: string;
+  refresh_token?: string;
+
+  // Optional identity fields
+  did?: string;
+  handle?: string;
+
+  // Optional expiry / metadata
+  expiresAt?: string | number;
+
+  // Allow other properties but keep them typed as unknown to avoid any
+  [key: string]: unknown;
+}
+
 class ATProtocolService {
   private blueskyService: BlueskyService;
   private dataService: DataService;
@@ -88,50 +108,62 @@ class ATProtocolService {
   /**
    * Initialize using an OAuth token/code exchange result provided by backend
    */
-  async initializeWithOAuth(payload: { code?: string; token?: string; session?: any; returnService?: boolean }): Promise<any> {
-    // Controller now may pass the full session object returned by the
-    // provider (including accessJwt, refreshJwt, did, handle). Prefer using
-    // a resume API if available on the BlueskyService.
-    const session = payload.session as any | undefined;
-    // If caller requested the underlying BlueskyService to be returned, the
-    // controller can use that to wire an HTTP session for the client.
-    if ((payload as any).returnService) {
-      // If a session object is present, attempt to resume and return the service
-      if (session) {
-        if (typeof (this.blueskyService as any).resumeWithSession === 'function') {
-          await (this.blueskyService as any).resumeWithSession(session);
-        } else if (session.accessJwt) {
-          await this.blueskyService.loginWithOAuthToken(session.accessJwt);
-        } else {
-          throw new Error('Cannot resume provided session to return service');
-        }
-        return (this.blueskyService as any);
-      }
-      // If token provided, initialize and return service
-      if (payload.token) {
-        await this.blueskyService.loginWithOAuthToken(payload.token as string);
-        return (this.blueskyService as any);
-      }
+  async initializeWithOAuth(payload: { code?: string; token?: string; session?: OAuthSession; returnService?: boolean }): Promise<BlueskyService> {
+    // Controller may pass a session object returned by the provider. Prefer
+    // using a resume API if available on the BlueskyService.
+    const session = payload.session;
+    // Delegate to specialized handlers based on whether caller wants the
+    // underlying service returned (returnService=true) or the standard init.
+    if (payload.returnService) {
+      return await this.handleReturnServiceRequest(payload);
     }
+
+    await this.handleStandardInitialization(payload);
+    return this.blueskyService;
+  }
+
+  /**
+   * Handle the flow when the caller requests the underlying BlueskyService
+   * to be returned. Returns the service when initialization/resume succeeds
+   * or throws an Error on failure.
+   */
+  private async handleReturnServiceRequest(payload: { code?: string; token?: string; session?: OAuthSession; returnService?: boolean }): Promise<BlueskyService> {
+    const session = payload.session;
+
+    // If a session object is present, attempt to resume and return the service
     if (session) {
-      // If the blueskyService exposes a resumeWithSession method, use it.
-      if (typeof (this.blueskyService as any).resumeWithSession === 'function') {
-        await (this.blueskyService as any).resumeWithSession(session);
-        return;
-      }
-      // Fallback: if session has accessJwt, call loginWithOAuthToken
-      if (session.accessJwt) {
-        await this.blueskyService.loginWithOAuthToken(session.accessJwt);
-        return;
-      }
+      const resumed = await this.resumeSessionIfPossible(session);
+      if (resumed) return this.blueskyService;
+      throw new Error('Cannot resume provided session to return service');
+    }
+
+    // If token provided, validate and initialize service
+    if (typeof payload.token === 'string' && payload.token.trim() !== '') {
+      await this.blueskyService.loginWithOAuthToken(payload.token.trim());
+      return this.blueskyService;
+    }
+
+    throw new Error('No session or token available to return service');
+  }
+
+  /**
+   * Standard initialization flow: try to resume from session, otherwise use
+   * the provided token. Throws on failure.
+   */
+  private async handleStandardInitialization(payload: { code?: string; token?: string; session?: OAuthSession; returnService?: boolean }): Promise<void> {
+    const session = payload.session;
+
+    if (session) {
+      const resumed = await this.resumeSessionIfPossible(session);
+      if (resumed) return;
       throw new Error('Session object provided but no usable token or resume handler found');
     }
 
-    const token = payload.token as string | undefined;
-    if (!token) {
+    const token = payload.token;
+    if (typeof token !== 'string' || token.trim() === '') {
       throw new Error('OAuth token missing');
     }
-    await this.blueskyService.loginWithOAuthToken(token);
+    await this.blueskyService.loginWithOAuthToken(token.trim());
   }
 
   /**
@@ -555,6 +587,30 @@ class ATProtocolService {
    */
   logout(): void {
     this.blueskyService.logout();
+  }
+
+  /**
+   * Try to resume or login using the provided session object.
+   * Returns true if the service is now authenticated, false otherwise.
+   */
+  private async resumeSessionIfPossible(session: OAuthSession): Promise<boolean> {
+    // Prefer a resume API on the BlueskyService if it exists
+    try {
+      if (typeof (this.blueskyService as any).resumeWithSession === 'function') {
+        await (this.blueskyService as any).resumeWithSession(session as unknown as Record<string, unknown>);
+        return this.blueskyService.isLoggedIn();
+      }
+
+      // Fallback to access JWT / token
+      const token = (session.accessJwt as string) || (session.access_token as string) || undefined;
+      if (token) {
+        await this.blueskyService.loginWithOAuthToken(token);
+        return this.blueskyService.isLoggedIn();
+      }
+    } catch (err) {
+      console.warn('Failed to resume/login with provided session:', err instanceof Error ? err.message : err);
+    }
+    return false;
   }
 
   /**

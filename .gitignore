@@ -91,6 +91,7 @@ jspm_packages/
 # Data files
 backend/data/
 *.json.backup
+client-metadata.local.json
 
 # TypeScript
 *.tsbuildinfo

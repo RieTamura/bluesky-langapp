@@ -16,6 +16,7 @@
     "data:export": "node scripts/data-manager.js git-export",
     "data:stats": "node scripts/data-manager.js stats",
     "data:backup": "node scripts/data-manager.js backup",
+  "gen:client-metadata": "node scripts/generate-client-metadata.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

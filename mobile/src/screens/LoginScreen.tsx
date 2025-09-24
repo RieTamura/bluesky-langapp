@@ -4,7 +4,9 @@ import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import * as AuthSession from 'expo-auth-session';
 import Constants from 'expo-constants';
+import * as Clipboard from 'expo-clipboard';
 import { api, API_BASE_URL } from '../services/api';
+import { t } from '../i18n';
 import { useThemeColors } from '../stores/theme';
 import { useAuth } from '../hooks/useAuth';
 import appJson from '../../app.json';
@@ -14,14 +16,37 @@ function bytesToHex(bytes: Uint8Array) {
 }
 
 async function secureRandomBytes(length: number) {
+  // Prefer Web Crypto API if available (also polyfilled by react-native-get-random-values)
   if (typeof globalThis?.crypto?.getRandomValues === 'function') {
     const arr = new Uint8Array(length);
     globalThis.crypto.getRandomValues(arr);
     return arr;
   }
-  const arr = new Uint8Array(length);
-  for (let i = 0; i < length; i++) arr[i] = Math.floor(Math.random() * 256);
-  return arr;
+
+  // Try expo-random if it's installed (returns Uint8Array via getRandomBytesAsync)
+  try {
+    // dynamic require to avoid bundling/import-time errors when the package isn't installed
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const expoRandom = require('expo-random');
+    if (expoRandom && typeof expoRandom.getRandomBytesAsync === 'function') {
+      const maybeArr = await expoRandom.getRandomBytesAsync(length);
+      // ensure Uint8Array
+      if (maybeArr instanceof Uint8Array) return maybeArr;
+      return new Uint8Array(maybeArr);
+    }
+  } catch (_err) {
+    // fall through to throwing below
+  }
+
+  // If we reach here, no secure RNG is available. Do NOT silently fall back to Math.random().
+  throw new Error([
+    'Secure random number generator is not available in this environment.',
+    'A cryptographically secure RNG is required for PKCE and other crypto operations.',
+    'Install and configure a secure polyfill, for example:',
+    '  - For Expo managed projects: `expo install expo-random` and import/use `getRandomBytesAsync`',
+    '  - For bare React Native: `yarn add react-native-get-random-values` and import it at app entry to polyfill `global.crypto`',
+    'After installing, re-run the app. Do NOT rely on Math.random() for crypto purposes.'
+  ].join(' '));
 }
 
 async function sha256Base64Url(input: string) {
@@ -36,7 +61,17 @@ async function generatePKCE() {
   return { verifier, challenge };
 }
 
-const LoginScreen: React.FC = () => {
+type LoginScreenProps = {
+  oauthTimeoutMs?: number;
+};
+
+// Default OAuth safety timeout: 5 minutes (ms). Can be overridden via
+// - component prop `oauthTimeoutMs`
+// - expo config `extra.oauthTimeoutMs`
+// - env var `EXPO_OAUTH_TIMEOUT_MS`
+const DEFAULT_OAUTH_TIMEOUT_MS = 5 * 60 * 1000;
+
+const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
   const colors = useThemeColors();
   const { loading } = useAuth();
   const [busy, setBusy] = useState(false);
@@ -52,27 +87,70 @@ const LoginScreen: React.FC = () => {
     || (appJson as any)?.expo?.extra?.blueskyClientId
     || '';
 
-  // Force Expo auth proxy so the redirectUri is https://auth.expo.io/...,
-  // which many AS (including bsky.social) require instead of custom schemes like exp://
-  // Some environments still return an exp:// URI from makeRedirectUri; to be certain
-  // we use an explicit proxy URL in development.
-  const useProxy = true;
-  // Explicit Expo auth proxy URL — must match the exact value you will add to
-  // your published client metadata's redirect_uris. Replace owner/slug if needed.
-  const explicitProxyUrl = 'https://auth.expo.io/@rietamura/bluesky-langapp';
+  // Determine whether to use Expo auth proxy and explicit proxy URL from config.
+  // Sources (in order): Constants.expoConfig?.extra, Constants.manifest?.extra, process.env, appJson.extra
+  const _extra = (Constants as any)?.expoConfig?.extra || (Constants as any)?.manifest?.extra || (appJson as any)?.expo?.extra || {};
+
+  function parseBooleanCandidate(v: any, def: boolean) {
+    if (typeof v === 'boolean') return v;
+    if (typeof v === 'string') {
+      const low = v.trim().toLowerCase();
+      if (low === 'true' || low === '1' || low === 'yes') return true;
+      if (low === 'false' || low === '0' || low === 'no') return false;
+    }
+    return def;
+  }
+
+  const useProxy = parseBooleanCandidate(_extra?.useAuthProxy ?? process.env.EXPO_USE_AUTH_PROXY, true);
+  const explicitProxyUrl = (_extra?.authProxyUrl ?? process.env.EXPO_AUTH_PROXY_URL ?? 'https://auth.expo.io/@rietamura/bluesky-langapp');
   let redirectUri = explicitProxyUrl;
+
+  // Determine OAuth safety timeout (ms) using precedence: prop -> expo.extra -> env -> default
+  const resolvedOauthTimeoutMs = oauthTimeoutMs ?? (Number(_extra?.oauthTimeoutMs ?? process.env.EXPO_OAUTH_TIMEOUT_MS ?? DEFAULT_OAUTH_TIMEOUT_MS) || DEFAULT_OAUTH_TIMEOUT_MS);
+
+  if (typeof explicitProxyUrl !== 'string' || !/^https?:\/\//i.test(explicitProxyUrl)) {
+    // invalid proxy URL — fallback to previous literal but warn
+    // eslint-disable-next-line no-console
+    console.warn('[LoginScreen] authProxyUrl is missing or invalid, falling back to default explicit proxy URL');
+  }
   try {
     const made = (AuthSession as any).makeRedirectUri({ scheme: 'blueskylearning', useProxy });
     // If makeRedirectUri returns an https proxy URL, prefer it; otherwise keep explicitProxyUrl
     // log what makeRedirectUri returns so we can debug why exp:// is still shown
-    // eslint-disable-next-line no-console
-    console.log('[LoginScreen] makeRedirectUri returned:', made, 'explicitProxyUrl:', explicitProxyUrl);
+    if (__DEV__) {
+      console.log('[LoginScreen] makeRedirectUri returned:', made, 'explicitProxyUrl:', explicitProxyUrl);
+    }
     if (typeof made === 'string' && /^https:\/\/auth\.expo\.io\//i.test(made)) redirectUri = made;
   } catch (_err) {
     // ignore and use explicitProxyUrl
   }
 
   const clientMetadataRef = useRef<any | null>(null);
+
+  // Redact obvious sensitive fields from a JSON string for debug display.
+  function redactBackendResponse(raw: string) {
+    try {
+      const obj = JSON.parse(raw);
+      const redact = (v: any) => {
+        if (v && typeof v === 'object') {
+          for (const k of Object.keys(v)) {
+            if (/token|session|password|secret|auth/i.test(k)) {
+              v[k] = 'REDACTED';
+            } else {
+              v[k] = redact(v[k]);
+            }
+          }
+          return v;
+        }
+        return v;
+      };
+      const safe = redact(obj);
+      return JSON.stringify(safe, null, 2);
+    } catch (e) {
+      // not JSON, do a simple redact by masking long continuous strings that look like tokens
+      return raw.replace(/([A-Za-z0-9_-]{8,})/g, (m) => m.length > 12 ? m.slice(0,6) + '...' + m.slice(-4) : m);
+    }
+  }
   async function loadClientMetadataIfNeeded() {
     if (clientMetadataRef.current) return clientMetadataRef.current;
     try {
@@ -89,24 +167,56 @@ const LoginScreen: React.FC = () => {
     return null;
   }
 
+  // Helper: exchange authorization code for session via backend
+  const exchangeCodeForSession = async (
+    code: string,
+    verifier: string | null | undefined,
+    redirect_uri: string,
+    clientId: string | undefined,
+    setLastBackendResponse: React.Dispatch<React.SetStateAction<string | null>>,
+    setError: React.Dispatch<React.SetStateAction<string | null>>
+  ): Promise<boolean> => {
+    try {
+      const res = await api.post('/api/atprotocol/init', { oauth: { code, code_verifier: verifier, redirect_uri, client_id: clientId } });
+      try { setLastBackendResponse(JSON.stringify(res?.data || res || {}, null, 2)); } catch { setLastBackendResponse(String(res)); }
+      const sessionId = (res as any)?.data?.sessionId || (res as any)?.sessionId || (res as any)?.data?.data?.sessionId;
+      if (sessionId) {
+        try { await SecureStore.setItemAsync('auth.sessionId', sessionId); } catch (_) { /* ignore */ }
+        try { await api.get('/api/auth/me'); } catch (_) { /* ignore */ }
+        // Clear stored PKCE verifier now that exchange succeeded
+        try { await SecureStore.deleteItemAsync('pkce.verifier'); } catch (_) { /* ignore */ }
+        codeVerifierRef.current = null;
+  Alert.alert(t('auth.success.title'), t('auth.success.message'));
+        setError(null);
+        return true;
+      }
+  Alert.alert(t('auth.serverResponse.title'), t('auth.serverResponse.message'));
+      return false;
+    } catch (e: any) {
+      setLastBackendResponse(e?.message || String(e));
+      setError(e?.message || 'トークン交換に失敗しました');
+      return false;
+    }
+  };
+
   const onStartOAuth = async () => {
     setError(null);
     if (!resolvedClientId && !manualClientId) {
-      Alert.alert('設定が必要', 'app.json の extra.blueskyClientId を設定するか、手動で client_id を入力してください。');
+  Alert.alert(t('config.required'), t('config.clientIdMessage'));
       return;
     }
     setBusy(true);
     try {
       const { verifier, challenge } = await generatePKCE();
       codeVerifierRef.current = verifier;
-      try {
-        await SecureStore.setItemAsync('pkce.verifier', verifier);
-      } catch (_) { /* ignore */ }
+      try { await SecureStore.setItemAsync('pkce.verifier', verifier); } catch (_) { /* ignore */ }
+
       const state = Math.random().toString(36).slice(2);
       const meta = await loadClientMetadataIfNeeded();
-  const authEndpoint = manualAuthEndpoint || (meta?.authorization_endpoint) || 'https://bsky.social/oauth/authorize';
+      const authEndpoint = manualAuthEndpoint || (meta?.authorization_endpoint) || 'https://bsky.social/oauth/authorize';
       const effectiveClient = manualClientId || resolvedClientId;
-      // Determine scope: prefer metadata, but ensure 'atproto' is present (required by some AS)
+
+      // Determine scope: prefer metadata, but ensure 'atproto' is present
       let scopeVal = 'atproto';
       try {
         const metaScope = meta?.scope;
@@ -115,101 +225,83 @@ const LoginScreen: React.FC = () => {
       } catch (_) { /* ignore */ }
       if (!/\batproto\b/.test(scopeVal)) scopeVal = (scopeVal + ' atproto').trim();
 
-    // Debug: log raw and encoded client_id to detect double-encoding / missing value issues
-    // eslint-disable-next-line no-console
-    console.log('[LoginScreen DEBUG] effectiveClient (raw)=', effectiveClient);
-    // eslint-disable-next-line no-console
-    console.log('[LoginScreen DEBUG] effectiveClient (encoded)=', encodeURIComponent(effectiveClient));
-    const authUrl = `${authEndpoint}?response_type=code&client_id=${encodeURIComponent(effectiveClient)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopeVal)}&state=${state}&code_challenge=${encodeURIComponent(challenge)}&code_challenge_method=S256`;
+      if (__DEV__) {
+        console.log('[LoginScreen DEBUG] effectiveClient (raw)=', effectiveClient);
+        console.log('[LoginScreen DEBUG] effectiveClient (encoded)=', encodeURIComponent(effectiveClient));
+      }
 
-    // Debug: show the full auth URL so we can inspect provider errors if the flow fails
-    // eslint-disable-next-line no-console
-    console.log('[LoginScreen] authUrl=', authUrl);
-  try { Alert.alert('Auth URL', authUrl); } catch (_) { /* ignore */ }
+      const authUrl = `${authEndpoint}?response_type=code&client_id=${encodeURIComponent(effectiveClient)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopeVal)}&state=${state}&code_challenge=${encodeURIComponent(challenge)}&code_challenge_method=S256`;
 
-      // Try to open via AuthSession.startAsync if available, otherwise
-      // fall back to opening the URL and listening for the redirect via Linking.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let result: any;
+      if (__DEV__) {
+        console.log('[LoginScreen] authUrl=', authUrl);
+        try { Alert.alert('Auth URL', authUrl); } catch (_) { /* ignore */ }
+      }
+
+      // Try platform helper first
+      let result: any = null;
+      const startAsync = (AuthSession as any)?.startAsync || (AuthSession as any)?.openAuthSessionAsync;
       try {
-        const startAsync = (AuthSession as any)?.startAsync || (AuthSession as any)?.openAuthSessionAsync;
         if (typeof startAsync === 'function') {
           result = await startAsync({ authUrl });
         } else {
           throw new Error('startAsync unavailable');
         }
-      } catch (e) {
-        // Fallback: listen to Linking events and open the URL in the browser
+      } catch (_e) {
+        // Fallback to Linking + listener
         result = await new Promise<any>((resolve) => {
           let handled = false;
           let subscription: any = null;
+
+          // safety timeout: configurable (default 5 minutes)
+          const timer = setTimeout(() => {
+            if (!handled) {
+              handled = true;
+              try { subscription?.remove?.(); } catch (_) { /* ignore */ }
+              resolve({ type: 'dismiss' });
+            }
+          }, resolvedOauthTimeoutMs);
+
+          const cleanup = () => {
+            try { subscription?.remove?.(); } catch (_) { /* ignore */ }
+            try { clearTimeout(timer); } catch (_) { /* ignore */ }
+          };
+
           const handler = (event: any) => {
             if (handled) return;
             handled = true;
+            cleanup();
             try {
               const urlStr = event?.url || event;
               const parsed = new URL(urlStr);
               const params: Record<string, string> = {};
               parsed.searchParams.forEach((v, k) => { params[k] = v; });
-              // log linking event
-              // eslint-disable-next-line no-console
-              console.log('[LoginScreen] Linking event url:', urlStr, 'params:', params);
+              if (__DEV__) console.log('[LoginScreen] Linking event url:', urlStr, 'params:', params);
               resolve({ type: 'success', params });
             } catch (err) {
               resolve({ type: 'error' });
-            } finally {
-              try { subscription?.remove?.(); } catch (_) { /* ignore */ }
             }
           };
 
           try {
-            // addEventListener is deprecated on some RN versions, use addListener if available
             if ((Linking as any).addEventListener) subscription = (Linking as any).addEventListener('url', handler);
             else subscription = (Linking as any).addListener('url', handler);
           } catch (_) {
             try { subscription = (Linking as any).addEventListener?.('url', handler); } catch (_) { /* ignore */ }
           }
 
-          // safety timeout: 2 minutes
-          setTimeout(() => {
-            if (!handled) {
-              handled = true;
-              try { subscription?.remove?.(); } catch (_) { /* ignore */ }
-              resolve({ type: 'dismiss' });
-            }
-          }, 2 * 60 * 1000);
+          // open browser after listener attached
+          try { Linking.openURL(authUrl); } catch (_) { /* ignore */ }
         });
-
-        // open browser (after listener attached)
-        try { Linking.openURL(authUrl); } catch (_) { /* ignore */ }
       }
-      // Log the final result from AuthSession or Linking
-      // eslint-disable-next-line no-console
-      console.log('[LoginScreen] auth result=', result);
-      // result handling
-        if (result && (result as any).type === 'success' && (result as any).params && (result as any).params.code) {
+
+      if (__DEV__) console.log('[LoginScreen] auth result=', result);
+
+      // Handle result
+      if (result && (result as any).type === 'success' && (result as any).params && (result as any).params.code) {
         const code = (result as any).params.code;
-        try {
-          const client_id_for_exchange = manualClientId || resolvedClientId || undefined;
-          const res = await api.post('/api/atprotocol/init', { oauth: { code, code_verifier: verifier, redirect_uri: redirectUri, client_id: client_id_for_exchange } });
-          // store full backend response for debugging
-          try { setLastBackendResponse(JSON.stringify(res?.data || res || {}, null, 2)); } catch { setLastBackendResponse(String(res)); }
-          const sessionId = (res as any)?.data?.sessionId || (res as any)?.sessionId || (res as any)?.data?.data?.sessionId;
-          if (sessionId) {
-              await SecureStore.setItemAsync('auth.sessionId', sessionId);
-              try { await api.get('/api/auth/me'); } catch (_) { /* ignore */ }
-              // Clear stored PKCE verifier now that exchange succeeded
-              try { await SecureStore.deleteItemAsync('pkce.verifier'); } catch (_) { /* ignore */ }
-              codeVerifierRef.current = null;
-              Alert.alert('認証成功', 'ログイン情報を受け取りました。');
-              setError(null);
-              return;
-            }
-          Alert.alert('認証: サーバ応答', 'サーバが sessionId を返しませんでした。バックエンドの実装を確認してください。');
-        } catch (e: any) {
-          setLastBackendResponse(e?.message || String(e));
-          setError(e?.message || 'トークン交換に失敗しました');
-        }
+        const client_id_for_exchange = manualClientId || resolvedClientId || undefined;
+        const ok = await exchangeCodeForSession(code, verifier, redirectUri, client_id_for_exchange, setLastBackendResponse, setError);
+        if (ok) return;
       } else if (result && ((result as any).type === 'dismiss' || (result as any).type === 'cancel')) {
         setError('OAuth がキャンセルされました');
       } else {
@@ -249,18 +341,11 @@ const LoginScreen: React.FC = () => {
         <View style={{ width: 8 }} />
         <Button title="Copy" onPress={async () => {
           try {
-              // require is used to avoid TS module resolution failures in some setups
-              // eslint-disable-next-line @typescript-eslint/no-var-requires
-              const mod: any = require('expo-clipboard');
-              if (mod && typeof mod.setStringAsync === 'function') {
-                await mod.setStringAsync(redirectUri);
-                Alert.alert('Copied', 'redirectUri をクリップボードにコピーしました');
-              } else {
-                throw new Error('clipboard module missing');
-              }
-            } catch (e:any) {
-              Alert.alert('コピー失敗', e?.message || 'failed to copy');
-            }
+            await Clipboard.setStringAsync(redirectUri);
+            Alert.alert('Copied', 'redirectUri をクリップボードにコピーしました');
+          } catch (e:any) {
+            Alert.alert('コピー失敗', e?.message || 'failed to copy');
+          }
         }} />
       </View>
 
@@ -288,9 +373,10 @@ const LoginScreen: React.FC = () => {
           const effectiveClient = manualClientId || resolvedClientId;
           const authUrl = `${authEndpoint}?response_type=code&client_id=${encodeURIComponent(effectiveClient)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=all&state=${state}&code_challenge=${encodeURIComponent(challenge)}&code_challenge_method=S256`;
           codeVerifierRef.current = verifier;
-          // eslint-disable-next-line no-console
-          console.log('[LoginScreen DEBUG] authUrl=', authUrl, 'redirectUri=', redirectUri, 'verifier=', verifier);
-          Alert.alert('Auth URL', authUrl);
+          if (__DEV__) {
+            console.log('[LoginScreen DEBUG] authUrl=', authUrl, 'redirectUri=', redirectUri, 'verifier=', verifier);
+            Alert.alert('Auth URL', authUrl);
+          }
           await Linking.openURL(authUrl);
         } catch (e: any) {
           Alert.alert('デバッグ起動エラー', e?.message || 'error');
@@ -345,23 +431,10 @@ const LoginScreen: React.FC = () => {
               setBusy(true);
               try {
                 const client_id_for_exchange = manualClientId || resolvedClientId || undefined;
-                const res = await api.post('/api/atprotocol/init', { oauth: { code, code_verifier: verifier, redirect_uri: redirectUri, client_id: client_id_for_exchange } });
-                try { setLastBackendResponse(JSON.stringify(res?.data || res || {}, null, 2)); } catch { setLastBackendResponse(String(res)); }
-                const sessionId = (res as any)?.data?.sessionId || (res as any)?.sessionId || (res as any)?.data?.data?.sessionId;
-                if (sessionId) {
-                  await SecureStore.setItemAsync('auth.sessionId', sessionId);
-                  try { await api.get('/api/auth/me'); } catch (_) { /* ignore */ }
-                  // Clear stored PKCE verifier
-                  try { await SecureStore.deleteItemAsync('pkce.verifier'); } catch (_) { /* ignore */ }
-                  codeVerifierRef.current = null;
-                  Alert.alert('認証成功', 'ログイン情報を受け取りました。');
-                  setError(null);
-                  return;
-                }
-                Alert.alert('認証: サーバ応答', 'サーバが sessionId を返しませんでした。バックエンドの実装を確認してください。');
+                const ok = await exchangeCodeForSession(code, verifier, redirectUri, client_id_for_exchange, setLastBackendResponse, setError);
+                if (ok) return;
               } catch (e:any) {
-                setLastBackendResponse(e?.message || String(e));
-                setError(e?.message || 'トークン交換に失敗しました');
+                // exchangeCodeForSession handles errors and sets state; keep catch to mirror existing control flow
               }
             } catch (e:any) {
               Alert.alert('処理エラー', e?.message || String(e));
@@ -386,10 +459,10 @@ const LoginScreen: React.FC = () => {
         }
       }} />
 
-      {lastBackendResponse ? (
+      {__DEV__ && lastBackendResponse ? (
         <View style={{ marginTop: 12, padding: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 6 }}>
           <Text style={{ fontSize: 12, color: colors.secondaryText, marginBottom: 6 }}>Last backend response:</Text>
-          <Text style={{ fontSize: 11, color: colors.text }}>{lastBackendResponse}</Text>
+          <Text style={{ fontSize: 11, color: colors.text }}>{redactBackendResponse(lastBackendResponse)}</Text>
         </View>
       ) : null}
     </View>

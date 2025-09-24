@@ -2,8 +2,51 @@ import { Request, Response } from 'express';
 import { LearningProgressPost } from '../services/atProtocolService.js';
 import type { ApiResponse } from '../types/data.js';
 
-import { atProtocolService } from '../services/atProtocolService.js';
+import { atProtocolService, type OAuthSession } from '../services/atProtocolService.js';
 import { importJWK, generateKeyPair, exportJWK, SignJWT } from 'jose';
+import * as crypto from 'crypto';
+import { URL } from 'url';
+
+// Environment-driven token endpoint configuration.
+// - In production we require an explicit AT_PROTOCOL_TOKEN_ENDPOINT to be set to avoid unexpected
+//   provider changes. In other environments we default to the canonical provider used in dev.
+const rawTokenEndpoint = process.env.AT_PROTOCOL_TOKEN_ENDPOINT;
+const defaultTokenEndpoint = 'https://bsky.social/oauth/token';
+
+if (process.env.NODE_ENV === 'production' && (!rawTokenEndpoint || rawTokenEndpoint.trim() === '')) {
+  console.error('Missing AT_PROTOCOL_TOKEN_ENDPOINT in production environment. Set AT_PROTOCOL_TOKEN_ENDPOINT to the provider token endpoint URL.');
+  throw new Error('AT_PROTOCOL_TOKEN_ENDPOINT is required in production. Set the environment variable to the token endpoint URL.');
+}
+
+const AT_PROTOCOL_TOKEN_ENDPOINT = (rawTokenEndpoint && rawTokenEndpoint.trim()) ? rawTokenEndpoint.trim() : defaultTokenEndpoint;
+
+// Validate the configured token endpoint early.
+try {
+  // This will throw if the value is not a valid URL
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _tmp = new URL(AT_PROTOCOL_TOKEN_ENDPOINT);
+} catch (err) {
+  // Fail fast during startup rather than at runtime when attempting an OAuth flow
+  console.error('Invalid AT_PROTOCOL_TOKEN_ENDPOINT configuration:', AT_PROTOCOL_TOKEN_ENDPOINT, err);
+  throw new Error('Invalid AT_PROTOCOL_TOKEN_ENDPOINT; please set a valid URL in environment variables');
+}
+
+/**
+ * Return the first candidate that can be turned into a non-empty string.
+ * If none are found, returns the default fallback 'bluesky_user'.
+ */
+function pickFirstNonEmpty(...candidates: Array<unknown>): string {
+  for (const c of candidates) {
+    if (c === null || c === undefined) continue;
+    try {
+      const s = String(c).trim();
+      if (s.length > 0) return s;
+    } catch (_) {
+      // ignore and try next
+    }
+  }
+  return 'bluesky_user';
+}
 
 /**
  * Initialize AT Protocol service with Bluesky credentials
@@ -16,7 +59,7 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
     if (oauth && oauth.code) {
       // Exchange OAuth code for token with provider token_endpoint (bsky.social)
       try {
-        const tokenEndpoint = 'https://bsky.social/oauth/token';
+  const tokenEndpoint = AT_PROTOCOL_TOKEN_ENDPOINT;
 
         // Build form data per OAuth2 spec (authorization_code grant with PKCE)
         const params = new URLSearchParams();
@@ -42,7 +85,27 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
           iat: Math.floor(Date.now() / 1000),
         } as any;
 
-        const dpopJti = crypto.randomUUID ? crypto.randomUUID() : (Math.random().toString(36).slice(2) + Date.now().toString(36));
+        // Helper to generate a strong unique identifier for DPoP (prefer crypto.randomUUID)
+        const generateDpopJti = (): string => {
+          try {
+            if (crypto && typeof (crypto as any).randomUUID === 'function') {
+              return (crypto as any).randomUUID();
+            } else if (crypto && typeof (crypto as any).randomBytes === 'function') {
+              const buf = (crypto as any).randomBytes(16);
+              buf[6] = (buf[6] & 0x0f) | 0x40; // version 4
+              buf[8] = (buf[8] & 0x3f) | 0x80; // variant
+              const hex = Buffer.from(buf).toString('hex');
+              return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+            }
+            console.warn('crypto.randomUUID and crypto.randomBytes are not available; falling back to insecure ID generation. Upgrade Node or provide a crypto polyfill.');
+            return (Math.random().toString(36).slice(2) + Date.now().toString(36));
+          } catch (err) {
+            console.warn('Error generating secure random UUID for DPoP jti, falling back to less secure generator:', err);
+            return (Math.random().toString(36).slice(2) + Date.now().toString(36));
+          }
+        };
+
+        const dpopJti = generateDpopJti();
         (dpopPayload as any).jti = dpopJti;
 
         const dpopJwt = await new SignJWT(dpopPayload)
@@ -59,7 +122,18 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
         if (!tokenRes.ok) {
           const text = await tokenRes.text();
           let parsedBody: any = null;
-          try { parsedBody = JSON.parse(text); } catch (_) { parsedBody = null; }
+          try {
+            parsedBody = JSON.parse(text);
+          } catch (e: any) {
+            // Log parse error with context so we can debug provider responses that are not valid JSON
+            console.error('Failed to parse token endpoint response as JSON for nonce detection', {
+              tokenEndpoint,
+              status: tokenRes.status,
+              body: text,
+              parseError: e && (e.message || String(e))
+            });
+            parsedBody = null;
+          }
           const wantsNonce = parsedBody && parsedBody.error === 'use_dpop_nonce';
           if (wantsNonce) {
             // Try to extract nonce from WWW-Authenticate or DPoP-Nonce header
@@ -73,12 +147,14 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
             }
 
             if (nonceVal) {
-              // rebuild DPoP JWT including nonce claim
+              // For each DPoP proof attempt, generate a fresh jti so each proof is unique
+              const dpopJtiForNonce = generateDpopJti();
+              // rebuild DPoP JWT including nonce claim and fresh jti
               const dpopPayloadWithNonce = {
                 htu: tokenEndpoint,
                 htm: 'POST',
                 iat: Math.floor(Date.now() / 1000),
-                jti: dpopJti,
+                jti: dpopJtiForNonce,
                 nonce: nonceVal
               } as any;
 
@@ -108,10 +184,24 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
           const scopeDebug = tokenJson.scope || tokenJson.scopes || tokenJson.scopeString || '';
           console.log('Token response keys:', Object.keys(tokenJson));
           console.log('Token scopes (raw):', scopeDebug);
-        } catch (_) { /* ignore */ }
+        } catch (err) {
+          // Non-fatal: emit debug-level information for diagnostics.
+          // Use module logger if present, otherwise fallback to console.debug.
+          try {
+            const globalLogger = (globalThis as any).logger;
+            if (typeof globalLogger !== 'undefined' && typeof globalLogger.debug === 'function') {
+              globalLogger.debug('Failed to read token response debug fields', err);
+            } else {
+              console.debug('Failed to read token response debug fields', err);
+            }
+          } catch (logErr) {
+            // If logging itself fails, avoid throwing from this non-critical path.
+            console.debug('Logging failed while handling token response debug parse error', { logErr, originalError: err });
+          }
+        }
 
-        // Map common OAuth token fields to the session shape expected by our ATProtocol service
-        const sessionForAtp: any = {};
+  // Map common OAuth token fields to the session shape expected by our ATProtocol service
+  const sessionForAtp: OAuthSession = {} as OAuthSession;
         // Access token: provider may return 'access_token' or 'accessJwt'
         sessionForAtp.accessJwt = tokenJson.accessJwt || tokenJson.access_token || tokenJson.accessToken;
         // Refresh token mapping
@@ -141,21 +231,13 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
         // If the service supports resuming with a session object, pass it through.
         try {
           // Allow initializeWithOAuth to optionally return the internal BlueskyService
-          const maybeService: any = await atProtocolService.initializeWithOAuth({ session: sessionForAtp, returnService: true } as any);
-
-          // If the service returned an actual BlueskyService instance, create a server session
-          if (maybeService && typeof maybeService === 'object') {
-            // Lazy import to avoid circular types
-            const { createSessionFromService } = await import('../controllers/authController.js');
-            const identifier = sessionForAtp?.handle || sessionForAtp?.did || tokenJson?.handle || tokenJson?.did || 'bluesky_user';
-            const sessionId = createSessionFromService(maybeService as any, identifier);
-            const response: ApiResponse = { success: true, data: { sessionId } };
-            res.json(response);
-            return;
-          }
-
-          // Fallback: if initializeWithOAuth did not return a service, still respond success
-          const response: ApiResponse = { success: true, message: 'Initialized with OAuth' };
+          // initializeWithOAuth now returns the BlueskyService instance when returnService=true
+          const service = await atProtocolService.initializeWithOAuth({ session: sessionForAtp, returnService: true });
+          // Lazy import to avoid circular types
+          const { createSessionFromService } = await import('../controllers/authController.js');
+          const identifier = pickFirstNonEmpty(sessionForAtp?.handle, sessionForAtp?.did, tokenJson?.handle, tokenJson?.did);
+          const sessionId = createSessionFromService(service, identifier);
+          const response: ApiResponse = { success: true, data: { sessionId } };
           res.json(response);
           return;
         } catch (innerErr) {

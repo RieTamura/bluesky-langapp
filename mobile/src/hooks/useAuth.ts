@@ -2,12 +2,23 @@ import { useEffect, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import * as SecureStore from 'expo-secure-store';
 import { api } from '../services/api';
+// ...existing code...
 
 interface AuthState {
   sessionId: string | null;
   identifier: string | null;
   loading: boolean;
 }
+
+// Shape of the `/api/auth/me` payload (the API wraps this in ApiSuccess<T>)
+interface AuthMePayload {
+  authenticated?: boolean;
+  user?: { identifier?: string } | null;
+  [k: string]: any;
+}
+
+// Single timeout constant used for auth/me lookups during startup and mount.
+const AUTH_ME_TIMEOUT_MS = 3000;
 
 // -----------------------------
 // Global singleton auth store
@@ -33,39 +44,38 @@ async function bootstrap() {
         console.log('[useAuth] bootstrap watchdog triggered; clearing loading state');
       }
     }, watchdogMs);
-    // Ensure watchdog cleared when bootstrap finishes
-    (async () => {
+    // Ensure watchdog cleared when bootstrap finishes by running the bootstrap
+    // logic inside this IIFE and clearing the timeout in finally.
+    await (async () => {
       try {
-        // continue with original bootstrap logic below
+        const sessionId = await SecureStore.getItemAsync('auth.sessionId');
+        if (sessionId) {
+          try {
+            // Avoid blocking startup for a long time if /api/auth/me is slow/unreachable.
+            // Use a short timeout so the app can show the login screen quickly.
+            // Use AbortController to cancel the fetch if it exceeds the timeout.
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), AUTH_ME_TIMEOUT_MS);
+            try {
+              const me = await api.get<AuthMePayload>('/api/auth/me', { signal: ctrl.signal });
+              if (me?.data?.authenticated) {
+                authState = { sessionId, identifier: me.data.user?.identifier ?? null, loading: false };
+                emit();
+                return;
+              }
+            } catch {/* ignore */} finally {
+              clearTimeout(timer);
+            }
+          } catch {/* ignore */}
+          await SecureStore.deleteItemAsync('auth.sessionId');
+        }
       } finally {
-        clearTimeout(w);
+        authState = { ...authState, loading: false };
+        emit();
       }
     })();
+    clearTimeout(w);
   } catch (e) { /* ignore watchdog setup errors */ }
-  try {
-    const sessionId = await SecureStore.getItemAsync('auth.sessionId');
-    if (sessionId) {
-      try {
-        // Avoid blocking startup for a long time if /api/auth/me is slow/unreachable.
-        // Use a short timeout so the app can show the login screen quickly.
-        const timeoutMs = 3000;
-        const mePromise = api.get<{ authenticated: boolean; user: { identifier: string } }>('/api/auth/me');
-        const me = await Promise.race([
-          mePromise,
-          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeoutMs))
-        ]) as any;
-        if ((me as any).data?.authenticated) {
-          authState = { sessionId, identifier: (me as any).data.user.identifier, loading: false };
-          emit();
-          return;
-        }
-      } catch {/* ignore */}
-      await SecureStore.deleteItemAsync('auth.sessionId');
-    }
-  } finally {
-    authState = { ...authState, loading: false };
-    emit();
-  }
 }
 
 async function setSession(sessionId: string, identifier: string) {
@@ -91,22 +101,23 @@ export function useAuth() {
     // Ensure react-query cache has the latest /api/auth/me and profile info so
     // components that read from cache (FooterNav) can show avatar immediately.
     (async () => {
-      try {
-        const timeoutMs = 2000;
-        const mePromise = api.get<any>('/api/auth/me');
-        const me = await Promise.race([
-          mePromise,
-          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeoutMs))
-        ]) as any;
-        const payload = (me as any).data ?? me;
-        // store top-level auth/me response
-        try { qc.setQueryData(['auth','me'], payload); } catch (_) { /* ignore */ }
-        // prefer payload.user for profile cache, else payload itself
-        const user = payload?.user ?? payload;
-        try { qc.setQueryData(['profile','me'], user); } catch (_) { /* ignore */ }
-      } catch (e) {
-        // ignore
-      }
+        try {
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), AUTH_ME_TIMEOUT_MS);
+          try {
+            const me = await api.get<AuthMePayload>('/api/auth/me', { signal: ctrl.signal });
+            const payload = me.data ?? (me as unknown as AuthMePayload);
+            // store top-level auth/me response
+            try { qc.setQueryData(['auth','me'], payload); } catch (_) { /* ignore */ }
+            // prefer payload.user for profile cache, else payload itself
+            const user = payload?.user ?? payload;
+            try { qc.setQueryData(['profile','me'], user); } catch (_) { /* ignore */ }
+          } finally {
+            clearTimeout(timer);
+          }
+        } catch (e) {
+          // ignore
+        }
     })();
     return () => { subscribers.delete(setLocal); };
   }, []);

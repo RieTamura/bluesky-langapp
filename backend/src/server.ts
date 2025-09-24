@@ -80,6 +80,26 @@ app.get('/client-metadata.json', async (req, res) => {
   }
 });
 
+// Safety check: ensure we don't ship a permissive "all" scope in production
+try {
+  const cmPath = path.join(__dirname, '../../client-metadata.json');
+  const cmRaw = await fs.readFile(cmPath, 'utf8');
+  try {
+    const cm = JSON.parse(cmRaw) as any;
+    const scope = cm?.scope;
+    const isAll = scope === 'all' || (Array.isArray(scope) && scope.includes('all'));
+    const allowDev = String(process.env.ALLOW_DEV_SCOPES || '').toLowerCase() === 'true';
+    if (isAll && process.env.NODE_ENV === 'production' && !allowDev) {
+      console.error('Refusing to run in production with permissive client-metadata scope="all". Set ALLOW_DEV_SCOPES=true to override (not recommended).');
+      process.exit(1);
+    }
+  } catch (e) {
+    console.warn('Warning: failed to parse client-metadata.json for scope validation', e);
+  }
+} catch (e) {
+  // If file missing that's okay; route above handles 404 at runtime.
+}
+
 // Basic route
 app.get('/', (req, res) => {
   res.json({ 

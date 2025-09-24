@@ -13,6 +13,7 @@ export type ApiErrorCode =
   | 'DICT_UPSTREAM'
   | 'SERVER_ERROR'
   | 'NETWORK_OFFLINE'
+  | 'REQUEST_ABORTED'
   | 'PARSE_ERROR';
 
 export interface ApiErrorShape {
@@ -91,8 +92,13 @@ async function request<T>(path: string, init: RequestInit = {}, attempt = 0): Pr
     res = await fetch(BASE_URL + path, { ...init, headers });
   } catch (e) {
     // network level (fetch threw before getting a response)
-  // In React Native navigator.onLine is unreliable. Treat fetch exceptions as offline.
-  throw <ApiErrorShape>{ error: 'NETWORK_OFFLINE', message: 'オフラインです', status: 0 };
+    // Detect explicit aborts and return a distinct error shape so callers
+    // can distinguish timeout/abort from general offline errors.
+    if ((e as any)?.name === 'AbortError') {
+      throw <ApiErrorShape>{ error: 'REQUEST_ABORTED', message: 'リクエストが中断されました', status: 0 };
+    }
+    // In React Native navigator.onLine is unreliable. Treat fetch exceptions as offline.
+    throw <ApiErrorShape>{ error: 'NETWORK_OFFLINE', message: 'オフラインです', status: 0 };
   }
 
   let json: any;
@@ -120,10 +126,10 @@ async function request<T>(path: string, init: RequestInit = {}, attempt = 0): Pr
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body?: any) => request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
-  put: <T>(path: string, body?: any) => request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
-  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' })
+  get: <T>(path: string, init?: RequestInit) => request<T>(path, init),
+  post: <T>(path: string, body?: any, init?: RequestInit) => request<T>(path, { ...init, method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+  put: <T>(path: string, body?: any, init?: RequestInit) => request<T>(path, { ...init, method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
+  delete: <T>(path: string, init?: RequestInit) => request<T>(path, { ...init, method: 'DELETE' })
 };
 
 // Example domain functions
