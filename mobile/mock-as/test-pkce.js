@@ -2,6 +2,7 @@
 // Usage: node test-pkce.js
 // It POSTs to /oauth/authorize/approve to obtain a code, then exchanges it at /oauth/token
 
+/* eslint-disable @typescript-eslint/no-var-requires, global-require */
 const http = require('http');
 const querystring = require('querystring');
 
@@ -41,7 +42,8 @@ function postForm(path, data) {
     console.log('Starting PKCE test against', BASE);
     const verifier = 'test-verifier-12345';
     // compute S256 challenge
-    const crypto = require('crypto');
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const crypto = require('crypto');
     const hash = crypto.createHash('sha256').update(verifier).digest();
     const challenge = Buffer.from(hash).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 

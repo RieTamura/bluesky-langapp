@@ -443,6 +443,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
             try {
               // dynamic require to avoid build issues
               // eslint-disable-next-line @typescript-eslint/no-var-requires
+              // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment
               const mod: any = require('expo-clipboard');
               if (mod && typeof mod.getStringAsync === 'function') {
                 const txt = await mod.getStringAsync();

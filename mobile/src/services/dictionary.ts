@@ -17,7 +17,8 @@ function storageKeyFor(word: string) {
 async function readPersistentCache(word: string): Promise<ExampleSentence[] | null> {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
     const k = storageKeyFor(word);
     const raw = await AsyncStorage.getItem(k);
     if (!raw) return null;
@@ -30,7 +31,8 @@ async function readPersistentCache(word: string): Promise<ExampleSentence[] | nu
 async function writePersistentCache(word: string, data: ExampleSentence[]): Promise<void> {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
     const k = storageKeyFor(word);
     await AsyncStorage.setItem(k, JSON.stringify(data));
   } catch (e) {
@@ -42,7 +44,8 @@ function getApiBase() {
   // In Expo, prefer Constants.manifest or env setup. Fallback to DEFAULT_API.
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const Constants = require('expo-constants').default;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment
+  const Constants = require('expo-constants').default;
     const url = (Constants.manifest?.extra?.DICTIONARY_API_URL) || DEFAULT_API;
     return url;
   } catch (e) {

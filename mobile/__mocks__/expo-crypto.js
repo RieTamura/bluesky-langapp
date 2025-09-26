@@ -4,6 +4,7 @@
 // deterministically to SHA-256. It aims to mimic `expo-crypto` behavior
 // sufficiently for tests without introducing nondeterminism.
 // eslint-disable-next-line global-require
+/* eslint-disable @typescript-eslint/no-var-requires, global-require */
 const nodeCrypto = require('crypto');
 
 

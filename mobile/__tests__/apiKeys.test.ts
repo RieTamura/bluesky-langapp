@@ -17,7 +17,8 @@ describe('validateRawKey', () => {
   beforeAll(() => {
     // Import after mocking
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    validateRawKey = require('../src/stores/apiKeys').validateRawKey;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment
+  validateRawKey = require('../src/stores/apiKeys').validateRawKey;
   });
 
   afterEach(() => {
