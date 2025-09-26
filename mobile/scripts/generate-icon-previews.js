@@ -13,11 +13,18 @@ async function run() {
     process.exit(1);
   }
 
-  for (const size of sizes) {
+  // Read source image once into a Buffer to avoid repeated disk reads
+  const buf = await fs.promises.readFile(input);
+
+  // Create resize/write promises in parallel
+  const tasks = sizes.map(size => {
     const out = path.join(assetsDir, `preview_${size}.png`);
-    await sharp(input).resize(size, size, {fit: 'cover'}).png().toFile(out);
-    console.log('wrote', out);
-  }
+    return sharp(buf).resize(size, size, { fit: 'cover' }).png().toFile(out).then(() => {
+      console.log('wrote', out);
+    });
+  });
+
+  await Promise.all(tasks);
 }
 
 run().catch(err => { console.error(err); process.exit(1); });
