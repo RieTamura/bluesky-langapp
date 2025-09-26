@@ -109,7 +109,16 @@ function detectScheme(req) {
     try {
       const proto = String(xf).split(',')[0].trim().toLowerCase();
       if (proto) return proto;
-    } catch (e) {}
+    } catch (e) {
+      // ignore malformed X-Forwarded header but log in non-production for debugging
+      try {
+        if (process.env.NODE_ENV !== 'production' && console && typeof console.debug === 'function') {
+          console.debug('detectScheme: failed to parse x-forwarded header:', e && e.message);
+        }
+      } catch (err) {
+        // swallow any logging errors to avoid interfering with request handling
+      }
+    }
   }
   // connection / socket encrypted (Node.js) -> https
   if (req && req.connection && req.connection.encrypted) return 'https';
