@@ -19,7 +19,8 @@
     "eas:build:android:dev": "eas build --profile development --platform android",
     "eas:build:android:prod": "eas build --profile production --platform android",
     "eas:configure": "eas build:configure",
-    "mock-as": "node ./mock-as/server.js"
+    "mock-as": "node ./mock-as/server.js",
+    "generate:client-metadata": "node ./scripts/generate-client-metadata.js"
   },
   "jest": {
     "preset": "jest-expo",
