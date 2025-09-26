@@ -99,6 +99,47 @@ function normalizeScope(scope) {
   return valid.join(' ');
 }
 
+// Determine the scheme for a request: prefer X-Forwarded headers, then connection/socket encrypted flags, then req.protocol, else default to http
+function detectScheme(req) {
+  const headers = req && req.headers ? req.headers : {};
+  const xf = headers['x-forwarded-proto'] || headers['x-forwarded-protocol'];
+  if (xf) {
+    // may be comma-separated (e.g., "https, http"); take the first
+    try {
+      const proto = String(xf).split(',')[0].trim().toLowerCase();
+      if (proto) return proto;
+    } catch (e) {}
+  }
+  // connection / socket encrypted (Node.js) -> https
+  if (req && req.connection && req.connection.encrypted) return 'https';
+  if (req && req.socket && req.socket.encrypted) return 'https';
+  // express-like req.protocol
+  if (req && req.protocol) return String(req.protocol).replace(/:$/,'');
+  return 'http';
+}
+
+// Build a fully-qualified URL from PUBLIC_HOST (or host header). If PUBLIC_HOST already contains a scheme use it as-is;
+// otherwise detect the scheme from the request and prefix it. If no host is available, fall back to localhost:PORT.
+function buildUrlFromHost(publicHost, req) {
+  // prefer explicit env value when provided
+  if (publicHost) {
+    // if it already contains a scheme, return as-is
+    if (/^https?:\/\//i.test(publicHost)) return publicHost;
+    // otherwise prefix with detected scheme
+    const scheme = detectScheme(req);
+    return `${scheme}://${publicHost}`;
+  }
+  // no publicHost provided: try Host header
+  const hostHeader = req && req.headers ? req.headers.host : null;
+  if (hostHeader) {
+    const scheme = detectScheme(req);
+    return `${scheme}://${hostHeader}`;
+  }
+  // final fallback
+  const scheme = detectScheme(req);
+  return `${scheme}://localhost:${PORT}`;
+}
+
 // Create a request handler and wire it to either an HTTP or HTTPS server below.
 const requestHandler = (req, res) => {
   const u = url.parse(req.url, true);
@@ -131,16 +172,15 @@ const requestHandler = (req, res) => {
   // Protected resource metadata (PDS -> AS resolver expects this)
   if (u.pathname === '/.well-known/oauth-protected-resource') {
     // Return our local server as the AS issuer. Prefer PUBLIC_HOST env var, then request Host header, then localhost.
-    const publicHost = process.env.PUBLIC_HOST || req.headers.host;
-    const asUrl = publicHost ? `${publicHost.startsWith('http') ? publicHost : ('http://' + publicHost)}` : `http://localhost:${PORT}`;
+    const publicHost = process.env.PUBLIC_HOST || null;
+    const asUrl = buildUrlFromHost(publicHost, req);
     return sendJSON(res, { authorization_servers: [ asUrl ] });
   }
 
   // Authorization Server metadata
   if (u.pathname === '/.well-known/oauth-authorization-server') {
-    const publicHost = process.env.PUBLIC_HOST || req.headers.host;
-    const issuerBase = publicHost ? `${publicHost.startsWith('http') ? publicHost : ('http://' + publicHost)}` : `http://localhost:${PORT}`;
-    const issuer = issuerBase;
+    const publicHost = process.env.PUBLIC_HOST || null;
+    const issuer = buildUrlFromHost(publicHost, req);
     return sendJSON(res, {
       issuer,
       authorization_endpoint: `${issuer}/oauth/authorize`,
