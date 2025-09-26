@@ -80,4 +80,5 @@
     ]
   },
   "overrides": {}
+  ,"sharpNote": "sharp is a development-only native dependency used by scripts/generate-icon-previews.js for image resizing. Do NOT import or require sharp from app runtime code (src/** or entry points) because it contains native extensions and will break Metro bundling."
 }
