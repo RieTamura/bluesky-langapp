@@ -54,3 +54,13 @@ Example metadata:
 - Do not embed confidential client secrets or other sensitive credentials inside mobile app binaries. Mobile apps are public clients and secrets can be extracted.
 - Prefer DPoP or other token-binding mechanisms instead of hard client secrets when possible. The example metadata enables `dpop_bound_access_tokens`.
 - Follow platform guidance for App Links / Universal Links to reduce interception and phishing risk.
+  
+  Additional secret-management recommendations:
+
+  - Use Authorization Code with PKCE; do not embed confidential client secrets in the app.
+  - Store tokens/keys in platform secure storage (iOS Keychain, Android Keystore).
+  - Prefer short-lived access tokens and rotate refresh tokens.
+  - Handle refresh tokens on a secure backend when possible (avoid embedding them in the app).
+  - Provide token revocation/rotation and monitor for compromised tokens.
+  - Avoid committing secrets or private keys in app resources.
+  - Use DPoP, mTLS, or other token-binding mechanisms where supported.

@@ -23,16 +23,12 @@ async function secureRandomBytes(length: number) {
     return arr;
   }
 
-  // Try expo-random if it's installed (returns Uint8Array via getRandomBytesAsync)
+  // Try expo-crypto's getRandomBytesAsync when available (recommended for Expo SDK >=49)
   try {
-    // dynamic require to avoid bundling/import-time errors when the package isn't installed
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const expoRandom = require('expo-random');
-    if (expoRandom && typeof expoRandom.getRandomBytesAsync === 'function') {
-      const maybeArr = await expoRandom.getRandomBytesAsync(length);
-      // ensure Uint8Array
-      if (maybeArr instanceof Uint8Array) return maybeArr;
-      return new Uint8Array(maybeArr);
+    if (typeof (Crypto as any)?.getRandomBytesAsync === 'function') {
+      const arr = await (Crypto as any).getRandomBytesAsync(length);
+      if (arr instanceof Uint8Array) return arr;
+      return new Uint8Array(arr);
     }
   } catch (_err) {
     // fall through to throwing below
@@ -43,7 +39,7 @@ async function secureRandomBytes(length: number) {
     'Secure random number generator is not available in this environment.',
     'A cryptographically secure RNG is required for PKCE and other crypto operations.',
     'Install and configure a secure polyfill, for example:',
-    '  - For Expo managed projects: `expo install expo-random` and import/use `getRandomBytesAsync`',
+  '  - For Expo managed projects: `expo install expo-crypto` and use `Crypto.getRandomBytesAsync` (or ensure global.crypto is polyfilled)',
     '  - For bare React Native: `yarn add react-native-get-random-values` and import it at app entry to polyfill `global.crypto`',
     'After installing, re-run the app. Do NOT rely on Math.random() for crypto purposes.'
   ].join(' '));
@@ -71,24 +67,25 @@ type LoginScreenProps = {
 // - env var `EXPO_OAUTH_TIMEOUT_MS`
 const DEFAULT_OAUTH_TIMEOUT_MS = 5 * 60 * 1000;
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
-  const colors = useThemeColors();
-  const { loading } = useAuth();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [manualAuthEndpoint, setManualAuthEndpoint] = useState('');
-  const [manualClientId, setManualClientId] = useState('');
-  const [lastBackendResponse, setLastBackendResponse] = useState<string | null>(null);
-  const [redirectUrlInput, setRedirectUrlInput] = useState('');
-  const codeVerifierRef = useRef<string | null>(null);
+export type LoginConfig = {
+  resolvedClientId: string;
+  useProxy: boolean;
+  explicitProxyUrl: string;
+  redirectUri: string;
+  resolvedOauthTimeoutMs: number;
+};
 
+/**
+ * Resolve login-related configuration from Constants, app.json, env and component prop.
+ * Preserves preference order and parsing rules used inline previously. Keeps __DEV__ logging
+ * and isolates try/catch around makeRedirectUri.
+ */
+export function resolveLoginConfig(oauthTimeoutMs?: number): LoginConfig {
   const resolvedClientId = (Constants as any)?.expoConfig?.extra?.blueskyClientId
     || (Constants as any)?.manifest?.extra?.blueskyClientId
     || (appJson as any)?.expo?.extra?.blueskyClientId
     || '';
 
-  // Determine whether to use Expo auth proxy and explicit proxy URL from config.
-  // Sources (in order): Constants.expoConfig?.extra, Constants.manifest?.extra, process.env, appJson.extra
   const _extra = (Constants as any)?.expoConfig?.extra || (Constants as any)?.manifest?.extra || (appJson as any)?.expo?.extra || {};
 
   function parseBooleanCandidate(v: any, def: boolean) {
@@ -105,7 +102,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
   const explicitProxyUrl = (_extra?.authProxyUrl ?? process.env.EXPO_AUTH_PROXY_URL ?? 'https://auth.expo.io/@rietamura/bluesky-langapp');
   let redirectUri = explicitProxyUrl;
 
-  // Determine OAuth safety timeout (ms) using precedence: prop -> expo.extra -> env -> default
   const resolvedOauthTimeoutMs = oauthTimeoutMs ?? (Number(_extra?.oauthTimeoutMs ?? process.env.EXPO_OAUTH_TIMEOUT_MS ?? DEFAULT_OAUTH_TIMEOUT_MS) || DEFAULT_OAUTH_TIMEOUT_MS);
 
   if (typeof explicitProxyUrl !== 'string' || !/^https?:\/\//i.test(explicitProxyUrl)) {
@@ -115,8 +111,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
   }
   try {
     const made = (AuthSession as any).makeRedirectUri({ scheme: 'blueskylearning', useProxy });
-    // If makeRedirectUri returns an https proxy URL, prefer it; otherwise keep explicitProxyUrl
-    // log what makeRedirectUri returns so we can debug why exp:// is still shown
     if (__DEV__) {
       console.log('[LoginScreen] makeRedirectUri returned:', made, 'explicitProxyUrl:', explicitProxyUrl);
     }
@@ -124,6 +118,22 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
   } catch (_err) {
     // ignore and use explicitProxyUrl
   }
+
+  return { resolvedClientId, useProxy, explicitProxyUrl, redirectUri, resolvedOauthTimeoutMs };
+}
+
+const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
+  const colors = useThemeColors();
+  const { loading } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [manualAuthEndpoint, setManualAuthEndpoint] = useState('');
+  const [manualClientId, setManualClientId] = useState('');
+  const [lastBackendResponse, setLastBackendResponse] = useState<string | null>(null);
+  const [redirectUrlInput, setRedirectUrlInput] = useState('');
+  const codeVerifierRef = useRef<string | null>(null);
+
+  const { resolvedClientId, redirectUri, resolvedOauthTimeoutMs } = resolveLoginConfig(oauthTimeoutMs);
 
   const clientMetadataRef = useRef<any | null>(null);
 
@@ -167,6 +177,124 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
     return null;
   }
 
+  /**
+   * Prepare PKCE verifier/challenge and persist verifier to SecureStore.
+   * Returns { verifier, challenge }.
+   */
+  async function preparePKCEAndStore() {
+    const { verifier, challenge } = await generatePKCE();
+    codeVerifierRef.current = verifier;
+    try { await SecureStore.setItemAsync('pkce.verifier', verifier); } catch (_) { /* ignore */ }
+    return { verifier, challenge };
+  }
+
+  /**
+   * Build the authorization URL using manual overrides and metadata.
+   * Ensures 'atproto' is present in scope.
+   */
+  function buildAuthUrl(meta: any, manualAuthEndpointVal: string, manualClientVal: string, redirectUriVal: string, challenge: string, state: string) {
+    const authEndpoint = manualAuthEndpointVal || (meta?.authorization_endpoint) || 'https://bsky.social/oauth/authorize';
+    const effectiveClient = manualClientVal || resolvedClientId;
+
+    // Determine scope: prefer metadata, but ensure 'atproto' is present
+    let scopeVal = 'atproto';
+    try {
+      const metaScope = meta?.scope;
+      if (Array.isArray(metaScope)) scopeVal = metaScope.join(' ');
+      else if (typeof metaScope === 'string' && metaScope.trim().length > 0) scopeVal = metaScope.trim();
+    } catch (_) { /* ignore */ }
+    if (!/\batproto\b/.test(scopeVal)) scopeVal = (scopeVal + ' atproto').trim();
+
+    if (__DEV__) {
+      console.log('[LoginScreen DEBUG] effectiveClient (raw)=', effectiveClient);
+      console.log('[LoginScreen DEBUG] effectiveClient (encoded)=', encodeURIComponent(effectiveClient));
+    }
+
+    const authUrl = `${authEndpoint}?response_type=code&client_id=${encodeURIComponent(effectiveClient)}&redirect_uri=${encodeURIComponent(redirectUriVal)}&scope=${encodeURIComponent(scopeVal)}&state=${state}&code_challenge=${encodeURIComponent(challenge)}&code_challenge_method=S256`;
+    return authUrl;
+  }
+
+  /**
+   * Start the auth flow using AuthSession helpers, falling back to Linking listener.
+   * Returns the result object similar to the previous inline implementation.
+   */
+  async function startAuthFlow(authUrl: string) {
+    let result: any = null;
+    const startAsync = (AuthSession as any)?.startAsync || (AuthSession as any)?.openAuthSessionAsync;
+    try {
+      if (typeof startAsync === 'function') {
+        result = await startAsync({ authUrl });
+        return result;
+      }
+      throw new Error('startAsync unavailable');
+    } catch (_e) {
+      // Fallback to Linking + listener
+      return await new Promise<any>((resolve) => {
+        let handled = false;
+        let subscription: any = null;
+
+        // safety timeout: configurable (default 5 minutes)
+        const timer = setTimeout(() => {
+          if (!handled) {
+            handled = true;
+            try { subscription?.remove?.(); } catch (_) { /* ignore */ }
+            resolve({ type: 'dismiss' });
+          }
+        }, resolvedOauthTimeoutMs);
+
+        const cleanup = () => {
+          try { subscription?.remove?.(); } catch (_) { /* ignore */ }
+          try { clearTimeout(timer); } catch (_) { /* ignore */ }
+        };
+
+        const handler = (event: any) => {
+          if (handled) return;
+          handled = true;
+          cleanup();
+          try {
+            const urlStr = event?.url || event;
+            const parsed = new URL(urlStr);
+            const params: Record<string, string> = {};
+            parsed.searchParams.forEach((v, k) => { params[k] = v; });
+            if (__DEV__) console.log('[LoginScreen] Linking event url:', urlStr, 'params:', params);
+            resolve({ type: 'success', params });
+          } catch (err) {
+            resolve({ type: 'error' });
+          }
+        };
+
+        try {
+          if ((Linking as any).addEventListener) subscription = (Linking as any).addEventListener('url', handler);
+          else subscription = (Linking as any).addListener('url', handler);
+        } catch (_) {
+          try { subscription = (Linking as any).addEventListener?.('url', handler); } catch (_) { /* ignore */ }
+        }
+
+        // open browser after listener attached
+        try { Linking.openURL(authUrl); } catch (_) { /* ignore */ }
+      });
+    }
+  }
+
+  /**
+   * Handle auth result: exchange code and set localized error messages via t(...).
+   */
+  async function handleAuthResult(result: any, verifier: string | null | undefined) {
+    if (result && result.type === 'success' && result.params && result.params.code) {
+      const code = result.params.code;
+      const client_id_for_exchange = manualClientId || resolvedClientId || undefined;
+      const ok = await exchangeCodeForSession(code, verifier, redirectUri, client_id_for_exchange, setLastBackendResponse, setError);
+      if (ok) return true;
+      return false;
+    } else if (result && (result.type === 'dismiss' || result.type === 'cancel')) {
+      setError(t('auth.cancelled'));
+      return false;
+    } else {
+      setError(t('auth.flowError'));
+      return false;
+    }
+  }
+
   // Helper: exchange authorization code for session via backend
   const exchangeCodeForSession = async (
     code: string,
@@ -202,113 +330,29 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
   const onStartOAuth = async () => {
     setError(null);
     if (!resolvedClientId && !manualClientId) {
-  Alert.alert(t('config.required'), t('config.clientIdMessage'));
+      Alert.alert(t('config.required'), t('config.clientIdMessage'));
       return;
     }
     setBusy(true);
     try {
-      const { verifier, challenge } = await generatePKCE();
-      codeVerifierRef.current = verifier;
-      try { await SecureStore.setItemAsync('pkce.verifier', verifier); } catch (_) { /* ignore */ }
-
+      const { verifier, challenge } = await preparePKCEAndStore();
       const state = Math.random().toString(36).slice(2);
       const meta = await loadClientMetadataIfNeeded();
-      const authEndpoint = manualAuthEndpoint || (meta?.authorization_endpoint) || 'https://bsky.social/oauth/authorize';
-      const effectiveClient = manualClientId || resolvedClientId;
-
-      // Determine scope: prefer metadata, but ensure 'atproto' is present
-      let scopeVal = 'atproto';
-      try {
-        const metaScope = meta?.scope;
-        if (Array.isArray(metaScope)) scopeVal = metaScope.join(' ');
-        else if (typeof metaScope === 'string' && metaScope.trim().length > 0) scopeVal = metaScope.trim();
-      } catch (_) { /* ignore */ }
-      if (!/\batproto\b/.test(scopeVal)) scopeVal = (scopeVal + ' atproto').trim();
-
-      if (__DEV__) {
-        console.log('[LoginScreen DEBUG] effectiveClient (raw)=', effectiveClient);
-        console.log('[LoginScreen DEBUG] effectiveClient (encoded)=', encodeURIComponent(effectiveClient));
-      }
-
-      const authUrl = `${authEndpoint}?response_type=code&client_id=${encodeURIComponent(effectiveClient)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopeVal)}&state=${state}&code_challenge=${encodeURIComponent(challenge)}&code_challenge_method=S256`;
+      const authUrl = buildAuthUrl(meta, manualAuthEndpoint, manualClientId, redirectUri, challenge, state);
 
       if (__DEV__) {
         console.log('[LoginScreen] authUrl=', authUrl);
         try { Alert.alert('Auth URL', authUrl); } catch (_) { /* ignore */ }
       }
 
-      // Try platform helper first
-      let result: any = null;
-      const startAsync = (AuthSession as any)?.startAsync || (AuthSession as any)?.openAuthSessionAsync;
-      try {
-        if (typeof startAsync === 'function') {
-          result = await startAsync({ authUrl });
-        } else {
-          throw new Error('startAsync unavailable');
-        }
-      } catch (_e) {
-        // Fallback to Linking + listener
-        result = await new Promise<any>((resolve) => {
-          let handled = false;
-          let subscription: any = null;
-
-          // safety timeout: configurable (default 5 minutes)
-          const timer = setTimeout(() => {
-            if (!handled) {
-              handled = true;
-              try { subscription?.remove?.(); } catch (_) { /* ignore */ }
-              resolve({ type: 'dismiss' });
-            }
-          }, resolvedOauthTimeoutMs);
-
-          const cleanup = () => {
-            try { subscription?.remove?.(); } catch (_) { /* ignore */ }
-            try { clearTimeout(timer); } catch (_) { /* ignore */ }
-          };
-
-          const handler = (event: any) => {
-            if (handled) return;
-            handled = true;
-            cleanup();
-            try {
-              const urlStr = event?.url || event;
-              const parsed = new URL(urlStr);
-              const params: Record<string, string> = {};
-              parsed.searchParams.forEach((v, k) => { params[k] = v; });
-              if (__DEV__) console.log('[LoginScreen] Linking event url:', urlStr, 'params:', params);
-              resolve({ type: 'success', params });
-            } catch (err) {
-              resolve({ type: 'error' });
-            }
-          };
-
-          try {
-            if ((Linking as any).addEventListener) subscription = (Linking as any).addEventListener('url', handler);
-            else subscription = (Linking as any).addListener('url', handler);
-          } catch (_) {
-            try { subscription = (Linking as any).addEventListener?.('url', handler); } catch (_) { /* ignore */ }
-          }
-
-          // open browser after listener attached
-          try { Linking.openURL(authUrl); } catch (_) { /* ignore */ }
-        });
-      }
+      const result = await startAuthFlow(authUrl);
 
       if (__DEV__) console.log('[LoginScreen] auth result=', result);
 
-      // Handle result
-      if (result && (result as any).type === 'success' && (result as any).params && (result as any).params.code) {
-        const code = (result as any).params.code;
-        const client_id_for_exchange = manualClientId || resolvedClientId || undefined;
-        const ok = await exchangeCodeForSession(code, verifier, redirectUri, client_id_for_exchange, setLastBackendResponse, setError);
-        if (ok) return;
-      } else if (result && ((result as any).type === 'dismiss' || (result as any).type === 'cancel')) {
-        setError('OAuth がキャンセルされました');
-      } else {
-        setError('OAuth フローでエラーが発生しました');
-      }
+      const handled = await handleAuthResult(result, verifier);
+      if (handled) return;
     } catch (e: any) {
-      setError(e?.message || 'OAuth の準備でエラー');
+      setError(e?.message || t('auth.prepareError'));
     } finally {
       setBusy(false);
     }

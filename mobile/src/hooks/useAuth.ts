@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import * as SecureStore from 'expo-secure-store';
 import { api } from '../services/api';
-// ...existing code...
+// (no placeholder comments)
 
 interface AuthState {
   sessionId: string | null;
@@ -34,7 +34,9 @@ async function bootstrap() {
   initialized = true;
   // Watchdog: ensure UI doesn't stay in loading state too long if async ops hang
   try {
-    const watchdogMs = 1000;
+    // Ensure the watchdog is at least as long as the AUTH_ME timeout to avoid
+    // clearing the loading state before auth/me has a chance to complete.
+    const watchdogMs = Math.max(1000, AUTH_ME_TIMEOUT_MS);
     const w = setTimeout(() => {
       if (authState.loading) {
         authState = { ...authState, loading: false };
@@ -101,23 +103,19 @@ export function useAuth() {
     // Ensure react-query cache has the latest /api/auth/me and profile info so
     // components that read from cache (FooterNav) can show avatar immediately.
     (async () => {
-        try {
-          const ctrl = new AbortController();
-          const timer = setTimeout(() => ctrl.abort(), AUTH_ME_TIMEOUT_MS);
-          try {
-            const me = await api.get<AuthMePayload>('/api/auth/me', { signal: ctrl.signal });
-            const payload = me.data ?? (me as unknown as AuthMePayload);
-            // store top-level auth/me response
-            try { qc.setQueryData(['auth','me'], payload); } catch (_) { /* ignore */ }
-            // prefer payload.user for profile cache, else payload itself
-            const user = payload?.user ?? payload;
-            try { qc.setQueryData(['profile','me'], user); } catch (_) { /* ignore */ }
-          } finally {
-            clearTimeout(timer);
-          }
-        } catch (e) {
-          // ignore
-        }
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), AUTH_ME_TIMEOUT_MS);
+      try {
+        const me = await api.get<AuthMePayload>('/api/auth/me', { signal: ctrl.signal });
+        const payload = me.data ?? (me as unknown as AuthMePayload);
+        // store top-level auth/me response
+        try { qc.setQueryData(['auth','me'], payload); } catch (_) { /* ignore */ }
+        // prefer payload.user for profile cache, else payload itself
+        const user = payload?.user ?? payload;
+        try { qc.setQueryData(['profile','me'], user); } catch (_) { /* ignore */ }
+      } finally {
+        clearTimeout(timer);
+      }
     })();
     return () => { subscribers.delete(setLocal); };
   }, []);

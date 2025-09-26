@@ -2,34 +2,14 @@ HTTP/1.1 400 Bad Request
 Date: Mon, 22 Sep 2025 16:10:49 GMT
 Content-Type: text/html
 Transfer-Encoding: chunked
-Connection: keep-alive
-X-Powered-By: Express
-Access-Control-Allow-Origin: *
-Cache-Control: no-store
-Pragma: no-cache
-Content-Security-Policy: upgrade-insecure-requests; connect-src 'self'; default-src 'none'; frame-ancestors 'none'; img-src data: https:; script-src 'sha256-whsKgbZ1rMHPvlijPOMm61vo0ytYmaKE99HDf2ZjXmI=' 'self'; style-src 'self' 'sha256-ZdfVDYwNYsBD2FG3XaFYGX2KDW3GZgihkbJMe0/Ho+Q='
-Cross-Origin-Embedder-Policy: credentialless
-Cross-Origin-Resource-Policy: same-origin
-Cross-Origin-Opener-Policy: same-origin
-Strict-Transport-Security: max-age=63072000
-Permissions-Policy: otp-credentials=*, document-domain=()
-Referrer-Policy: same-origin
-X-Frame-Options: DENY
-X-Content-Type-Options: nosniff
-X-XSS-Protection: 0
-Vary: Accept-Encoding
 
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    
-    
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex" />
-    
-    
-    
+
     <link rel="stylesheet" href="/@atproto/oauth-provider/~assets/error-view-D2nJsHXB.css" />
     <style>
       :root {
@@ -40,12 +20,19 @@ Vary: Accept-Encoding
         --branding-color-error-contrast: 255 255 255;
         --branding-color-error-hue: 346;
         --branding-color-warning: 255 201 73;
+        --branding-color-warning-hue: 42.1978021978022;
+        --branding-color-success: 0 191 165;
+        --branding-color-success-contrast: 0 0 0;
+        --branding-color-success-hue: 171.8324607329843;
+      }
+    </style>
+  </head>
   <body>
     <div id="root"></div>
 
-    <script type="application/json" id="__customizationData">{"availableUserDomains":[".bsky.social"],"inviteCodeRequired":false,"hcaptchaSiteKey":"e75b29e9-404c-48a4-b89f-7abf6bbd17b1","name":"Bluesky","logo":"data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%20320%20286%22%3E%3Cpath%20fill%3D%22rgb(10%2C122%2C255)%22%20d%3D%22M69.364%2019.146c36.687%2027.806%2076.147%2084.186%2090.636%20114.439%2014.489-30.253%2053.948-86.633%2090.636-114.439C277.107-.917%20320-16.44%20320%2032.957c0%209.865-5.603%2082.875-8.889%2094.729-11.423%2041.208-53.045%2051.719-90.071%2045.357%2064.719%2011.12%2081.182%2047.953%2045.627%2084.785-80%2082.874-106.667-44.333-106.667-44.333s-26.667%20127.207-106.667%2044.333c-35.555-36.832-19.092-73.665%2045.627-84.785-37.026%206.362-78.648-4.149-90.071-45.357C5.603%20115.832%200%2042.822%200%2032.957%200-16.44%2042.893-.917%2069.364%2019.147Z%22%20%2F%3E%3C%2Fsvg%3E","links":[{"title":"Home","href":"https://bsky.social/"},{"title":"Terms of Service","href":"https://bsky.social/about/support/tos","rel":"terms-of-service"},{"title":"Privacy Policy","href":"https://bsky.social/about/support/privacy-policy","rel":"privacy-policy"},{"title":"Support","href":"https://blueskyweb.zendesk.com/hc/en-us","rel":"help"}]}</script>
+    <script type="application/json" id="__customizationData">{"availableUserDomains":[".bsky.social"],"inviteCodeRequired":false,"hcaptchaSiteKey":"e75b29e9-404c-48a4-b89f-7abf6bbd17b1","name":"Bluesky","logo":"data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%22%200%200%20320%20286%22%3E%3Cpath%20fill%3D%22rgb(10%2C122%2C255)%22%20d%3D%22M69.364%2019.146c36.687%2027.806%2076.147%2084.186%2090.636%20114.439%2014.489-30.253%2053.948-86.633%2090.636-114.439C277.107-.917%20320-16.44%20320%2032.957c0%209.865-5.603%2082.875-8.889%2094.729-11.423%2041.208-53.045%2051.719-90.071%2045.357%2064.719%2011.12%2081.182%2047.953%2045.627%2084.785-80%2082.874-106.667-44.333-106.667-44.333s-26.667%20127.207-106.667%2044.333c-35.555-36.832-19.092-73.665%2045.627-84.785-37.026%206.362-78.648-4.149-90.071-45.357C5.603%20115.832%200%2042.822%200%2032.957%200-16.44%2042.893-.917%2069.364%2019.147Z%22%20%2F%3E%3C%2Fsvg%3E","links":[{"title":"Home","href":"https://bsky.social/"},{"title":"Terms of Service","href":"https://bsky.social/about/support/tos","rel":"terms-of-service"},{"title":"Privacy Policy","href":"https://bsky.social/about/support/privacy-policy","rel":"privacy-policy"},{"title":"Support","href":"https://blueskyweb.zendesk.com/hc/en-us","rel":"help"}]}</script>
 
-    <script type="application/json" id="__errorData">{"error":"invalid_request","error_description":"Missing sec-fetch-site header"}</script>
+  <script type="application/json" id="__errorData">{"error":"invalid_request","error_description":"Invalid request"}</script>
 
     <script type="module" id="init-script">
       (function () {
@@ -76,12 +63,4 @@ Vary: Accept-Encoding
 
     <script type="module" src="/@atproto/oauth-provider/~assets/error-page-QY8FHhOr.js"></script>
   </body>
-        --branding-color-warning-hue: 42.1978021978022;
-        --branding-color-success: 0 191 165;
-        --branding-color-success-contrast: 0 0 0;
-        --branding-color-success-hue: 171.8324607329843;
-      }
-    </style>
-  </head>
-  <body><div id="root"></div><script>window["__customizationData"]=JSON.parse("{\"availableUserDomains\":[\".bsky.social\"],\"inviteCodeRequired\":false,\"hcaptchaSiteKey\":\"e75b29e9-404c-48a4-b89f-7abf6bbd17b1\",\"name\":\"Bluesky\",\"logo\":\"data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%20320%20286%22%3E%3Cpath%20fill%3D%22rgb(10%2C122%2C255)%22%20d%3D%22M69.364%2019.146c36.687%2027.806%2076.147%2084.186%2090.636%20114.439%2014.489-30.253%2053.948-86.633%2090.636-114.439C277.107-.917%20320-16.44%20320%2032.957c0%209.865-5.603%2082.875-8.889%2094.729-11.423%2041.208-53.045%2051.719-90.071%2045.357%2064.719%2011.12%2081.182%2047.953%2045.627%2084.785-80%2082.874-106.667-44.333-106.667-44.333s-26.667%20127.207-106.667%2044.333c-35.555-36.832-19.092-73.665%2045.627-84.785-37.026%206.362-78.648-4.149-90.071-45.357C5.603%20115.832%200%2042.822%200%2032.957%200-16.44%2042.893-.917%2069.364%2019.147Z%22%20%2F%3E%3C%2Fsvg%3E\",\"links\":[{\"title\":\"Home\",\"href\":\"https://bsky.social/\"},{\"title\":\"Terms of Service\",\"href\":\"https://bsky.social/about/support/tos\",\"rel\":\"terms-of-service\"},{\"title\":\"Privacy Policy\",\"href\":\"https://bsky.social/about/support/privacy-policy\",\"rel\":\"privacy-policy\"},{\"title\":\"Support\",\"href\":\"https://blueskyweb.zendesk.com/hc/en-us\",\"rel\":\"help\"}]}");window["__errorData"]=JSON.parse("{\"error\":\"invalid_request\",\"error_description\":\"Missing sec-fetch-site header\"}");document.currentScript.remove();</script><script type="module" src="/@atproto/oauth-provider/~assets/error-page-QY8FHhOr.js"></script></body>
 </html>

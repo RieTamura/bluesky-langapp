@@ -1,8 +1,27 @@
 import { getDeviceLocale } from '../utils/deviceLocale';
 
-type Resources = Record<string, any>;
+// Strongly-typed shape of our translation namespaces
+export interface I18nNamespaces {
+  config: {
+    required: string;
+    clientIdMessage: string;
+  };
+  auth: {
+    success: {
+      title: string;
+      message: string;
+    };
+    serverResponse: {
+      title: string;
+      message: string;
+    };
+  };
+}
 
-const resources: Record<string, Resources> = {
+export type Locale = 'en' | 'ja';
+export type Resources = Record<Locale, I18nNamespaces>;
+
+const resources: Resources = {
   en: {
     config: {
       required: 'Configuration required',
@@ -37,7 +56,7 @@ const resources: Record<string, Resources> = {
   }
 };
 
-function lookup(rs: Resources, key: string): string | undefined {
+function lookup(rs: I18nNamespaces, key: string): string | undefined {
   const parts = key.split('.');
   let cur: any = rs;
   for (const p of parts) {
@@ -47,10 +66,15 @@ function lookup(rs: Resources, key: string): string | undefined {
   return typeof cur === 'string' ? cur : undefined;
 }
 
-export function t(key: string): string {
-  const lang = getDeviceLocale();
-  const rs = resources[lang] || resources['en'];
-  return lookup(rs, key) ?? key;
+function getLang(): Locale {
+  const raw = getDeviceLocale();
+  if (!raw) return 'en';
+  const code = raw.split('-')[0];
+  return code === 'ja' ? 'ja' : 'en';
 }
 
-export default { t };
+export function t(key: string): string {
+  const lang = getLang();
+  const rs = resources[lang];
+  return lookup(rs, key) ?? key;
+}

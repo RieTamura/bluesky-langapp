@@ -3,6 +3,16 @@ import DataService from './dataService.js';
 import type { WordData, UserData } from '../types/data.js';
 import { generateId } from '../utils/dataUtils.js';
 
+// Optional runtime-checked interface for BlueskyService implementations that
+// expose a resumeWithSession method accepting a generic session object.
+interface BlueskyServiceWithOAuth {
+  resumeWithSession(session: Record<string, unknown>): Promise<void>;
+}
+
+function isBlueskyServiceWithOAuth(obj: unknown): obj is BlueskyServiceWithOAuth {
+  return !!obj && typeof (obj as any).resumeWithSession === 'function';
+}
+
 export interface LearningProgressPost {
   id: string;
   userId: string;
@@ -111,7 +121,6 @@ class ATProtocolService {
   async initializeWithOAuth(payload: { code?: string; token?: string; session?: OAuthSession; returnService?: boolean }): Promise<BlueskyService> {
     // Controller may pass a session object returned by the provider. Prefer
     // using a resume API if available on the BlueskyService.
-    const session = payload.session;
     // Delegate to specialized handlers based on whether caller wants the
     // underlying service returned (returnService=true) or the standard init.
     if (payload.returnService) {
@@ -596,13 +605,20 @@ class ATProtocolService {
   private async resumeSessionIfPossible(session: OAuthSession): Promise<boolean> {
     // Prefer a resume API on the BlueskyService if it exists
     try {
-      if (typeof (this.blueskyService as any).resumeWithSession === 'function') {
-        await (this.blueskyService as any).resumeWithSession(session as unknown as Record<string, unknown>);
+      if (isBlueskyServiceWithOAuth(this.blueskyService)) {
+        // Pass a generic record to avoid relying on unstable internal session shapes
+        await this.blueskyService.resumeWithSession(session as unknown as Record<string, unknown>);
         return this.blueskyService.isLoggedIn();
       }
 
-      // Fallback to access JWT / token
-      const token = (session.accessJwt as string) || (session.access_token as string) || undefined;
+      // Fallback to access JWT / token: perform runtime checks instead of force-casts
+      let token: string | undefined;
+      if (typeof session.accessJwt === 'string' && session.accessJwt.trim() !== '') {
+        token = session.accessJwt.trim();
+      } else if (typeof session.access_token === 'string' && session.access_token.trim() !== '') {
+        token = session.access_token.trim();
+      }
+
       if (token) {
         await this.blueskyService.loginWithOAuthToken(token);
         return this.blueskyService.isLoggedIn();

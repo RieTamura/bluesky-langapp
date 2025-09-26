@@ -124,7 +124,7 @@ export class AuthController {
       // Update last accessed time
       session.lastAccessed = new Date();
 
-      if (!session.blueskyService.isLoggedIn()) {
+      if (!session.blueskyService.isLoggedIn || typeof session.blueskyService.isLoggedIn !== 'function' || !session.blueskyService.isLoggedIn()) {
         res.status(401).json({
           error: 'Session expired',
           message: 'Please login again'
@@ -179,7 +179,10 @@ export class AuthController {
     
     const session = sessions.get(sessionId)!;
     session.lastAccessed = new Date();
-    console.log('Session found, service logged in:', session.blueskyService.isLoggedIn());
+    const loggedIn = session.blueskyService.isLoggedIn && typeof session.blueskyService.isLoggedIn === 'function'
+      ? session.blueskyService.isLoggedIn()
+      : false;
+    console.log('Session found, service logged in:', loggedIn);
     return session.blueskyService;
   }
 
@@ -194,6 +197,9 @@ export class AuthController {
     
     const session = sessions.get(sessionId)!;
     session.lastAccessed = new Date();
+    if (!session.blueskyService.isLoggedIn || typeof session.blueskyService.isLoggedIn !== 'function') {
+      return false;
+    }
     return session.blueskyService.isLoggedIn();
   }
 

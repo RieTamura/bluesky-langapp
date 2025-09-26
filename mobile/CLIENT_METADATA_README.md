@@ -40,7 +40,7 @@ npx serve -s . -p 8000
 npx ngrok http 8000
 ```
 
-- Paste the resulting URL（またはOption BのGitHub raw URL）をアプリの手動フィールドに貼ってください。
+- Paste the resulting URL (or the GitHub raw URL from Option B) into the app's manual field.
 
 Security note about tunnels
 

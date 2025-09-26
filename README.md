@@ -82,12 +82,6 @@ NODE_ENV=development
 $env:DEV_REDIRECT_URI='exp://192.168.11.27:8081'; node scripts\generate-client-metadata.js
 ```
 
-あるいは一時的に実行するだけなら：
-
-```powershell
-$env:DEV_REDIRECT_URI='exp://192.168.11.27:8081'; node scripts\generate-client-metadata.js
-```
-
 スクリプトは`client-metadata.json`の先頭の`redirect_uris[0]`を置き換えます。CIや本番ではこのスクリプトを自動実行しないでください。本番向けの`redirect_uris`はHTTPSや正しいカスタムURIスキームにしてください。
 
 ## 使用方法

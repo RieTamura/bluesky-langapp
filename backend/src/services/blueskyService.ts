@@ -4,7 +4,7 @@ import { AtpAgent } from '@atproto/api';
 // Keep the return type permissive (Promise<any>) to remain compatible with
 // multiple @atproto/api versions which may return different shapes.
 interface AgentWithLogin {
-  login(opts: { identifier?: string; password?: string; accessJwt?: string }): Promise<any>;
+  login(opts: { identifier?: string; password?: string; accessJwt?: string }): Promise<unknown>;
 }
 
 // Minimal session shape used by resumeSession / session hydration flows.
@@ -94,10 +94,22 @@ export class BlueskyService {
   async login(credentials: BlueskyCredentials): Promise<void> {
     try {
       console.log('BlueskyService.login called for:', credentials.identifier);
-      await (this.agent as AgentWithLogin).login({
-        identifier: credentials.identifier,
-        password: credentials.password,
-      });
+      // Prefer a runtime check for the login method instead of force-casting.
+      // Some @atproto/api versions may not expose credential-based login.
+      const maybeLogin = (this.agent as any).login;
+      if (typeof maybeLogin === 'function') {
+        // Narrow to the AgentWithLogin shape for the call
+        const agentWithLogin = this.agent as AgentWithLogin;
+        await agentWithLogin.login({
+          identifier: credentials.identifier,
+          password: credentials.password,
+        });
+      } else {
+        const msg = 'Agent instance does not support credential login (missing login method). Use OAuth token flows or an agent implementation that supports login.';
+        console.error('BlueskyService.login failed:', msg);
+        this.isAuthenticated = false;
+        throw new Error(msg);
+      }
       this.isAuthenticated = true;
       console.log('BlueskyService authentication successful');
     } catch (error) {
@@ -128,14 +140,7 @@ export class BlueskyService {
           await extended.resumeSession(session);
           // Verify that the session works by doing a small authenticated call.
           try {
-            // If agent populated a DID in the session, prefer profile lookup.
-            const did = extended.session?.did;
-            const client = this.agent as unknown as BlueskyApiClient;
-            if (did) {
-              await client.getProfile({ actor: did });
-            } else {
-              await client.getTimeline({ limit: 1 });
-            }
+            await this.verifySession();
             this.isAuthenticated = true;
             console.log('BlueskyService: session restored via resumeSession');
             return;
@@ -152,13 +157,7 @@ export class BlueskyService {
       if (typeof agentWithLogin.login === 'function') {
         try {
           await agentWithLogin.login({ accessJwt: token });
-          const did = (this.agent as ExtendedAtpAgent).session?.did;
-          const client = this.agent as unknown as BlueskyApiClient;
-          if (did) {
-            await client.getProfile({ actor: did });
-          } else {
-            await client.getTimeline({ limit: 1 });
-          }
+          await this.verifySession();
           this.isAuthenticated = true;
           console.log('BlueskyService: session restored via agent.login(accessJwt)');
           return;
@@ -169,21 +168,15 @@ export class BlueskyService {
 
       // Strategy C: as a last resort, assign to agent.session where supported
       // and then verify via an authenticated call.
-      try {
-        if (extended) {
+        try {
+          if (extended) {
           // Limited cast: adapt our minimal AtpSession to the runtime agent shape.
           // This avoids using `as any` widely while acknowledging runtime
           // session shape differences across SDK versions.
           extended.session = session as unknown as any;
         }
         try {
-          const did = extended.session?.did;
-          const client = this.agent as unknown as BlueskyApiClient;
-          if (did) {
-            await client.getProfile({ actor: did });
-          } else {
-            await client.getTimeline({ limit: 1 });
-          }
+          await this.verifySession();
           this.isAuthenticated = true;
           console.log('BlueskyService: session restored via setting agent.session');
           return;
@@ -227,6 +220,21 @@ export class BlueskyService {
       this.isAuthenticated = false;
       console.error('BlueskyService.resumeWithSession failed:', e);
       throw e;
+    }
+  }
+
+  /**
+   * Verify that the current agent session is usable by performing a small
+   * authenticated call. Throws if verification fails.
+   */
+  private async verifySession(): Promise<void> {
+    const extended = this.agent as ExtendedAtpAgent;
+    const did = extended.session?.did;
+    const client = this.agent as unknown as BlueskyApiClient;
+    if (did) {
+      await client.getProfile({ actor: did });
+    } else {
+      await client.getTimeline({ limit: 1 });
     }
   }
 
@@ -347,7 +355,11 @@ export class BlueskyService {
     if (!this.isAuthenticated) throw new Error('Not authenticated. Please login first.');
 
     try {
-      const actor = (this.agent as any).session?.did || '';
+      const extended = this.agent as ExtendedAtpAgent;
+      const actor = extended.session?.did;
+      if (!actor || typeof actor !== 'string' || actor.length === 0) {
+        throw new Error('Cannot fetch profile: no session DID available. Ensure you are authenticated and the agent session contains a valid DID.');
+      }
       const profile = await (this.agent as any).getProfile({ actor });
       return {
         did: profile.data.did,
@@ -379,13 +391,13 @@ export class BlueskyService {
     let lastErr: unknown = null;
     // First attempt: public unauthenticated fetch
     try {
-      return await this.fetchProfile(actor);
+      return await this.fetchProfile(actor, /* useAuthenticated */ false);
     } catch (errPublic) {
       lastErr = errPublic;
       // If we are authenticated, try an authenticated call as a fallback
       if (this.isAuthenticated) {
         try {
-          return await this.fetchProfile(actor);
+          return await this.fetchProfile(actor, /* useAuthenticated */ true);
         } catch (errAuth) {
           lastErr = errAuth;
           console.warn('BlueskyService.getProfileByActor authenticated attempt failed for', actor, errAuth instanceof Error ? errAuth.message : errAuth);
@@ -400,7 +412,7 @@ export class BlueskyService {
   }
 
   // Private helper to fetch and map a profile response from the agent.
-  private async fetchProfile(actor: string): Promise<{
+  private async fetchProfile(actor: string, useAuthenticated: boolean = false): Promise<{
     did: string;
     handle: string;
     displayName?: string;
@@ -410,7 +422,11 @@ export class BlueskyService {
     followsCount?: number;
     postsCount?: number;
   }> {
-    const profile = await (this.agent as any).getProfile({ actor });
+    // When useAuthenticated is true, use the service's agent (which may hold
+    // an authenticated session). Otherwise, create a fresh unauthenticated
+    // AtpAgent instance for a public fetch to avoid relying on caller state.
+    const client = useAuthenticated ? (this.agent as any) : new AtpAgent({ service: 'https://bsky.social' }) as any;
+    const profile = await client.getProfile({ actor });
     return {
       did: profile.data.did,
       handle: profile.data.handle,

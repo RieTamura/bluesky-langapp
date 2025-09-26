@@ -7,7 +7,7 @@
     "https://auth.expo.io/@rietamura/bluesky-langapp",
     "https://127.0.0.1/callback"
   ],
-  "scope": "all atproto",
+  "scope": ["atproto", "transition:generic", "transition:chat.bsky"],
   "dpop_bound_access_tokens": true,
   "grant_types": ["authorization_code","refresh_token"],
   "response_types": ["code"],

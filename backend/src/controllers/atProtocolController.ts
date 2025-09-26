@@ -7,6 +7,17 @@ import { importJWK, generateKeyPair, exportJWK, SignJWT } from 'jose';
 import * as crypto from 'crypto';
 import { URL } from 'url';
 
+// Minimal JWK shape used for exported public keys from jose.exportJWK
+type PublicJWK = {
+  kty?: string;
+  crv?: string;
+  x?: string;
+  y?: string;
+  alg?: string;
+  use?: string;
+  [k: string]: unknown;
+};
+
 // Environment-driven token endpoint configuration.
 // - In production we require an explicit AT_PROTOCOL_TOKEN_ENDPOINT to be set to avoid unexpected
 //   provider changes. In other environments we default to the canonical provider used in dev.
@@ -23,8 +34,8 @@ const AT_PROTOCOL_TOKEN_ENDPOINT = (rawTokenEndpoint && rawTokenEndpoint.trim())
 // Validate the configured token endpoint early.
 try {
   // This will throw if the value is not a valid URL
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _tmp = new URL(AT_PROTOCOL_TOKEN_ENDPOINT);
+  // Validate by constructing a URL; use `void` to avoid creating an unused binding
+  void new URL(AT_PROTOCOL_TOKEN_ENDPOINT);
 } catch (err) {
   // Fail fast during startup rather than at runtime when attempting an OAuth flow
   console.error('Invalid AT_PROTOCOL_TOKEN_ENDPOINT configuration:', AT_PROTOCOL_TOKEN_ENDPOINT, err);
@@ -73,10 +84,23 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
         // Create a DPoP proof header (provider requires DPoP for dpop_bound_access_tokens)
         // Generate ephemeral ES256 key pair and include the public JWK in the DPoP JWT header
         const { publicKey, privateKey } = await generateKeyPair('ES256');
-        const jwk = await exportJWK(publicKey) as any;
-        // Ensure 'use' and 'alg' are present
-        jwk.alg = jwk.alg || 'ES256';
-        jwk.use = jwk.use || 'sig';
+        const rawJwk = await exportJWK(publicKey) as PublicJWK;
+        // Validate exported JWK parameters for ES256 (expected: kty=EC, crv=P-256)
+        const expectedKty = 'EC';
+        const expectedCrv = 'P-256';
+        if (rawJwk.kty && rawJwk.kty !== expectedKty) {
+          throw new Error(`Exported JWK has incompatible kty: ${String(rawJwk.kty)} (expected ${expectedKty})`);
+        }
+        if (rawJwk.crv && rawJwk.crv !== expectedCrv) {
+          throw new Error(`Exported JWK has incompatible crv: ${String(rawJwk.crv)} (expected ${expectedCrv})`);
+        }
+
+        // Create a new, properly-typed copy and set required fields explicitly.
+        const jwk: PublicJWK = {
+          ...rawJwk,
+          alg: 'ES256',
+          use: 'sig'
+        };
 
         // Build DPoP JWT: htu (HTTP URI), htm (HTTP method), iat, jti
         const dpopPayload = {
@@ -87,22 +111,28 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
 
         // Helper to generate a strong unique identifier for DPoP (prefer crypto.randomUUID)
         const generateDpopJti = (): string => {
-          try {
-            if (crypto && typeof (crypto as any).randomUUID === 'function') {
-              return (crypto as any).randomUUID();
-            } else if (crypto && typeof (crypto as any).randomBytes === 'function') {
+          // Prefer crypto.randomUUID if available (Node 14.17+/v15+)
+          if (crypto && typeof (crypto as any).randomUUID === 'function') {
+            return (crypto as any).randomUUID();
+          }
+
+          // Otherwise use crypto.randomBytes to produce a v4 UUID-style value.
+          if (crypto && typeof (crypto as any).randomBytes === 'function') {
+            try {
               const buf = (crypto as any).randomBytes(16);
               buf[6] = (buf[6] & 0x0f) | 0x40; // version 4
               buf[8] = (buf[8] & 0x3f) | 0x80; // variant
               const hex = Buffer.from(buf).toString('hex');
               return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+            } catch (err) {
+              // Rethrow so callers get an explicit failure rather than silently
+              // receiving a weak identifier.
+              throw new Error(`Failed to generate secure random bytes for DPoP jti: ${err instanceof Error ? err.message : String(err)}`);
             }
-            console.warn('crypto.randomUUID and crypto.randomBytes are not available; falling back to insecure ID generation. Upgrade Node or provide a crypto polyfill.');
-            return (Math.random().toString(36).slice(2) + Date.now().toString(36));
-          } catch (err) {
-            console.warn('Error generating secure random UUID for DPoP jti, falling back to less secure generator:', err);
-            return (Math.random().toString(36).slice(2) + Date.now().toString(36));
           }
+
+          // If no secure random source is available, fail explicitly.
+          throw new Error('Secure random generation not available: neither crypto.randomUUID nor crypto.randomBytes are supported in this environment. Provide Node crypto or a secure polyfill.');
         };
 
         const dpopJti = generateDpopJti();

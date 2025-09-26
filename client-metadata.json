@@ -7,9 +7,9 @@
   "myapp://oauth/callback"
   ],
   "scope": [
-    "profile:read",
-    "posts:read",
-    "posts:write",
+  "profile:read",
+  "posts:read",
+  "posts:create",
     "timeline:read",
     "offline_access"
   ],
