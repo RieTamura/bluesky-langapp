@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-var-requires, global-require */
 // Lightweight mock Authorization Server for local AT Protocol OAuth testing
 // No dependencies required. Run with: `node server.js`
 //
