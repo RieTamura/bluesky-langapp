@@ -10,6 +10,7 @@
 const http = require('http');
 const url = require('url');
 const fs = require('fs');
+const https = require('https');
 const crypto = require('crypto');
 const querystring = require('querystring');
 
@@ -129,13 +130,17 @@ const requestHandler = (req, res) => {
 
   // Protected resource metadata (PDS -> AS resolver expects this)
   if (u.pathname === '/.well-known/oauth-protected-resource') {
-    // Return our local server as the AS issuer
-    return sendJSON(res, { authorization_servers: [ `http://localhost:${PORT}` ] });
+    // Return our local server as the AS issuer. Prefer PUBLIC_HOST env var, then request Host header, then localhost.
+    const publicHost = process.env.PUBLIC_HOST || req.headers.host;
+    const asUrl = publicHost ? `${publicHost.startsWith('http') ? publicHost : ('http://' + publicHost)}` : `http://localhost:${PORT}`;
+    return sendJSON(res, { authorization_servers: [ asUrl ] });
   }
 
   // Authorization Server metadata
   if (u.pathname === '/.well-known/oauth-authorization-server') {
-    const issuer = `http://localhost:${PORT}`;
+    const publicHost = process.env.PUBLIC_HOST || req.headers.host;
+    const issuerBase = publicHost ? `${publicHost.startsWith('http') ? publicHost : ('http://' + publicHost)}` : `http://localhost:${PORT}`;
+    const issuer = issuerBase;
     return sendJSON(res, {
       issuer,
       authorization_endpoint: `${issuer}/oauth/authorize`,
@@ -387,9 +392,8 @@ const HTTPS_PORT = process.env.HTTPS_PORT ? Number(process.env.HTTPS_PORT) : POR
 if (TLS_PFX_PATH) {
   // Prefer PFX if provided
   try {
-    const pfx = fs.readFileSync(TLS_PFX_PATH);
-    const https = require('https');
-    const httpsServer = https.createServer({ pfx, passphrase: TLS_PFX_PASSPHRASE }, requestHandler);
+  const pfx = fs.readFileSync(TLS_PFX_PATH);
+  const httpsServer = https.createServer({ pfx, passphrase: TLS_PFX_PASSPHRASE }, requestHandler);
     httpsServer.listen(HTTPS_PORT, () => console.log(`Mock AS listening at https://localhost:${HTTPS_PORT} (using PFX)`));
   } catch (err) {
     console.error(new Date().toISOString(), 'Failed to read TLS PFX file:', err && err.message);
@@ -398,10 +402,9 @@ if (TLS_PFX_PATH) {
   }
 } else if (TLS_KEY_PATH && TLS_CERT_PATH) {
   try {
-    const key = fs.readFileSync(TLS_KEY_PATH);
-    const cert = fs.readFileSync(TLS_CERT_PATH);
-    const https = require('https');
-    const httpsServer = https.createServer({ key, cert }, requestHandler);
+  const key = fs.readFileSync(TLS_KEY_PATH);
+  const cert = fs.readFileSync(TLS_CERT_PATH);
+  const httpsServer = https.createServer({ key, cert }, requestHandler);
     httpsServer.listen(HTTPS_PORT, () => console.log(`Mock AS listening at https://localhost:${HTTPS_PORT}`));
   } catch (err) {
     console.error(new Date().toISOString(), 'Failed to read TLS key/cert files:', err && err.message);
@@ -409,5 +412,9 @@ if (TLS_PFX_PATH) {
     process.exit(1);
   }
 } else {
-  httpServer.listen(PORT, () => console.log(`Mock AS listening at http://localhost:${PORT}`));
+  httpServer.listen(PORT, () => {
+    const publicHost = process.env.PUBLIC_HOST || `localhost:${PORT}`;
+    const listenMsg = publicHost.startsWith('http') ? publicHost : `http://${publicHost}`;
+    console.log(`Mock AS listening at ${listenMsg}`);
+  });
 }

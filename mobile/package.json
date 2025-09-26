@@ -18,7 +18,8 @@
     "eas:build:ios:prod": "eas build --profile production --platform ios",
     "eas:build:android:dev": "eas build --profile development --platform android",
     "eas:build:android:prod": "eas build --profile production --platform android",
-    "eas:configure": "eas build:configure"
+    "eas:configure": "eas build:configure",
+    "mock-as": "node ./mock-as/server.js"
   },
   "jest": {
     "preset": "jest-expo",
@@ -55,6 +56,7 @@
     "react-native-svg": "15.12.1",
     "react-native-vector-icons": "^10.3.0",
     "react-native-view-shot": "4.0.3",
+    "sharp": "^0.34.4",
     "zustand": "^4.5.2"
   },
   "devDependencies": {
@@ -62,7 +64,6 @@
     "@testing-library/react-native": "12.4.4",
     "@types/jest": "29.5.12",
     "@types/react": "19.1.12",
-    "@types/react-native": "^0.72.8",
     "@typescript-eslint/eslint-plugin": "7.6.0",
     "@typescript-eslint/parser": "7.6.0",
     "babel-preset-expo": "^54.0.0",

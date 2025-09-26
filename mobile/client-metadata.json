@@ -1,10 +1,10 @@
 {
-  "client_id": "http://localhost:8000/langapp-client-metadata.json",
+  "client_id": "http://192.168.11.27:2584/client-metadata.json",
   "client_name": "LangApp Dev",
   "application_type": "native",
   "dpop_bound_access_tokens": true,
   "redirect_uris": [
-  "langapp://auth",
+  "blueskylearning://auth",
   "http://127.0.0.1:8000/callback"
   ],
   "grant_types": ["authorization_code", "refresh_token"],
