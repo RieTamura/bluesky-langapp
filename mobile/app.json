@@ -4,6 +4,7 @@
     "scheme": "blueskylearning",
     "name": "BlueskyLangApp",
     "slug": "bluesky-langapp",
+    "icon": "./assets/icon.png",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
@@ -12,6 +13,7 @@
     },
     "assetBundlePatterns": ["**/*"],
     "ios": {
+      "icon": "./assets/icon.png",
       "supportsTablet": true,
       "userInterfaceStyle": "automatic",
       "bundleIdentifier": "com.rietamura.bluelang",
@@ -38,6 +40,7 @@
       }
     },
     "android": {
+      "icon": "./assets/icon.png",
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
       },
@@ -52,8 +55,8 @@
     },
     "web": {},
     "extra": {
-  "apiUrl": "http://192.168.11.27:3000",
-  "blueskyClientId": "http://localhost:8000/langapp-client-metadata.json",
+    "apiUrl": "http://192.168.11.27:3000",
+    "blueskyClientId": "http://192.168.11.27:2584/client-metadata.json",
       "useAuthProxy": true,
       "authProxyUrl": "https://auth.expo.io/@rietamura/bluesky-langapp",
       "eas": {
