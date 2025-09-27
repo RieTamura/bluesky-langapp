@@ -6,15 +6,9 @@
   "application_type": "native",
   "dpop_bound_access_tokens": true,
   "redirect_uris": [
-    "blueskylearning://auth",
-    "https://auth.expo.io/@rietamura/bluesky-langapp",
-    "exp://localhost:8081"
+    "https://auth.expo.io/@rietamura/bluesky-langapp"
   ],
-  "scope": [
-    "atproto",
-    "transition:generic",
-    "transition:chat.bsky"
-  ],
+  "scope": "atproto transition:generic transition:chat.bsky",
   "grant_types": [
     "authorization_code",
     "refresh_token"
