@@ -10,7 +10,6 @@
     "forceConsistentCasingInFileNames": true,
     "types": [
       "react",
-      "react-native",
       "jest"
     ],
     "typeRoots": ["./src/types", "./node_modules/@types"],
