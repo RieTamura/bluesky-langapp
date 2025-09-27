@@ -17,6 +17,9 @@
     "data:stats": "node scripts/data-manager.js stats",
     "data:backup": "node scripts/data-manager.js backup",
   "gen:client-metadata": "node scripts/generate-client-metadata.js",
+  "gen:mobile-client-metadata": "node mobile/scripts/generate-client-metadata.js",
+  "gen:all-client-metadata": "npm run gen:client-metadata && npm run gen:mobile-client-metadata",
+  "check:app-json-consistency": "node scripts/check-app-json-consistency.cjs",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

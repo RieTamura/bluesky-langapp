@@ -167,3 +167,28 @@ Need help publishing the file?
 - I can push this file to your GitHub repo or create a public gist and return a raw URL.
 - Tell me which you prefer and the target repo, or say "gist".
 
+Source of truth and automation
+
+- Source of truth: `docs/.well-known/atproto_client_metadata.json`.
+  - Keep that file updated with production values.
+  - The `client-metadata.json` files (root and `mobile/`) are convenience copies. Generate them from the canonical docs file.
+
+- Generating/updating local copies (recommended):
+  - From the repository root you can run the provided generator scripts. Two scripts are available:
+    - `npm run gen:client-metadata` — generates the root `client-metadata.json` from `scripts/generate-client-metadata.js`.
+    - `npm run gen:mobile-client-metadata` — generates `mobile/client-metadata.json` from `mobile/scripts/generate-client-metadata.js`.
+    - `npm run gen:all-client-metadata` — runs both generators in sequence.
+  - CI recommendation: run `npm run gen:all-client-metadata` in CI before build/deploy. This keeps local copies in sync.
+
+Example (local):
+
+```powershell
+# from repo root
+npm run gen:all-client-metadata
+
+# or only mobile
+npm run gen:mobile-client-metadata
+```
+
+Keeping a single canonical source and generating local copies avoids accidental divergences.
+

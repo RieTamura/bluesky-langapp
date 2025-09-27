@@ -99,7 +99,7 @@ export function resolveLoginConfig(oauthTimeoutMs?: number): LoginConfig {
   }
 
   const useProxy = parseBooleanCandidate(_extra?.useAuthProxy ?? process.env.EXPO_USE_AUTH_PROXY, true);
-  const explicitProxyUrl = (_extra?.authProxyUrl ?? process.env.EXPO_AUTH_PROXY_URL ?? 'https://auth.expo.io/@rietamura/bluesky-langapp');
+  const explicitProxyUrl = ((appJson as any)?.expo?.extra?.authProxyUrl) || _extra?.authProxyUrl || process.env.EXPO_AUTH_PROXY_URL || '';
   let redirectUri = explicitProxyUrl;
 
   const resolvedOauthTimeoutMs = oauthTimeoutMs ?? (Number(_extra?.oauthTimeoutMs ?? process.env.EXPO_OAUTH_TIMEOUT_MS ?? DEFAULT_OAUTH_TIMEOUT_MS) || DEFAULT_OAUTH_TIMEOUT_MS);

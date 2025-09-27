@@ -1,15 +1,26 @@
 {
-  "client_id": "http://localhost:2584/client-metadata.json",
-  "client_name": "LangApp Dev",
+  "client_id": "https://rietamura.github.io/bluelang-oauth/.well-known/atproto_client_metadata.json",
+  "client_name": "Bluesky LangApp Dev",
+  "client_uri": "https://rietamura.github.io/bluelang-oauth",
+  "logo_uri": "https://rietamura.github.io/bluelang-oauth/logo.png",
   "application_type": "native",
   "dpop_bound_access_tokens": true,
   "redirect_uris": [
     "blueskylearning://auth",
-    "http://127.0.0.1:8000/callback"
+    "https://auth.expo.io/@rietamura/bluesky-langapp",
+    "exp://localhost:8081"
   ],
-  "grant_types": ["authorization_code", "refresh_token"],
-  "response_types": ["code"],
-  "scope": ["offline_access", "profile", "email"],
-  "token_endpoint_auth_method": "none",
-  "__note": "This file is recommended to be generated at build time from CLIENT_METADATA_URL environment variable. See scripts/generate-client-metadata.js"
+  "scope": [
+    "atproto",
+    "transition:generic",
+    "transition:chat.bsky"
+  ],
+  "grant_types": [
+    "authorization_code",
+    "refresh_token"
+  ],
+  "response_types": [
+    "code"
+  ],
+  "token_endpoint_auth_method": "none"
 }
