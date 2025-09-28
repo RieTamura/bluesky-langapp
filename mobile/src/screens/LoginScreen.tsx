@@ -184,7 +184,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
   async function preparePKCEAndStore() {
     const { verifier, challenge } = await generatePKCE();
     codeVerifierRef.current = verifier;
-    try { await SecureStore.setItemAsync('pkce.verifier', verifier); } catch (_) { /* ignore */ }
+    try {
+      await SecureStore.setItemAsync('pkce.verifier', verifier);
+    } catch (_) { /* ignore */ }
+    if (__DEV__) {
+      try { console.log('[LoginScreen DEBUG] generated PKCE verifier length=', verifier.length); } catch (_) { /* ignore */ }
+    }
     return { verifier, challenge };
   }
 
@@ -283,6 +288,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
     if (result && result.type === 'success' && result.params && result.params.code) {
       const code = result.params.code;
       const client_id_for_exchange = manualClientId || resolvedClientId || undefined;
+      // Debugging: log parameters used for exchange
+      try {
+        console.log('[LoginScreen DEBUG] Exchanging code with params:', {
+          code: code ? `${code.slice(0,6)}...${code.slice(-6)}` : null,
+          hasVerifier: !!verifier,
+          verifierLength: verifier ? String((verifier as string).length) : 'null',
+          redirectUri,
+          client_id_for_exchange
+        });
+      } catch (_) { /* ignore */ }
       const ok = await exchangeCodeForSession(code, verifier, redirectUri, client_id_for_exchange, setLastBackendResponse, setError);
       if (ok) return true;
       return false;
@@ -335,6 +350,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
     }
     setBusy(true);
     try {
+      if (__DEV__) {
+        console.log('[LoginScreen DEBUG] resolvedClientId (before OAuth) =', resolvedClientId);
+        console.log('[LoginScreen DEBUG] API_BASE_URL =', API_BASE_URL);
+      }
+      if (__DEV__) {
+        try {
+          const now = new Date();
+          console.log('[LoginScreen DEBUG] local date string =', now.toString());
+          console.log('[LoginScreen DEBUG] ISO (UTC) =', now.toISOString());
+          console.log('[LoginScreen DEBUG] timezone =', Intl.DateTimeFormat().resolvedOptions().timeZone);
+          console.log('[LoginScreen DEBUG] timezone offset (minutes) =', now.getTimezoneOffset());
+          console.log('[LoginScreen DEBUG] Date.now() =', Date.now());
+        } catch (_) { /* ignore */ }
+      }
       const { verifier, challenge } = await preparePKCEAndStore();
       const state = Math.random().toString(36).slice(2);
       const meta = await loadClientMetadataIfNeeded();

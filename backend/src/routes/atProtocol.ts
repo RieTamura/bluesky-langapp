@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   initializeATProtocol,
+  debugExchange,
   postLearningProgress,
   generateSharedData,
   getPostHistory,
@@ -22,6 +23,8 @@ const router = Router();
 
 // Authentication and initialization
 router.post('/init', initializeATProtocol);
+// Debug-only: accept a redirect URL or oauth object and attempt a one-shot token exchange.
+router.post('/debug-exchange', debugExchange);
 router.get('/auth/status', getAuthStatus);
 router.post('/auth/logout', logout);
 

@@ -66,6 +66,20 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
   try {
     const { identifier, password, oauth } = req.body;
 
+    // Debug: log that the initialize endpoint was called and inspect body shape (mask sensitive parts)
+    try {
+      const keys = Object.keys(req.body || {});
+      let oauthInfo: any = null;
+      if (oauth && typeof oauth === 'object') {
+        oauthInfo = { ...oauth };
+        if (typeof oauthInfo.code === 'string') oauthInfo.code = `${oauthInfo.code.slice(0,6)}...${oauthInfo.code.slice(-6)}`;
+        if (typeof oauthInfo.code_verifier === 'string') oauthInfo.code_verifier = '<<masked>>';
+      }
+      console.log('[atProtocol] initializeATProtocol called, bodyKeys=', keys, 'oauth=', oauthInfo);
+    } catch (logErr) {
+      console.warn('[atProtocol] Failed to log initializeATProtocol entry', logErr);
+    }
+
     // Support two modes: credentials or oauth code exchange
     if (oauth && oauth.code) {
       // Exchange OAuth code for token with provider token_endpoint (bsky.social)
@@ -142,39 +156,72 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
           .setProtectedHeader({ alg: 'ES256', typ: 'dpop+jwt', jwk })
           .sign(privateKey as any);
 
+        // Debug: log outgoing token exchange details (mask sensitive values like code and code_verifier)
+        try {
+          const maskedParams = new URLSearchParams();
+          for (const [k, v] of params.entries()) {
+            if (k === 'code' || k === 'code_verifier' || k === 'refresh_token') {
+              // show only prefix to avoid leaking secrets while keeping some context
+              const s = String(v || '');
+              maskedParams.append(k, s.length > 8 ? `${s.slice(0,6)}...${s.slice(-2)}` : '<<masked>>');
+            } else {
+              maskedParams.append(k, String(v));
+            }
+          }
+          console.log('[atProtocol] Token exchange: endpoint=', tokenEndpoint);
+          console.log('[atProtocol] Token exchange: params(masked)=', maskedParams.toString());
+        } catch (logErr) {
+          console.warn('[atProtocol] Failed to log token exchange params', logErr);
+        }
+
         let tokenRes = await fetch(tokenEndpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'DPoP': dpopJwt },
           body: params.toString()
         });
 
-        // If the server requires a nonce in the DPoP proof, extract it from headers and retry
+        // Log response headers for additional debugging (DPoP nonce may be provided in headers)
+        try {
+          const hdrs: Record<string, string> = {};
+          tokenRes.headers.forEach((v: string, k: string) => { hdrs[k] = v; });
+          console.log('[atProtocol] Token endpoint response status=', tokenRes.status, 'headers=', hdrs);
+        } catch (hdrErr) {
+          console.warn('[atProtocol] Failed to log token response headers', hdrErr);
+        }
+
+        // If the server requires a nonce in the DPoP proof, extract it from headers and retry.
+        // Some providers return the nonce via a header (DPoP-Nonce) without setting
+        // parsedBody.error === 'use_dpop_nonce'. Check headers too.
+        // Cache any read body text so we don't attempt to read the same body twice (undici error)
+        let lastBodyText: string | null = null;
         if (!tokenRes.ok) {
-          const text = await tokenRes.text();
+          lastBodyText = await tokenRes.text();
           let parsedBody: any = null;
           try {
-            parsedBody = JSON.parse(text);
+            parsedBody = JSON.parse(lastBodyText as string);
           } catch (e: any) {
             // Log parse error with context so we can debug provider responses that are not valid JSON
             console.error('Failed to parse token endpoint response as JSON for nonce detection', {
               tokenEndpoint,
               status: tokenRes.status,
-              body: text,
+              body: lastBodyText,
               parseError: e && (e.message || String(e))
             });
             parsedBody = null;
           }
-          const wantsNonce = parsedBody && parsedBody.error === 'use_dpop_nonce';
+
+          // Determine whether to attempt a DPoP-with-nonce retry.
+          const headerNonce = tokenRes.headers.get('dpop-nonce') || tokenRes.headers.get('DPoP-Nonce');
+          const wantsNonceFromBody = parsedBody && parsedBody.error === 'use_dpop_nonce';
+          const wantsNonce = wantsNonceFromBody || !!headerNonce;
+
           if (wantsNonce) {
-            // Try to extract nonce from WWW-Authenticate or DPoP-Nonce header
+            // Try to extract nonce from WWW-Authenticate header first, then DPoP-Nonce header
             const www = tokenRes.headers.get('www-authenticate') || tokenRes.headers.get('WWW-Authenticate') || '';
             let nonceMatch = www.match(/nonce="?([^"]+)"?/i);
             let nonceVal: string | null = null;
             if (nonceMatch && nonceMatch[1]) nonceVal = nonceMatch[1];
-            if (!nonceVal) {
-              const dpopNonce = tokenRes.headers.get('dpop-nonce') || tokenRes.headers.get('DPoP-Nonce');
-              if (dpopNonce) nonceVal = dpopNonce;
-            }
+            if (!nonceVal && headerNonce) nonceVal = headerNonce;
 
             if (nonceVal) {
               // For each DPoP proof attempt, generate a fresh jti so each proof is unique
@@ -197,13 +244,36 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'DPoP': dpopJwtWithNonce },
                 body: params.toString()
               });
+              // We fetched a fresh response; reset cached body so downstream readers will read the new one
+              lastBodyText = null;
             }
           }
         }
 
         if (!tokenRes.ok) {
-          const bodyText = await tokenRes.text();
-          console.error('Token endpoint error:', tokenRes.status, bodyText);
+          // Reuse cached body text if we previously read it, otherwise read now
+          const bodyText = lastBodyText ?? await tokenRes.text();
+          // Emit full response body to aid diagnosis (may contain provider error details). Mask any long tokens if incidentally present.
+          let maskedBody = bodyText;
+          try {
+            const parsed = JSON.parse(bodyText);
+            // If the provider accidentally echoes back the code or verifier, mask them
+            if (parsed && typeof parsed === 'object') {
+              const clone: any = { ...parsed };
+              const maskIfLong = (val: any) => {
+                if (!val || typeof val !== 'string') return val;
+                return val.length > 12 ? `${val.slice(0,6)}...${val.slice(-4)}` : '<<masked>>';
+              };
+              if (clone.code) clone.code = maskIfLong(clone.code);
+              if (clone.access_token) clone.access_token = maskIfLong(clone.access_token);
+              if (clone.refresh_token) clone.refresh_token = maskIfLong(clone.refresh_token);
+              maskedBody = JSON.stringify(clone);
+            }
+          } catch (e) {
+            // Not JSON, leave raw text but truncate long strings for safety
+            if (typeof maskedBody === 'string' && maskedBody.length > 2000) maskedBody = maskedBody.slice(0,2000) + '...';
+          }
+          console.error('Token endpoint error:', tokenRes.status, maskedBody);
           throw new Error(`Token endpoint responded ${tokenRes.status}`);
         }
 
@@ -607,5 +677,61 @@ export async function getProfile(req: Request, res: Response): Promise<void> {
       error: error instanceof Error ? error.message : 'Failed to get profile'
     };
     res.status(500).json(response);
+  }
+}
+
+/**
+ * Debug-only endpoint to attempt a token exchange from a redirect URL or direct oauth object.
+ * Accepts JSON:
+ * - { redirectUrl: string }
+ * - { oauth: { code, code_verifier, redirect_uri, client_id } }
+ *
+ * This endpoint is disabled in production unless ENABLE_DEBUG_EXCHANGE=true is set.
+ */
+export async function debugExchange(req: Request, res: Response): Promise<void> {
+  if (process.env.NODE_ENV === 'production' && process.env.ENABLE_DEBUG_EXCHANGE !== 'true') {
+    res.status(403).json({ success: false, error: 'Debug exchange disabled in production' });
+    return;
+  }
+
+  try {
+    const { redirectUrl, oauth } = req.body || {};
+    let bodyOauth = oauth;
+    if (!bodyOauth && redirectUrl && typeof redirectUrl === 'string') {
+      try {
+        const u = new URL(redirectUrl);
+        const params: Record<string,string> = {};
+        u.searchParams.forEach((v,k) => { params[k] = v; });
+        bodyOauth = {
+          code: params.code,
+          code_verifier: params.code_verifier,
+          redirect_uri: params.redirect_uri || (u.origin + u.pathname),
+          client_id: params.client_id
+        };
+      } catch (e) {
+        res.status(400).json({ success: false, error: 'Invalid redirectUrl' });
+        return;
+      }
+    }
+
+    if (!bodyOauth || !bodyOauth.code) {
+      res.status(400).json({ success: false, error: 'Missing oauth.code' });
+      return;
+    }
+
+    // Delegate to the same exchange logic by crafting a fake request object.
+    const fakeReq: any = { body: { oauth: bodyOauth } };
+    const fakeRes: any = {
+      status: (code: number) => ({ json: (obj: any) => ({ code, obj }) }),
+      json: (obj: any) => obj
+    };
+
+    // Call the internal exchange logic path
+    await initializeATProtocol(fakeReq as Request, fakeRes as Response);
+    // If initializeATProtocol returns without throwing, respond success
+    res.json({ success: true, message: 'Debug exchange completed (see server logs)' });
+  } catch (err) {
+    console.error('Debug exchange failed:', err);
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
   }
 }
