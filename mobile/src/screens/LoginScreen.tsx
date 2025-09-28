@@ -167,6 +167,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
   const [manualAuthEndpoint, setManualAuthEndpoint] = useState('');
   const [manualClientId, setManualClientId] = useState('');
   const [lastBackendResponse, setLastBackendResponse] = useState<string | null>(null);
+  const [debugInfoVisible, setDebugInfoVisible] = useState(false);
   // redirectUrlInput removed: manual Process UI was removed per code review
   const codeVerifierRef = useRef<string | null>(null);
 
@@ -228,6 +229,26 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
       try { console.log('[LoginScreen DEBUG] generated PKCE verifier length=', verifier.length); } catch (_) { /* ignore */ }
     }
     return { verifier, challenge };
+  }
+
+  // Debug helpers: persist non-secret information about the auth request so
+  // TestFlight builds can surface what URL and redirectUri were used.
+  async function persistDebugAuthInfo(authUrl: string, redirectUriToStore: string) {
+    try {
+      // Only store non-sensitive info: do NOT store authorization codes, tokens, or secrets.
+      await SecureStore.setItemAsync('debug.oauth.authUrl', authUrl);
+      await SecureStore.setItemAsync('debug.oauth.redirectUri', redirectUriToStore);
+    } catch (_) { /* ignore storage errors */ }
+  }
+
+  async function readDebugAuthInfo(): Promise<{ authUrl?: string; redirectUri?: string }> {
+    try {
+      const a = await SecureStore.getItemAsync('debug.oauth.authUrl');
+      const r = await SecureStore.getItemAsync('debug.oauth.redirectUri');
+      return { authUrl: a || undefined, redirectUri: r || undefined };
+    } catch (_) {
+      return {};
+    }
   }
 
   /**
@@ -329,6 +350,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
         try {
           const result = await startAsync({ authUrl });
           if (__DEV__) console.log('[LoginScreen] AuthSession result:', result?.type);
+          // Persist debug info for post-mortem inspection in TestFlight builds.
+          try { await persistDebugAuthInfo(authUrl, redirectUri); } catch (_) { /* ignore */ }
           return result;
         } catch (authSessionError) {
           // If AuthSession fails, fall back to Linking approach
@@ -513,6 +536,22 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
         ]}
       >
         <Text style={styles.primaryButtonText}>{busy ? '処理中...' : 'Sign in with Bluesky (PKCE)'}</Text>
+      </TouchableOpacity>
+      <View style={{ height: 8 }} />
+      <TouchableOpacity
+        onPress={async () => {
+          try {
+            const info = await readDebugAuthInfo();
+            const content = `authUrl: ${info.authUrl || '<none>'}\nredirectUri: ${info.redirectUri || '<none>'}`;
+            await Clipboard.setStringAsync(content);
+            Alert.alert('Debug info copied', 'Auth URL and redirectUri copied to clipboard.');
+          } catch (e:any) {
+            Alert.alert('Copy failed', e?.message || 'failed to copy');
+          }
+        }}
+        style={{ alignItems: 'center', paddingVertical: 10 }}
+      >
+        <Text style={{ color: colors.secondaryText, fontSize: 12 }}>Copy debug auth info</Text>
       </TouchableOpacity>
       <View style={{ height: 8 }} />
       <Button title="Open auth URL in browser (debug)" onPress={async () => {
