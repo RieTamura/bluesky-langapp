@@ -108,9 +108,24 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
           // Provide a brief human-friendly description to help clients decide whether to retry
           data: { error_description: 'This authorization code is already being processed or was recently used' }
         };
-        // 429 Too Many Requests signals the client to back off (more appropriate than 409 for rate/duplicate control)
-        // Include a Retry-After header to hint when clients may retry (seconds)
-        try { res.setHeader?.('Retry-After', '30'); } catch (_) { /* ignore */ }
+
+        // Compute remaining TTL for the cached code and set Retry-After header in seconds.
+        try {
+          const firstSeenMs = (existing && typeof (existing as any).ts === 'number') ? (existing as any).ts : null;
+          let remainingMs: number;
+          if (firstSeenMs !== null) {
+            remainingMs = OAUTH_CODE_TTL_MS - (Date.now() - firstSeenMs);
+            // clamp to [1ms, OAUTH_CODE_TTL_MS]
+            if (remainingMs <= 0) remainingMs = 1;
+            if (remainingMs > OAUTH_CODE_TTL_MS) remainingMs = OAUTH_CODE_TTL_MS;
+          } else {
+            remainingMs = OAUTH_CODE_TTL_MS;
+          }
+
+          const retryAfterSec = String(Math.max(1, Math.ceil(remainingMs / 1000)));
+          res.setHeader?.('Retry-After', retryAfterSec);
+        } catch (_) { /* ignore header-setting failures */ }
+
         res.status(429).json(response);
         return;
       }
