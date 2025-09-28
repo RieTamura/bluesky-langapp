@@ -140,13 +140,15 @@ export function resolveLoginConfig(oauthTimeoutMs?: number): LoginConfig {
       // scheme without the expected path with redirect_uri_mismatch.
       let normalized = made;
       try {
-        // If native standalone and the returned URI is the bare scheme (no path),
-        // append '/auth' to match the registered redirect URI in client metadata.
-        if (!useProxy && typeof normalized === 'string' && normalized.startsWith('blueskylearning://') && !normalized.includes('/auth')) {
+        // If the returned URI is the bare scheme (no path), append '/auth'
+        // to match the registered redirect URI in client metadata.
+        // Do this regardless of useProxy so dev/dev-client builds that
+        // return 'blueskylearning://' are normalized.
+        if (typeof normalized === 'string' && normalized.startsWith('blueskylearning://') && !normalized.includes('/auth')) {
           normalized = normalized.replace(/\/+$/, '') + '/auth';
         }
       } catch (_err) {
-        if (!useProxy && typeof normalized === 'string' && normalized.startsWith('blueskylearning://') && !normalized.includes('/auth')) {
+        if (typeof normalized === 'string' && normalized.startsWith('blueskylearning://') && !normalized.includes('/auth')) {
           normalized = normalized.replace(/\/+$/, '') + '/auth';
         }
       }
@@ -167,7 +169,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
   const [manualAuthEndpoint, setManualAuthEndpoint] = useState('');
   const [manualClientId, setManualClientId] = useState('');
   const [lastBackendResponse, setLastBackendResponse] = useState<string | null>(null);
-  const [debugInfoVisible, setDebugInfoVisible] = useState(false);
   // redirectUrlInput removed: manual Process UI was removed per code review
   const codeVerifierRef = useRef<string | null>(null);
 
@@ -469,7 +470,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
       const { verifier, challenge } = await preparePKCEAndStore();
       const state = Math.random().toString(36).slice(2);
       const meta = await loadClientMetadataIfNeeded();
-      const authUrl = buildAuthUrl(meta, manualAuthEndpoint, manualClientId, redirectUri, challenge, state);
+  const authUrl = buildAuthUrl(meta, manualAuthEndpoint, manualClientId, redirectUri, challenge, state);
+  // Persist debug info immediately so TestFlight/dev builds can inspect what was used.
+  try { await persistDebugAuthInfo(authUrl, redirectUri); } catch (_) { /* ignore */ }
 
       if (__DEV__) {
         console.log('[LoginScreen] authUrl=', authUrl);
