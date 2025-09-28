@@ -113,17 +113,27 @@ export function resolveLoginConfig(oauthTimeoutMs?: number): LoginConfig {
     // eslint-disable-next-line no-console
     console.warn('[LoginScreen] authProxyUrl is missing or invalid, falling back to default explicit proxy URL');
   }
-  try {
-    // If running as a standalone app, prefer native redirect (no proxy)
     try {
-      const ownership = (Constants as any)?.appOwnership;
-      if (ownership === 'standalone') {
-        useProxy = false;
-        // Force canonical native redirect for ATProto-style clients to avoid
-        // redirect_uri_mismatch on production/TestFlight builds.
-        redirectUri = 'blueskylearning://auth';
-      }
-    } catch (_) { /* ignore */ }
+      // If running inside Expo Go or standalone, prefer platform-appropriate redirect
+      try {
+        const ownership = (Constants as any)?.appOwnership;
+        if (ownership === 'standalone') {
+          useProxy = false;
+          // Force canonical native redirect for ATProto-style clients to avoid
+          // redirect_uri_mismatch on production/TestFlight builds.
+          redirectUri = 'blueskylearning://auth';
+        } else if (ownership === 'expo') {
+          // When running inside Expo Go (dev, tunnel, or LAN), makeRedirectUri
+          // may return an exp:// or exp.direct URL that is dynamic and not
+          // suitable for client metadata registration. Prefer the Expo auth
+          // proxy URL (explicitProxyUrl) which is already registered in
+          // client metadata (https://auth.expo.io/@<user>/<slug>).
+          useProxy = true;
+          if (typeof explicitProxyUrl === 'string' && explicitProxyUrl.trim().length > 0) {
+            redirectUri = explicitProxyUrl;
+          }
+        }
+      } catch (_) { /* ignore */ }
 
     const made = (AuthSession as any).makeRedirectUri({ scheme: 'blueskylearning', useProxy });
     if (__DEV__) {
