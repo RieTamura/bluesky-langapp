@@ -20,6 +20,52 @@ interface AuthMePayload {
 // Single timeout constant used for auth/me lookups during startup and mount.
 const AUTH_ME_TIMEOUT_MS = 3000;
 
+// Module-scope guard to dedupe concurrent /api/auth/me calls across the app
+let authMeInProgress = false;
+
+/**
+ * Fetch /api/auth/me with a short timeout and dedupe concurrent calls.
+ * Returns the parsed payload or null on failure/timeout.
+ */
+export async function refreshAuthCache(timeoutMs = AUTH_ME_TIMEOUT_MS, qc?: ReturnType<typeof useQueryClient>): Promise<AuthMePayload | null> {
+  if (authMeInProgress) {
+    // If another caller is already refreshing, wait a short time for it to complete and then return null.
+    // This avoids multiple parallel /api/auth/me requests during app startup.
+    if (typeof Promise === 'function') {
+      // Poll for in-progress flag to clear (max wait = timeoutMs)
+      const start = Date.now();
+      while (authMeInProgress && Date.now() - start < timeoutMs) {
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    }
+    return null;
+  }
+
+  authMeInProgress = true;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const me = await api.get<AuthMePayload>('/api/auth/me', { signal: ctrl.signal });
+      const payload = me?.data ?? (me as unknown as AuthMePayload);
+      // Update react-query caches if a QueryClient was passed in from the caller
+      if (qc) {
+        try { qc.setQueryData(['auth','me'], payload); } catch (_) { /* ignore */ }
+        const user = payload?.user ?? payload;
+        try { qc.setQueryData(['profile','me'], user); } catch (_) { /* ignore */ }
+      }
+      return payload;
+    } catch (e) {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  } finally {
+    authMeInProgress = false;
+  }
+}
+
 // -----------------------------
 // Global singleton auth store
 // -----------------------------
@@ -53,20 +99,12 @@ async function bootstrap() {
         const sessionId = await SecureStore.getItemAsync('auth.sessionId');
         if (sessionId) {
           try {
-            // Avoid blocking startup for a long time if /api/auth/me is slow/unreachable.
-            // Use a short timeout so the app can show the login screen quickly.
-            // Use AbortController to cancel the fetch if it exceeds the timeout.
-            const ctrl = new AbortController();
-            const timer = setTimeout(() => ctrl.abort(), AUTH_ME_TIMEOUT_MS);
-            try {
-              const me = await api.get<AuthMePayload>('/api/auth/me', { signal: ctrl.signal });
-              if (me?.data?.authenticated) {
-                authState = { sessionId, identifier: me.data.user?.identifier ?? null, loading: false };
-                emit();
-                return;
-              }
-            } catch {/* ignore */} finally {
-              clearTimeout(timer);
+            // Use the centralized refreshAuthCache helper which dedupes /api/auth/me calls
+            const payload = await refreshAuthCache(AUTH_ME_TIMEOUT_MS);
+            if (payload?.authenticated) {
+              authState = { sessionId, identifier: payload.user?.identifier ?? null, loading: false };
+              emit();
+              return;
             }
           } catch {/* ignore */}
           await SecureStore.deleteItemAsync('auth.sessionId');
@@ -103,19 +141,10 @@ export function useAuth() {
     // Ensure react-query cache has the latest /api/auth/me and profile info so
     // components that read from cache (FooterNav) can show avatar immediately.
     (async () => {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), AUTH_ME_TIMEOUT_MS);
+      // Use refreshAuthCache which dedupes calls and accepts qc for cache population
       try {
-        const me = await api.get<AuthMePayload>('/api/auth/me', { signal: ctrl.signal });
-        const payload = me.data ?? (me as unknown as AuthMePayload);
-        // store top-level auth/me response
-        try { qc.setQueryData(['auth','me'], payload); } catch (_) { /* ignore */ }
-        // prefer payload.user for profile cache, else payload itself
-        const user = payload?.user ?? payload;
-        try { qc.setQueryData(['profile','me'], user); } catch (_) { /* ignore */ }
-      } finally {
-        clearTimeout(timer);
-      }
+        await refreshAuthCache(AUTH_ME_TIMEOUT_MS, qc);
+      } catch (_) { /* ignore */ }
     })();
     return () => { subscribers.delete(setLocal); };
   }, []);

@@ -102,9 +102,16 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
       if (existing) {
         // If another exchange is in-flight or recently completed, reject to avoid double-consumption of code
         console.warn('[atProtocol] Duplicate authorization code exchange attempt detected for code=', codeKey.slice(0,8) + '...');
-        const response: ApiResponse = { success: false, error: 'Duplicate authorization code exchange' };
-        // 409 Conflict signals the client that this code was already used
-        res.status(409).json(response);
+        const response: ApiResponse = {
+          success: false,
+          error: 'duplicate_request',
+          // Provide a brief human-friendly description to help clients decide whether to retry
+          data: { error_description: 'This authorization code is already being processed or was recently used' }
+        };
+        // 429 Too Many Requests signals the client to back off (more appropriate than 409 for rate/duplicate control)
+        // Include a Retry-After header to hint when clients may retry (seconds)
+        try { res.setHeader?.('Retry-After', '30'); } catch (_) { /* ignore */ }
+        res.status(429).json(response);
         return;
       }
 

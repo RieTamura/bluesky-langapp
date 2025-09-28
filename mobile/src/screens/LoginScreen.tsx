@@ -227,61 +227,80 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
    * Start the auth flow using AuthSession helpers, falling back to Linking listener.
    * Returns the result object similar to the previous inline implementation.
    */
+  // Global guard to prevent multiple auth flows from running at the same time (covers StrictMode and double-clicks)
+  if (!(globalThis as any).__authFlowInProgress) (globalThis as any).__authFlowInProgress = false;
+
+  async function startAuthFlowWithLinking(authUrl: string) {
+    return new Promise<any>((resolve) => {
+      let handled = false;
+      let subscription: any = null;
+
+      // safety timeout: configurable (default 5 minutes)
+      const timer = setTimeout(() => {
+        if (!handled) {
+          handled = true;
+          try { subscription?.remove?.(); } catch (_) { /* ignore */ }
+          resolve({ type: 'dismiss' });
+        }
+      }, resolvedOauthTimeoutMs);
+
+      const cleanup = () => {
+        try { subscription?.remove?.(); } catch (_) { /* ignore */ }
+        try { clearTimeout(timer); } catch (_) { /* ignore */ }
+      };
+
+      const handler = (event: any) => {
+        if (handled) {
+          if (__DEV__) console.log('[LoginScreen] Linking event ignored (already handled)');
+          return;
+        }
+        handled = true;
+        cleanup();
+        try {
+          const urlStr = event?.url || event;
+          const parsed = new URL(urlStr);
+          const params: Record<string, string> = {};
+          parsed.searchParams.forEach((v, k) => { params[k] = v; });
+          if (__DEV__) console.log('[LoginScreen] Linking event url:', urlStr, 'params:', params);
+          resolve({ type: 'success', params });
+        } catch (err) {
+          resolve({ type: 'error' });
+        }
+      };
+
+      try {
+        if ((Linking as any).addEventListener) subscription = (Linking as any).addEventListener('url', handler);
+        else subscription = (Linking as any).addListener('url', handler);
+      } catch (_) {
+        try { subscription = (Linking as any).addEventListener?.('url', handler); } catch (_) { /* ignore */ }
+      }
+
+      // open browser after listener attached
+      try { Linking.openURL(authUrl); } catch (_) { /* ignore */ }
+    });
+  }
+
   async function startAuthFlow(authUrl: string) {
-    let result: any = null;
-    const startAsync = (AuthSession as any)?.startAsync || (AuthSession as any)?.openAuthSessionAsync;
+    // Prevent duplicate auth flows application-wide
+    if ((globalThis as any).__authFlowInProgress) {
+      if (__DEV__) console.log('[LoginScreen] Auth flow already in progress, skipping startAuthFlow');
+      return { type: 'dismiss' };
+    }
+    (globalThis as any).__authFlowInProgress = true;
     try {
+      const startAsync = (AuthSession as any)?.startAsync || (AuthSession as any)?.openAuthSessionAsync;
       if (typeof startAsync === 'function') {
-        result = await startAsync({ authUrl });
+        if (__DEV__) console.log('[LoginScreen] Using AuthSession.startAsync');
+        const result = await startAsync({ authUrl });
+        if (__DEV__) console.log('[LoginScreen] AuthSession result:', result?.type);
         return result;
       }
-      throw new Error('startAsync unavailable');
-    } catch (_e) {
-      // Fallback to Linking + listener
-      return await new Promise<any>((resolve) => {
-        let handled = false;
-        let subscription: any = null;
-
-        // safety timeout: configurable (default 5 minutes)
-        const timer = setTimeout(() => {
-          if (!handled) {
-            handled = true;
-            try { subscription?.remove?.(); } catch (_) { /* ignore */ }
-            resolve({ type: 'dismiss' });
-          }
-        }, resolvedOauthTimeoutMs);
-
-        const cleanup = () => {
-          try { subscription?.remove?.(); } catch (_) { /* ignore */ }
-          try { clearTimeout(timer); } catch (_) { /* ignore */ }
-        };
-
-        const handler = (event: any) => {
-          if (handled) return;
-          handled = true;
-          cleanup();
-          try {
-            const urlStr = event?.url || event;
-            const parsed = new URL(urlStr);
-            const params: Record<string, string> = {};
-            parsed.searchParams.forEach((v, k) => { params[k] = v; });
-            if (__DEV__) console.log('[LoginScreen] Linking event url:', urlStr, 'params:', params);
-            resolve({ type: 'success', params });
-          } catch (err) {
-            resolve({ type: 'error' });
-          }
-        };
-
-        try {
-          if ((Linking as any).addEventListener) subscription = (Linking as any).addEventListener('url', handler);
-          else subscription = (Linking as any).addListener('url', handler);
-        } catch (_) {
-          try { subscription = (Linking as any).addEventListener?.('url', handler); } catch (_) { /* ignore */ }
-        }
-
-        // open browser after listener attached
-        try { Linking.openURL(authUrl); } catch (_) { /* ignore */ }
-      });
+      // Fallback to Linking-based flow
+      if (__DEV__) console.log('[LoginScreen] Falling back to Linking approach');
+      return await startAuthFlowWithLinking(authUrl);
+    } finally {
+      // Always clear the global flag so the app can start a new flow later
+      (globalThis as any).__authFlowInProgress = false;
     }
   }
 
@@ -294,29 +313,32 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
       const client_id_for_exchange = manualClientId || resolvedClientId || undefined;
       // Debugging: log parameters used for exchange
       try {
-        console.log('[LoginScreen DEBUG] Exchanging code with params:', {
-          code: code ? `${code.slice(0,6)}...${code.slice(-6)}` : null,
-          hasVerifier: !!verifier,
-          verifierLength: verifier ? String((verifier as string).length) : 'null',
-          redirectUri,
-          client_id_for_exchange
-        });
+        console.log('[LoginScreen DEBUG] Handling auth result for exchange, code:', code ? `${code.slice(0,6)}...${code.slice(-6)}` : null);
       } catch (_) { /* ignore */ }
-      // Prevent duplicate exchanges for the same code on the client side as well.
-      // This defends against double-clicks and React StrictMode double-invocation.
-      if (!exchangeInFlightSet.has(code)) {
-        exchangeInFlightSet.add(code);
-        try {
-          const ok = await exchangeCodeForSession(code, verifier, redirectUri, client_id_for_exchange, setLastBackendResponse, setError);
-          return ok;
-        } finally {
-          exchangeInFlightSet.delete(code);
+
+      // More robust duplicate detection: include a timestamped key so that concurrent
+      // handlers from StrictMode are less likely to race to the same Set entry.
+      const codeKey = `${code}_${Date.now()}`;
+
+      // Check if any existing in-flight key begins with the same code (prevents duplicates)
+      for (const existingKey of exchangeInFlightSet) {
+        if (existingKey.startsWith(code + '_')) {
+          console.warn('[LoginScreen] Duplicate code exchange detected:', code ? `${String(code).slice(0,8)}...` : '(no-code)');
+          setError(t('auth.duplicateRequest') || '重複したリクエストです。しばらくお待ちください。');
+          return false;
         }
-      } else {
-        // Already in-flight, treat as non-fatal duplicate
-        console.warn('[LoginScreen] duplicate exchange prevented for code', code ? `${String(code).slice(0,8)}...` : '(no-code)');
-        setError(t('auth.duplicateRequest') || 'Duplicate request in progress');
-        return false;
+      }
+
+      exchangeInFlightSet.add(codeKey);
+      console.log('[LoginScreen] Starting code exchange for:', code ? `${String(code).slice(0,8)}...` : '(no-code)');
+      try {
+        const success = await exchangeCodeForSession(code, verifier, redirectUri, client_id_for_exchange, setLastBackendResponse, setError);
+        console.log('[LoginScreen] Code exchange result:', success);
+        return success;
+      } finally {
+        // Ensure this particular key is removed (doesn't accidentally remove other concurrent keys)
+        exchangeInFlightSet.delete(codeKey);
+        console.log('[LoginScreen] Cleaned up exchange tracking for:', code ? `${String(code).slice(0,8)}...` : '(no-code)');
       }
     } else if (result && (result.type === 'dismiss' || result.type === 'cancel')) {
       setError(t('auth.cancelled'));
