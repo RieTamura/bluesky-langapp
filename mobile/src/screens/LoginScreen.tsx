@@ -119,6 +119,9 @@ export function resolveLoginConfig(oauthTimeoutMs?: number): LoginConfig {
       const ownership = (Constants as any)?.appOwnership;
       if (ownership === 'standalone') {
         useProxy = false;
+        // Force canonical native redirect for ATProto-style clients to avoid
+        // redirect_uri_mismatch on production/TestFlight builds.
+        redirectUri = 'blueskylearning://auth';
       }
     } catch (_) { /* ignore */ }
 
@@ -126,9 +129,28 @@ export function resolveLoginConfig(oauthTimeoutMs?: number): LoginConfig {
     if (__DEV__) {
       console.log('[LoginScreen] makeRedirectUri returned:', made, 'explicitProxyUrl:', explicitProxyUrl, 'useProxy=', useProxy);
     }
-    // Accept any non-empty string returned by makeRedirectUri (expo proxy URL or native scheme)
-    if (typeof made === 'string' && made.trim().length > 0) {
-      redirectUri = made;
+  // Accept any non-empty string returned by makeRedirectUri (expo proxy URL or native scheme)
+  // but don't override the forced canonical redirectUri we set for standalone builds.
+  if (typeof made === 'string' && made.trim().length > 0 && redirectUri === explicitProxyUrl) {
+      // If running as a native standalone app (useProxy === false) and the
+      // generated scheme is the bare scheme (e.g. "blueskylearning://"),
+      // ensure it includes the "/auth" path. The client metadata currently
+      // registers "blueskylearning://auth" as the redirect URI, and some
+      // providers (including the Bluesky auth server) will reject a bare
+      // scheme without the expected path with redirect_uri_mismatch.
+      let normalized = made;
+      try {
+        // If native standalone and the returned URI is the bare scheme (no path),
+        // append '/auth' to match the registered redirect URI in client metadata.
+        if (!useProxy && typeof normalized === 'string' && normalized.startsWith('blueskylearning://') && !normalized.includes('/auth')) {
+          normalized = normalized.replace(/\/+$/, '') + '/auth';
+        }
+      } catch (_err) {
+        if (!useProxy && typeof normalized === 'string' && normalized.startsWith('blueskylearning://') && !normalized.includes('/auth')) {
+          normalized = normalized.replace(/\/+$/, '') + '/auth';
+        }
+      }
+      redirectUri = normalized;
     }
   } catch (_err) {
     // ignore and use explicitProxyUrl
