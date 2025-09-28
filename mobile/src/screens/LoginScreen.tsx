@@ -102,7 +102,7 @@ export function resolveLoginConfig(oauthTimeoutMs?: number): LoginConfig {
     return def;
   }
 
-  const useProxy = parseBooleanCandidate(_extra?.useAuthProxy ?? process.env.EXPO_USE_AUTH_PROXY, true);
+  let useProxy = parseBooleanCandidate(_extra?.useAuthProxy ?? process.env.EXPO_USE_AUTH_PROXY, true);
   const explicitProxyUrl = ((appJson as any)?.expo?.extra?.authProxyUrl) || _extra?.authProxyUrl || process.env.EXPO_AUTH_PROXY_URL || '';
   let redirectUri = explicitProxyUrl;
 
@@ -114,11 +114,22 @@ export function resolveLoginConfig(oauthTimeoutMs?: number): LoginConfig {
     console.warn('[LoginScreen] authProxyUrl is missing or invalid, falling back to default explicit proxy URL');
   }
   try {
+    // If running as a standalone app, prefer native redirect (no proxy)
+    try {
+      const ownership = (Constants as any)?.appOwnership;
+      if (ownership === 'standalone') {
+        useProxy = false;
+      }
+    } catch (_) { /* ignore */ }
+
     const made = (AuthSession as any).makeRedirectUri({ scheme: 'blueskylearning', useProxy });
     if (__DEV__) {
-      console.log('[LoginScreen] makeRedirectUri returned:', made, 'explicitProxyUrl:', explicitProxyUrl);
+      console.log('[LoginScreen] makeRedirectUri returned:', made, 'explicitProxyUrl:', explicitProxyUrl, 'useProxy=', useProxy);
     }
-    if (typeof made === 'string' && /^https:\/\/auth\.expo\.io\//i.test(made)) redirectUri = made;
+    // Accept any non-empty string returned by makeRedirectUri (expo proxy URL or native scheme)
+    if (typeof made === 'string' && made.trim().length > 0) {
+      redirectUri = made;
+    }
   } catch (_err) {
     // ignore and use explicitProxyUrl
   }
