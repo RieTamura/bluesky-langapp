@@ -11,6 +11,10 @@ import { useThemeColors } from '../stores/theme';
 import { useAuth } from '../hooks/useAuth';
 import appJson from '../../app.json';
 
+// Client-side set to track in-flight authorization code exchanges and prevent duplicates.
+// Module-scope ensures it survives component re-renders (including StrictMode double render).
+const exchangeInFlightSet: Set<string> = new Set();
+
 function bytesToHex(bytes: Uint8Array) {
   return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 }
@@ -298,9 +302,22 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
           client_id_for_exchange
         });
       } catch (_) { /* ignore */ }
-      const ok = await exchangeCodeForSession(code, verifier, redirectUri, client_id_for_exchange, setLastBackendResponse, setError);
-      if (ok) return true;
-      return false;
+      // Prevent duplicate exchanges for the same code on the client side as well.
+      // This defends against double-clicks and React StrictMode double-invocation.
+      if (!exchangeInFlightSet.has(code)) {
+        exchangeInFlightSet.add(code);
+        try {
+          const ok = await exchangeCodeForSession(code, verifier, redirectUri, client_id_for_exchange, setLastBackendResponse, setError);
+          return ok;
+        } finally {
+          exchangeInFlightSet.delete(code);
+        }
+      } else {
+        // Already in-flight, treat as non-fatal duplicate
+        console.warn('[LoginScreen] duplicate exchange prevented for code', code ? `${String(code).slice(0,8)}...` : '(no-code)');
+        setError(t('auth.duplicateRequest') || 'Duplicate request in progress');
+        return false;
+      }
     } else if (result && (result.type === 'dismiss' || result.type === 'cancel')) {
       setError(t('auth.cancelled'));
       return false;
@@ -505,8 +522,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
               setBusy(true);
               try {
                 const client_id_for_exchange = manualClientId || resolvedClientId || undefined;
-                const ok = await exchangeCodeForSession(code, verifier, redirectUri, client_id_for_exchange, setLastBackendResponse, setError);
-                if (ok) return;
+                if (!exchangeInFlightSet.has(code)) {
+                  exchangeInFlightSet.add(code);
+                  try {
+                    const ok = await exchangeCodeForSession(code, verifier, redirectUri, client_id_for_exchange, setLastBackendResponse, setError);
+                    if (ok) return;
+                  } finally {
+                    exchangeInFlightSet.delete(code);
+                  }
+                } else {
+                  console.warn('[LoginScreen] manual Process duplicate exchange prevented for code', code ? `${String(code).slice(0,8)}...` : '(no-code)');
+                  setError(t('auth.duplicateRequest') || 'Duplicate request in progress');
+                }
               } catch (e:any) {
                 // exchangeCodeForSession handles errors and sets state; keep catch to mirror existing control flow
               }

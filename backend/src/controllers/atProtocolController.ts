@@ -7,6 +7,20 @@ import { importJWK, generateKeyPair, exportJWK, SignJWT } from 'jose';
 import * as crypto from 'crypto';
 import { URL } from 'url';
 
+// In-memory short-term cache to prevent duplicate authorization code exchanges.
+// Maps authorization code string -> { ts: number, status: 'pending'|'done' }
+// TTL controls how long we consider a code as recently-used.
+const oauthCodeCache: Map<string, { ts: number; status: 'pending' | 'done' }> = new Map();
+const OAUTH_CODE_TTL_MS = 60 * 1000; // 60 seconds
+
+// Periodic cleanup to avoid unbounded memory growth
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, rec] of oauthCodeCache.entries()) {
+    if (now - rec.ts > OAUTH_CODE_TTL_MS) oauthCodeCache.delete(code);
+  }
+}, OAUTH_CODE_TTL_MS).unref?.();
+
 // Minimal JWK shape used for exported public keys from jose.exportJWK
 type PublicJWK = {
   kty?: string;
@@ -82,6 +96,21 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
 
     // Support two modes: credentials or oauth code exchange
     if (oauth && oauth.code) {
+      // Prevent duplicate/flooded exchanges for the same authorization code.
+      const codeKey = String(oauth.code);
+      const existing = oauthCodeCache.get(codeKey);
+      if (existing) {
+        // If another exchange is in-flight or recently completed, reject to avoid double-consumption of code
+        console.warn('[atProtocol] Duplicate authorization code exchange attempt detected for code=', codeKey.slice(0,8) + '...');
+        const response: ApiResponse = { success: false, error: 'Duplicate authorization code exchange' };
+        // 409 Conflict signals the client that this code was already used
+        res.status(409).json(response);
+        return;
+      }
+
+      // Mark code as pending before performing network calls. Ensure we record timestamp.
+      oauthCodeCache.set(codeKey, { ts: Date.now(), status: 'pending' });
+
       // Exchange OAuth code for token with provider token_endpoint (bsky.social)
       try {
   const tokenEndpoint = AT_PROTOCOL_TOKEN_ENDPOINT;
@@ -157,7 +186,7 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
           .sign(privateKey as any);
 
         // Debug: log outgoing token exchange details (mask sensitive values like code and code_verifier)
-        try {
+  try {
           const maskedParams = new URLSearchParams();
           for (const [k, v] of params.entries()) {
             if (k === 'code' || k === 'code_verifier' || k === 'refresh_token') {
@@ -277,7 +306,7 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
           throw new Error(`Token endpoint responded ${tokenRes.status}`);
         }
 
-        const tokenJson = await tokenRes.json();
+  const tokenJson = await tokenRes.json();
         if (!tokenJson) throw new Error('No token returned from provider');
         // Debug: inspect token response for scopes and keys
         try {
@@ -338,15 +367,21 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
           const identifier = pickFirstNonEmpty(sessionForAtp?.handle, sessionForAtp?.did, tokenJson?.handle, tokenJson?.did);
           const sessionId = createSessionFromService(service, identifier);
           const response: ApiResponse = { success: true, data: { sessionId } };
+          // Mark the code exchange as completed successfully
+          oauthCodeCache.set(codeKey, { ts: Date.now(), status: 'done' });
           res.json(response);
           return;
         } catch (innerErr) {
+          // On error during service initialization, allow retry by removing cache entry
+          oauthCodeCache.delete(codeKey);
           console.error('Failed to initialize ATProtocol service with OAuth session:', innerErr);
           const response: ApiResponse = { success: false, error: 'Failed to initialize session after token exchange' };
           res.status(500).json(response);
           return;
         }
       } catch (e) {
+        // On any failure during exchange, remove the pending marker so callers can retry
+        oauthCodeCache.delete(codeKey);
         console.error('OAuth code exchange failed:', e);
         const response: ApiResponse = { success: false, error: 'OAuth code exchange failed' };
         res.status(500).json(response);
