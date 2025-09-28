@@ -134,7 +134,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
   const [manualAuthEndpoint, setManualAuthEndpoint] = useState('');
   const [manualClientId, setManualClientId] = useState('');
   const [lastBackendResponse, setLastBackendResponse] = useState<string | null>(null);
-  const [redirectUrlInput, setRedirectUrlInput] = useState('');
+  // redirectUrlInput removed: manual Process UI was removed per code review
   const codeVerifierRef = useRef<string | null>(null);
 
   const { resolvedClientId, redirectUri, resolvedOauthTimeoutMs } = resolveLoginConfig(oauthTimeoutMs);
@@ -228,7 +228,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
    * Returns the result object similar to the previous inline implementation.
    */
   // Global guard to prevent multiple auth flows from running at the same time (covers StrictMode and double-clicks)
-  if (!(globalThis as any).__authFlowInProgress) (globalThis as any).__authFlowInProgress = false;
+  if (typeof (globalThis as any).__authFlowInProgress === 'undefined') {
+    (globalThis as any).__authFlowInProgress = false;
+  }
 
   async function startAuthFlowWithLinking(authUrl: string) {
     return new Promise<any>((resolve) => {
@@ -291,12 +293,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
       const startAsync = (AuthSession as any)?.startAsync || (AuthSession as any)?.openAuthSessionAsync;
       if (typeof startAsync === 'function') {
         if (__DEV__) console.log('[LoginScreen] Using AuthSession.startAsync');
-        const result = await startAsync({ authUrl });
-        if (__DEV__) console.log('[LoginScreen] AuthSession result:', result?.type);
-        return result;
+        try {
+          const result = await startAsync({ authUrl });
+          if (__DEV__) console.log('[LoginScreen] AuthSession result:', result?.type);
+          return result;
+        } catch (authSessionError) {
+          // If AuthSession fails, fall back to Linking approach
+          if (__DEV__) console.log('[LoginScreen] AuthSession failed, falling back to Linking:', authSessionError);
+          return await startAuthFlowWithLinking(authUrl);
+        }
       }
       // Fallback to Linking-based flow
-      if (__DEV__) console.log('[LoginScreen] Falling back to Linking approach');
+      if (__DEV__) console.log('[LoginScreen] Falling back to Linking approach (no startAsync available)');
       return await startAuthFlowWithLinking(authUrl);
     } finally {
       // Always clear the global flag so the app can start a new flow later
@@ -364,11 +372,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
       const sessionId = (res as any)?.data?.sessionId || (res as any)?.sessionId || (res as any)?.data?.data?.sessionId;
       if (sessionId) {
         try { await SecureStore.setItemAsync('auth.sessionId', sessionId); } catch (_) { /* ignore */ }
-        try { await api.get('/api/auth/me'); } catch (_) { /* ignore */ }
         // Clear stored PKCE verifier now that exchange succeeded
         try { await SecureStore.deleteItemAsync('pkce.verifier'); } catch (_) { /* ignore */ }
         codeVerifierRef.current = null;
-  Alert.alert(t('auth.success.title'), t('auth.success.message'));
+        Alert.alert(t('auth.success.title'), t('auth.success.message'));
         setError(null);
         return true;
       }
@@ -495,79 +502,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
         }
       }} />
 
-      <View style={{ height: 12 }} />
-      <View style={{ marginTop: 8 }}>
-        <Text style={{ fontSize: 12, color: colors.secondaryText, marginBottom: 6 }}>If the flow ends on a white page, paste the final redirect URL here and press "Process"</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-          <TextInput
-            placeholder="Paste final redirect URL"
-            value={redirectUrlInput}
-            onChangeText={setRedirectUrlInput}
-            style={[styles.input, { borderColor: colors.border, color: colors.text, flex: 1 }]}
-            autoCapitalize="none"
-          />
-          <View style={{ width: 8 }} />
-          <Button title="Paste" onPress={async () => {
-            try {
-              // dynamic require to avoid build issues
-              // eslint-disable-next-line @typescript-eslint/no-var-requires
-              // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment
-              const mod: any = require('expo-clipboard');
-              if (mod && typeof mod.getStringAsync === 'function') {
-                const txt = await mod.getStringAsync();
-                setRedirectUrlInput(txt || '');
-              } else {
-                throw new Error('clipboard module missing');
-              }
-            } catch (e:any) {
-              Alert.alert('Paste failed', e?.message || 'failed to paste');
-            }
-          }} />
-        </View>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <Button title="Process" onPress={async () => {
-            if (!redirectUrlInput) { Alert.alert('No URL', 'Please paste the redirect URL first'); return; }
-            try {
-              const parsed = new URL(redirectUrlInput);
-              const params: Record<string,string> = {};
-              parsed.searchParams.forEach((v,k)=>{ params[k]=v; });
-              if (!params.code) { Alert.alert('No code', 'The provided URL does not contain an authorization code'); return; }
-                  const code = params.code;
-                  let verifier = codeVerifierRef.current;
-                  if (!verifier) {
-                    try {
-                      verifier = await SecureStore.getItemAsync('pkce.verifier');
-                      if (verifier) codeVerifierRef.current = verifier;
-                    } catch (_) { /* ignore */ }
-                  }
-                  if (!verifier) { Alert.alert('Missing verifier', 'PKCE verifier is missing; restart the flow and try again'); return; }
-              setBusy(true);
-              try {
-                const client_id_for_exchange = manualClientId || resolvedClientId || undefined;
-                if (!exchangeInFlightSet.has(code)) {
-                  exchangeInFlightSet.add(code);
-                  try {
-                    const ok = await exchangeCodeForSession(code, verifier, redirectUri, client_id_for_exchange, setLastBackendResponse, setError);
-                    if (ok) return;
-                  } finally {
-                    exchangeInFlightSet.delete(code);
-                  }
-                } else {
-                  console.warn('[LoginScreen] manual Process duplicate exchange prevented for code', code ? `${String(code).slice(0,8)}...` : '(no-code)');
-                  setError(t('auth.duplicateRequest') || 'Duplicate request in progress');
-                }
-              } catch (e:any) {
-                // exchangeCodeForSession handles errors and sets state; keep catch to mirror existing control flow
-              }
-            } catch (e:any) {
-              Alert.alert('処理エラー', e?.message || String(e));
-            } finally {
-              setBusy(false);
-              codeVerifierRef.current = null;
-            }
-          }} />
-        </View>
-      </View>
+      {/* Manual Process UI removed per code review; keep UI compact */}
       <Text style={{ fontSize: 12, color: colors.secondaryText, marginBottom: 6 }}>API: {API_BASE_URL}</Text>
       <Button title="接続テスト" onPress={async () => {
         try {

@@ -29,16 +29,7 @@ let authMeInProgress = false;
  */
 export async function refreshAuthCache(timeoutMs = AUTH_ME_TIMEOUT_MS, qc?: ReturnType<typeof useQueryClient>): Promise<AuthMePayload | null> {
   if (authMeInProgress) {
-    // If another caller is already refreshing, wait a short time for it to complete and then return null.
-    // This avoids multiple parallel /api/auth/me requests during app startup.
-    if (typeof Promise === 'function') {
-      // Poll for in-progress flag to clear (max wait = timeoutMs)
-      const start = Date.now();
-      while (authMeInProgress && Date.now() - start < timeoutMs) {
-        // eslint-disable-next-line no-await-in-loop
-        await new Promise((r) => setTimeout(r, 50));
-      }
-    }
+    if (__DEV__) console.log('[useAuth] refreshAuthCache already in progress, skipping duplicate call');
     return null;
   }
 
@@ -154,16 +145,11 @@ export function useAuth() {
     const sessionId = res.sessionId || res.data?.sessionId || res.data?.data?.sessionId;
     if (sessionId) {
       await setSession(sessionId, identifier);
-      // After login, fetch /api/auth/me and populate react-query cache so components
-      // that read from cache (FooterNav) can immediately show profile/avatar.
+      // After login, refresh auth cache (deduped) and populate react-query cache
       try {
-        const me = await api.get<any>('/api/auth/me');
-        const payload = (me as any).data ?? me;
-        try { qc.setQueryData(['auth','me'], payload); } catch (_) { /* ignore */ }
-        const user = payload?.user ?? payload;
-        try { qc.setQueryData(['profile','me'], user); } catch (_) { /* ignore */ }
+        await refreshAuthCache(AUTH_ME_TIMEOUT_MS, qc);
       } catch (e) {
-        // ignore
+        if (__DEV__) console.warn('[useAuth] refreshAuthCache failed after login:', e);
       }
     }
     return res;
