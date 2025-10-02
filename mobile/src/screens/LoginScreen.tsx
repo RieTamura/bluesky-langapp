@@ -192,7 +192,9 @@ export function resolveLoginConfig(oauthTimeoutMs?: number): LoginConfig {
     } else {
       // For dev builds, use makeRedirectUri
       const made = (AuthSession as any).makeRedirectUri({
+        native: "blueskylearning://auth",
         scheme: "blueskylearning",
+        path: "auth",
         useProxy,
       });
 
