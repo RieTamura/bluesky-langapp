@@ -300,6 +300,63 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
 
   const codeVerifierRef = useRef<string | null>(null);
 
+  // Track whether we already processed an initial URL (cold start)
+  const processedInitialUrlRef = useRef<boolean>(false);
+
+  // On cold start, process an initial deep link like blueskylearning://auth?code=...
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const initialUrl = await Linking.getInitialURL();
+        if (!mounted) return;
+        if (
+          initialUrl &&
+          typeof initialUrl === "string" &&
+          !processedInitialUrlRef.current
+        ) {
+          processedInitialUrlRef.current = true;
+          // Persist for debug inspection
+          try {
+            await SecureStore.setItemAsync(
+              "debug.oauth.lastIncomingUrl",
+              initialUrl,
+            );
+          } catch (_) {
+            /* ignore */
+          }
+
+          // Try to parse and handle as an auth callback
+          try {
+            const u = new URL(initialUrl);
+            // Only handle our scheme
+            if (
+              u.protocol &&
+              u.protocol.toLowerCase().startsWith("blueskylearning")
+            ) {
+              const code = u.searchParams.get("code");
+              const state = u.searchParams.get("state") || "";
+              if (code) {
+                // Let handleAuthResult fetch PKCE verifier from SecureStore if needed
+                await handleAuthResult(
+                  { type: "success", params: { code, state } },
+                  undefined,
+                );
+              }
+            }
+          } catch (_) {
+            // ignore parse errors
+          }
+        }
+      } catch (_) {
+        // ignore
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   // Debug toggle to force Linking-based auth flow at runtime (in addition to config flag)
 
   const [linkingOnly, setLinkingOnly] = useState(false);
