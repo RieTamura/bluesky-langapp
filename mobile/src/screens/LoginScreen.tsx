@@ -433,7 +433,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
       );
     }
 
-    const authUrl = `${authEndpoint}?response_type=code&client_id=${encodeURIComponent(effectiveClient)}&redirect_uri=${encodeURIComponent(redirectUriVal)}&scope=${encodeURIComponent(scopeVal)}&state=${state}&code_challenge=${encodeURIComponent(challenge)}&code_challenge_method=S256`;
+    // Build scope consistent with buildAuthUrl()
+    let scopeVal = "atproto";
+    try {
+      const metaScope = meta?.scope;
+      if (Array.isArray(metaScope)) scopeVal = metaScope.join(" ");
+      else if (typeof metaScope === "string" && metaScope.trim().length > 0)
+        scopeVal = metaScope.trim();
+    } catch (_) {
+      /* ignore */
+    }
+    if (!/\batproto\b/.test(scopeVal))
+      scopeVal = (scopeVal + " atproto").trim();
+
+    const authUrl = `${authEndpoint}?response_type=code&client_id=${encodeURIComponent(effectiveClient)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopeVal)}&state=${state}&code_challenge=${encodeURIComponent(challenge)}&code_challenge_method=S256`;
 
     if (__DEV__) {
       console.log(
@@ -558,15 +571,29 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
       if (typeof startAsync === "function") {
         if (__DEV__) console.log("[LoginScreen] Using AuthSession.startAsync");
         try {
-          const result = await startAsync({ authUrl });
+          let result: any;
+          // Support both startAsync({ authUrl, returnUrl }) and openAuthSessionAsync(authUrl, returnUrl)
+          if (
+            startAsync?.name === "openAuthSessionAsync" ||
+            startAsync?.length > 1
+          ) {
+            // Older API signature
+            result = await startAsync(authUrl, redirectUri);
+          } else {
+            // Newer API signature
+            result = await startAsync({ authUrl, returnUrl: redirectUri });
+          }
           if (__DEV__)
             console.log("[LoginScreen] AuthSession result:", result?.type);
+
           // Persist debug info for post-mortem inspection in TestFlight builds.
+
           try {
             await persistDebugAuthInfo(authUrl, redirectUri);
           } catch (_) {
             /* ignore */
           }
+
           return result;
         } catch (authSessionError) {
           // If AuthSession fails, fall back to Linking approach
@@ -590,9 +617,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
     }
   }
 
-  /**
-   * Handle auth result: exchange code and set localized error messages via t(...).
-   */
   async function handleAuthResult(
     result: any,
     verifier: string | null | undefined,
@@ -604,12 +628,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
       result.params.code
     ) {
       const code = result.params.code;
+
       const client_id_for_exchange =
         manualClientId || resolvedClientId || undefined;
+
       // Debugging: log parameters used for exchange
+
       try {
         console.log(
           "[LoginScreen DEBUG] Handling auth result for exchange, code:",
+
           code ? `${code.slice(0, 6)}...${code.slice(-6)}` : null,
         );
       } catch (_) {
@@ -617,45 +645,78 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
       }
 
       // More robust duplicate detection: include a timestamped key so that concurrent
+
       // handlers from StrictMode are less likely to race to the same Set entry.
+
       const codeKey = `${code}_${Date.now()}`;
 
       // Check if any existing in-flight key begins with the same code (prevents duplicates)
+
       for (const existingKey of exchangeInFlightSet) {
         if (existingKey.startsWith(code + "_")) {
           console.warn(
             "[LoginScreen] Duplicate code exchange detected:",
+
             code ? `${String(code).slice(0, 8)}...` : "(no-code)",
           );
+
           setError(
             t("auth.duplicateRequest") ||
               "重複したリクエストです。しばらくお待ちください。",
           );
+
           return false;
         }
       }
 
       exchangeInFlightSet.add(codeKey);
+
       console.log(
         "[LoginScreen] Starting code exchange for:",
+
         code ? `${String(code).slice(0, 8)}...` : "(no-code)",
       );
+
       try {
+        // Fallback to in-memory or SecureStore-stored PKCE verifier if missing
+        let effectiveVerifier: string | null | undefined =
+          verifier ?? codeVerifierRef.current;
+        if (!effectiveVerifier) {
+          try {
+            const stored = await SecureStore.getItemAsync("pkce.verifier");
+            if (stored && typeof stored === "string" && stored.length > 0) {
+              effectiveVerifier = stored;
+            }
+          } catch (_) {
+            /* ignore */
+          }
+        }
+
         const success = await exchangeCodeForSession(
           code,
-          verifier,
+
+          effectiveVerifier,
+
           redirectUri,
+
           client_id_for_exchange,
+
           setLastBackendResponse,
+
           setError,
         );
+
         console.log("[LoginScreen] Code exchange result:", success);
+
         return success;
       } finally {
         // Ensure this particular key is removed (doesn't accidentally remove other concurrent keys)
+
         exchangeInFlightSet.delete(codeKey);
+
         console.log(
           "[LoginScreen] Cleaned up exchange tracking for:",
+
           code ? `${String(code).slice(0, 8)}...` : "(no-code)",
         );
       }
@@ -664,9 +725,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
       (result.type === "dismiss" || result.type === "cancel")
     ) {
       setError(t("auth.cancelled"));
+
       return false;
     } else {
       setError(t("auth.flowError"));
+
       return false;
     }
   }
