@@ -95,6 +95,7 @@ export type LoginConfig = {
   explicitProxyUrl: string;
   redirectUri: string;
   resolvedOauthTimeoutMs: number;
+  authUseLinkingOnly: boolean;
 };
 
 /**
@@ -137,6 +138,12 @@ export function resolveLoginConfig(oauthTimeoutMs?: number): LoginConfig {
 
   // Start with a sensible default
   let redirectUri = "blueskylearning://auth";
+
+  // Optional override: force Linking-based auth flow (bypass AuthSession) via app.json extra.authUseLinkingOnly or env EXPO_AUTH_USE_LINKING_ONLY
+  const authUseLinkingOnly = parseBooleanCandidate(
+    _extra?.authUseLinkingOnly ?? process.env.EXPO_AUTH_USE_LINKING_ONLY,
+    false,
+  );
 
   const resolvedOauthTimeoutMs =
     oauthTimeoutMs ??
@@ -261,6 +268,8 @@ export function resolveLoginConfig(oauthTimeoutMs?: number): LoginConfig {
       redirectUri,
       "useProxy=",
       useProxy,
+      "authUseLinkingOnly=",
+      authUseLinkingOnly,
       "resolvedClientId=",
       resolvedClientId,
     );
@@ -272,6 +281,7 @@ export function resolveLoginConfig(oauthTimeoutMs?: number): LoginConfig {
     explicitProxyUrl,
     redirectUri,
     resolvedOauthTimeoutMs,
+    authUseLinkingOnly,
   };
 }
 
@@ -285,11 +295,24 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
   const [lastBackendResponse, setLastBackendResponse] = useState<string | null>(
     null,
   );
+
   // redirectUrlInput removed: manual Process UI was removed per code review
+
   const codeVerifierRef = useRef<string | null>(null);
 
-  const { resolvedClientId, redirectUri, resolvedOauthTimeoutMs } =
-    resolveLoginConfig(oauthTimeoutMs);
+  // Debug toggle to force Linking-based auth flow at runtime (in addition to config flag)
+
+  const [linkingOnly, setLinkingOnly] = useState(false);
+
+  const {
+    resolvedClientId,
+
+    redirectUri,
+
+    resolvedOauthTimeoutMs,
+
+    authUseLinkingOnly,
+  } = resolveLoginConfig(oauthTimeoutMs);
 
   const clientMetadataRef = useRef<any | null>(null);
 
@@ -433,20 +456,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
       );
     }
 
-    // Build scope consistent with buildAuthUrl()
-    let scopeVal = "atproto";
-    try {
-      const metaScope = meta?.scope;
-      if (Array.isArray(metaScope)) scopeVal = metaScope.join(" ");
-      else if (typeof metaScope === "string" && metaScope.trim().length > 0)
-        scopeVal = metaScope.trim();
-    } catch (_) {
-      /* ignore */
-    }
-    if (!/\batproto\b/.test(scopeVal))
-      scopeVal = (scopeVal + " atproto").trim();
-
-    const authUrl = `${authEndpoint}?response_type=code&client_id=${encodeURIComponent(effectiveClient)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopeVal)}&state=${state}&code_challenge=${encodeURIComponent(challenge)}&code_challenge_method=S256`;
+    const authUrl = `${authEndpoint}?response_type=code&client_id=${encodeURIComponent(effectiveClient)}&redirect_uri=${encodeURIComponent(redirectUriVal)}&scope=${encodeURIComponent(scopeVal)}&state=${state}&code_challenge=${encodeURIComponent(challenge)}&code_challenge_method=S256`;
 
     if (__DEV__) {
       console.log(
@@ -565,6 +575,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
     }
     (globalThis as any).__authFlowInProgress = true;
     try {
+      // When explicitly requested, bypass AuthSession and use Linking-based flow.
+
+      if (authUseLinkingOnly || linkingOnly) {
+        if (__DEV__)
+          console.log("[LoginScreen] Using Linking flow", {
+            authUseLinkingOnly,
+            linkingOnly,
+          });
+        return await startAuthFlowWithLinking(authUrl);
+      }
+
       const startAsync =
         (AuthSession as any)?.startAsync ||
         (AuthSession as any)?.openAuthSessionAsync;
@@ -927,6 +948,19 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
       {!!error && (
         <Text style={{ color: colors.error, marginBottom: 8 }}>{error}</Text>
       )}
+
+      <View
+        style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}
+      >
+        <Text style={{ fontSize: 12, color: colors.secondaryText, flex: 1 }}>
+          Auth flow: {linkingOnly ? "Linking-only" : "AuthSession"}
+        </Text>
+        <View style={{ width: 8 }} />
+        <Button
+          title={linkingOnly ? "Use AuthSession" : "Use Linking"}
+          onPress={() => setLinkingOnly((v) => !v)}
+        />
+      </View>
 
       <TouchableOpacity
         onPress={onStartOAuth}
