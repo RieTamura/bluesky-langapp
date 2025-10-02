@@ -55,9 +55,9 @@
     },
     "web": {},
     "extra": {
-    "apiUrl": "http://192.168.11.27:3000",
-    "blueskyClientId": "https://rietamura.github.io/bluelang-oauth/.well-known/atproto_client_metadata.json",
-      "useAuthProxy": true,
+      "apiUrl": "http://192.168.11.27:3000",
+      "blueskyClientId": "https://rietamura.github.io/bluelang-oauth/.well-known/atproto_client_metadata.json",
+      "useAuthProxy": false,
       "authProxyUrl": "https://auth.expo.io/@rietamura/bluesky-langapp",
       "eas": {
         "projectId": "0bb8f270-fb24-4e9a-aa12-fcccc40bdc4c"

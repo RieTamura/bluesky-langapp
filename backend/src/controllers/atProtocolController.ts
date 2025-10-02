@@ -1,16 +1,20 @@
-import { Request, Response } from 'express';
-import { LearningProgressPost } from '../services/atProtocolService.js';
-import type { ApiResponse } from '../types/data.js';
+import { Request, Response } from "express";
+import { LearningProgressPost } from "../services/atProtocolService.js";
+import type { ApiResponse } from "../types/data.js";
 
-import { atProtocolService, type OAuthSession } from '../services/atProtocolService.js';
-import { importJWK, generateKeyPair, exportJWK, SignJWT } from 'jose';
-import * as crypto from 'crypto';
-import { URL } from 'url';
+import {
+  atProtocolService,
+  type OAuthSession,
+} from "../services/atProtocolService.js";
+import { importJWK, generateKeyPair, exportJWK, SignJWT } from "jose";
+import * as crypto from "crypto";
+import { URL } from "url";
 
 // In-memory short-term cache to prevent duplicate authorization code exchanges.
 // Maps authorization code string -> { ts: number, status: 'pending'|'done' }
 // TTL controls how long we consider a code as recently-used.
-const oauthCodeCache: Map<string, { ts: number; status: 'pending' | 'done' }> = new Map();
+const oauthCodeCache: Map<string, { ts: number; status: "pending" | "done" }> =
+  new Map();
 const OAUTH_CODE_TTL_MS = 60 * 1000; // 60 seconds
 
 // Periodic cleanup to avoid unbounded memory growth
@@ -36,14 +40,24 @@ type PublicJWK = {
 // - In production we require an explicit AT_PROTOCOL_TOKEN_ENDPOINT to be set to avoid unexpected
 //   provider changes. In other environments we default to the canonical provider used in dev.
 const rawTokenEndpoint = process.env.AT_PROTOCOL_TOKEN_ENDPOINT;
-const defaultTokenEndpoint = 'https://bsky.social/oauth/token';
+const defaultTokenEndpoint = "https://bsky.social/oauth/token";
 
-if (process.env.NODE_ENV === 'production' && (!rawTokenEndpoint || rawTokenEndpoint.trim() === '')) {
-  console.error('Missing AT_PROTOCOL_TOKEN_ENDPOINT in production environment. Set AT_PROTOCOL_TOKEN_ENDPOINT to the provider token endpoint URL.');
-  throw new Error('AT_PROTOCOL_TOKEN_ENDPOINT is required in production. Set the environment variable to the token endpoint URL.');
+if (
+  process.env.NODE_ENV === "production" &&
+  (!rawTokenEndpoint || rawTokenEndpoint.trim() === "")
+) {
+  console.error(
+    "Missing AT_PROTOCOL_TOKEN_ENDPOINT in production environment. Set AT_PROTOCOL_TOKEN_ENDPOINT to the provider token endpoint URL.",
+  );
+  throw new Error(
+    "AT_PROTOCOL_TOKEN_ENDPOINT is required in production. Set the environment variable to the token endpoint URL.",
+  );
 }
 
-const AT_PROTOCOL_TOKEN_ENDPOINT = (rawTokenEndpoint && rawTokenEndpoint.trim()) ? rawTokenEndpoint.trim() : defaultTokenEndpoint;
+const AT_PROTOCOL_TOKEN_ENDPOINT =
+  rawTokenEndpoint && rawTokenEndpoint.trim()
+    ? rawTokenEndpoint.trim()
+    : defaultTokenEndpoint;
 
 // Validate the configured token endpoint early.
 try {
@@ -52,8 +66,14 @@ try {
   void new URL(AT_PROTOCOL_TOKEN_ENDPOINT);
 } catch (err) {
   // Fail fast during startup rather than at runtime when attempting an OAuth flow
-  console.error('Invalid AT_PROTOCOL_TOKEN_ENDPOINT configuration:', AT_PROTOCOL_TOKEN_ENDPOINT, err);
-  throw new Error('Invalid AT_PROTOCOL_TOKEN_ENDPOINT; please set a valid URL in environment variables');
+  console.error(
+    "Invalid AT_PROTOCOL_TOKEN_ENDPOINT configuration:",
+    AT_PROTOCOL_TOKEN_ENDPOINT,
+    err,
+  );
+  throw new Error(
+    "Invalid AT_PROTOCOL_TOKEN_ENDPOINT; please set a valid URL in environment variables",
+  );
 }
 
 /**
@@ -70,13 +90,16 @@ function pickFirstNonEmpty(...candidates: Array<unknown>): string {
       // ignore and try next
     }
   }
-  return 'bluesky_user';
+  return "bluesky_user";
 }
 
 /**
  * Initialize AT Protocol service with Bluesky credentials
  */
-export async function initializeATProtocol(req: Request, res: Response): Promise<void> {
+export async function initializeATProtocol(
+  req: Request,
+  res: Response,
+): Promise<void> {
   try {
     const { identifier, password, oauth } = req.body;
 
@@ -84,14 +107,24 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
     try {
       const keys = Object.keys(req.body || {});
       let oauthInfo: any = null;
-      if (oauth && typeof oauth === 'object') {
+      if (oauth && typeof oauth === "object") {
         oauthInfo = { ...oauth };
-        if (typeof oauthInfo.code === 'string') oauthInfo.code = `${oauthInfo.code.slice(0,6)}...${oauthInfo.code.slice(-6)}`;
-        if (typeof oauthInfo.code_verifier === 'string') oauthInfo.code_verifier = '<<masked>>';
+        if (typeof oauthInfo.code === "string")
+          oauthInfo.code = `${oauthInfo.code.slice(0, 6)}...${oauthInfo.code.slice(-6)}`;
+        if (typeof oauthInfo.code_verifier === "string")
+          oauthInfo.code_verifier = "<<masked>>";
       }
-      console.log('[atProtocol] initializeATProtocol called, bodyKeys=', keys, 'oauth=', oauthInfo);
+      console.log(
+        "[atProtocol] initializeATProtocol called, bodyKeys=",
+        keys,
+        "oauth=",
+        oauthInfo,
+      );
     } catch (logErr) {
-      console.warn('[atProtocol] Failed to log initializeATProtocol entry', logErr);
+      console.warn(
+        "[atProtocol] Failed to log initializeATProtocol entry",
+        logErr,
+      );
     }
 
     // Support two modes: credentials or oauth code exchange
@@ -101,143 +134,203 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
       const existing = oauthCodeCache.get(codeKey);
       if (existing) {
         // If another exchange is in-flight or recently completed, reject to avoid double-consumption of code
-        console.warn('[atProtocol] Duplicate authorization code exchange attempt detected for code=', codeKey.slice(0,8) + '...');
+        console.warn(
+          "[atProtocol] Duplicate authorization code exchange attempt detected for code=",
+          codeKey.slice(0, 8) + "...",
+        );
         const response: ApiResponse = {
           success: false,
-          error: 'duplicate_request',
+          error: "duplicate_request",
           // Provide a brief human-friendly description to help clients decide whether to retry
-          data: { error_description: 'This authorization code is already being processed or was recently used' }
+          data: {
+            error_description:
+              "This authorization code is already being processed or was recently used",
+          },
         };
 
         // Compute remaining TTL for the cached code and set Retry-After header in seconds.
         try {
-          const firstSeenMs = (existing && typeof (existing as any).ts === 'number') ? (existing as any).ts : null;
+          const firstSeenMs =
+            existing && typeof (existing as any).ts === "number"
+              ? (existing as any).ts
+              : null;
           let remainingMs: number;
           if (firstSeenMs !== null) {
             remainingMs = OAUTH_CODE_TTL_MS - (Date.now() - firstSeenMs);
             // clamp to [1ms, OAUTH_CODE_TTL_MS]
             if (remainingMs <= 0) remainingMs = 1;
-            if (remainingMs > OAUTH_CODE_TTL_MS) remainingMs = OAUTH_CODE_TTL_MS;
+            if (remainingMs > OAUTH_CODE_TTL_MS)
+              remainingMs = OAUTH_CODE_TTL_MS;
           } else {
             remainingMs = OAUTH_CODE_TTL_MS;
           }
 
-          const retryAfterSec = String(Math.max(1, Math.ceil(remainingMs / 1000)));
-          res.setHeader?.('Retry-After', retryAfterSec);
-        } catch (_) { /* ignore header-setting failures */ }
+          const retryAfterSec = String(
+            Math.max(1, Math.ceil(remainingMs / 1000)),
+          );
+          res.setHeader?.("Retry-After", retryAfterSec);
+        } catch (_) {
+          /* ignore header-setting failures */
+        }
 
         res.status(429).json(response);
         return;
       }
 
       // Mark code as pending before performing network calls. Ensure we record timestamp.
-      oauthCodeCache.set(codeKey, { ts: Date.now(), status: 'pending' });
+      oauthCodeCache.set(codeKey, { ts: Date.now(), status: "pending" });
 
       // Exchange OAuth code for token with provider token_endpoint (bsky.social)
       try {
-  const tokenEndpoint = AT_PROTOCOL_TOKEN_ENDPOINT;
+        const tokenEndpoint = AT_PROTOCOL_TOKEN_ENDPOINT;
 
         // Build form data per OAuth2 spec (authorization_code grant with PKCE)
         const params = new URLSearchParams();
-        params.append('grant_type', 'authorization_code');
-        params.append('code', oauth.code);
-        if (oauth.code_verifier) params.append('code_verifier', oauth.code_verifier);
-        if (oauth.redirect_uri) params.append('redirect_uri', oauth.redirect_uri);
+        params.append("grant_type", "authorization_code");
+        params.append("code", oauth.code);
+        if (oauth.code_verifier)
+          params.append("code_verifier", oauth.code_verifier);
+        if (oauth.redirect_uri)
+          params.append("redirect_uri", oauth.redirect_uri);
         // Optionally include client_id if provided by client (e.g., public client metadata URL)
-        if (oauth.client_id) params.append('client_id', oauth.client_id);
+        if (oauth.client_id) params.append("client_id", oauth.client_id);
 
         // Create a DPoP proof header (provider requires DPoP for dpop_bound_access_tokens)
         // Generate ephemeral ES256 key pair and include the public JWK in the DPoP JWT header
-        const { publicKey, privateKey } = await generateKeyPair('ES256');
-        const rawJwk = await exportJWK(publicKey) as PublicJWK;
+        const { publicKey, privateKey } = await generateKeyPair("ES256");
+        const rawJwk = (await exportJWK(publicKey)) as PublicJWK;
         // Validate exported JWK parameters for ES256 (expected: kty=EC, crv=P-256)
-        const expectedKty = 'EC';
-        const expectedCrv = 'P-256';
+        const expectedKty = "EC";
+        const expectedCrv = "P-256";
         if (rawJwk.kty && rawJwk.kty !== expectedKty) {
-          throw new Error(`Exported JWK has incompatible kty: ${String(rawJwk.kty)} (expected ${expectedKty})`);
+          throw new Error(
+            `Exported JWK has incompatible kty: ${String(rawJwk.kty)} (expected ${expectedKty})`,
+          );
         }
         if (rawJwk.crv && rawJwk.crv !== expectedCrv) {
-          throw new Error(`Exported JWK has incompatible crv: ${String(rawJwk.crv)} (expected ${expectedCrv})`);
+          throw new Error(
+            `Exported JWK has incompatible crv: ${String(rawJwk.crv)} (expected ${expectedCrv})`,
+          );
         }
 
         // Create a new, properly-typed copy and set required fields explicitly.
         const jwk: PublicJWK = {
           ...rawJwk,
-          alg: 'ES256',
-          use: 'sig'
+          alg: "ES256",
+          use: "sig",
         };
 
         // Build DPoP JWT: htu (HTTP URI), htm (HTTP method), iat, jti
         const dpopPayload = {
           htu: tokenEndpoint,
-          htm: 'POST',
+          htm: "POST",
           iat: Math.floor(Date.now() / 1000),
         } as any;
 
         // Helper to generate a strong unique identifier for DPoP (prefer crypto.randomUUID)
         const generateDpopJti = (): string => {
           // Prefer crypto.randomUUID if available (Node 14.17+/v15+)
-          if (crypto && typeof (crypto as any).randomUUID === 'function') {
+          if (crypto && typeof (crypto as any).randomUUID === "function") {
             return (crypto as any).randomUUID();
           }
 
           // Otherwise use crypto.randomBytes to produce a v4 UUID-style value.
-          if (crypto && typeof (crypto as any).randomBytes === 'function') {
+          if (crypto && typeof (crypto as any).randomBytes === "function") {
             try {
               const buf = (crypto as any).randomBytes(16);
               buf[6] = (buf[6] & 0x0f) | 0x40; // version 4
               buf[8] = (buf[8] & 0x3f) | 0x80; // variant
-              const hex = Buffer.from(buf).toString('hex');
-              return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+              const hex = Buffer.from(buf).toString("hex");
+              return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
             } catch (err) {
               // Rethrow so callers get an explicit failure rather than silently
               // receiving a weak identifier.
-              throw new Error(`Failed to generate secure random bytes for DPoP jti: ${err instanceof Error ? err.message : String(err)}`);
+              throw new Error(
+                `Failed to generate secure random bytes for DPoP jti: ${err instanceof Error ? err.message : String(err)}`,
+              );
             }
           }
 
           // If no secure random source is available, fail explicitly.
-          throw new Error('Secure random generation not available: neither crypto.randomUUID nor crypto.randomBytes are supported in this environment. Provide Node crypto or a secure polyfill.');
+          throw new Error(
+            "Secure random generation not available: neither crypto.randomUUID nor crypto.randomBytes are supported in this environment. Provide Node crypto or a secure polyfill.",
+          );
         };
 
         const dpopJti = generateDpopJti();
         (dpopPayload as any).jti = dpopJti;
 
         const dpopJwt = await new SignJWT(dpopPayload)
-          .setProtectedHeader({ alg: 'ES256', typ: 'dpop+jwt', jwk })
+          .setProtectedHeader({ alg: "ES256", typ: "dpop+jwt", jwk })
           .sign(privateKey as any);
 
         // Debug: log outgoing token exchange details (mask sensitive values like code and code_verifier)
-  try {
+        try {
           const maskedParams = new URLSearchParams();
           for (const [k, v] of params.entries()) {
-            if (k === 'code' || k === 'code_verifier' || k === 'refresh_token') {
+            if (
+              k === "code" ||
+              k === "code_verifier" ||
+              k === "refresh_token"
+            ) {
               // show only prefix to avoid leaking secrets while keeping some context
-              const s = String(v || '');
-              maskedParams.append(k, s.length > 8 ? `${s.slice(0,6)}...${s.slice(-2)}` : '<<masked>>');
+              const s = String(v || "");
+              maskedParams.append(
+                k,
+                s.length > 8
+                  ? `${s.slice(0, 6)}...${s.slice(-2)}`
+                  : "<<masked>>",
+              );
             } else {
               maskedParams.append(k, String(v));
             }
           }
-          console.log('[atProtocol] Token exchange: endpoint=', tokenEndpoint);
-          console.log('[atProtocol] Token exchange: params(masked)=', maskedParams.toString());
+          console.log("[atProtocol] Token exchange: endpoint=", tokenEndpoint);
+          console.log(
+            "[atProtocol] Token exchange: params(masked)=",
+            maskedParams.toString(),
+          );
+          console.log(
+            "[atProtocol] Token exchange: client_id=",
+            oauth.client_id,
+          );
+          console.log(
+            "[atProtocol] Token exchange: redirect_uri=",
+            oauth.redirect_uri,
+          );
         } catch (logErr) {
-          console.warn('[atProtocol] Failed to log token exchange params', logErr);
+          console.warn(
+            "[atProtocol] Failed to log token exchange params",
+            logErr,
+          );
         }
 
         let tokenRes = await fetch(tokenEndpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'DPoP': dpopJwt },
-          body: params.toString()
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            DPoP: dpopJwt,
+          },
+          body: params.toString(),
         });
 
         // Log response headers for additional debugging (DPoP nonce may be provided in headers)
         try {
           const hdrs: Record<string, string> = {};
-          tokenRes.headers.forEach((v: string, k: string) => { hdrs[k] = v; });
-          console.log('[atProtocol] Token endpoint response status=', tokenRes.status, 'headers=', hdrs);
+          tokenRes.headers.forEach((v: string, k: string) => {
+            hdrs[k] = v;
+          });
+          console.log(
+            "[atProtocol] Token endpoint response status=",
+            tokenRes.status,
+            "headers=",
+            hdrs,
+          );
         } catch (hdrErr) {
-          console.warn('[atProtocol] Failed to log token response headers', hdrErr);
+          console.warn(
+            "[atProtocol] Failed to log token response headers",
+            hdrErr,
+          );
         }
 
         // If the server requires a nonce in the DPoP proof, extract it from headers and retry.
@@ -252,23 +345,32 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
             parsedBody = JSON.parse(lastBodyText as string);
           } catch (e: any) {
             // Log parse error with context so we can debug provider responses that are not valid JSON
-            console.error('Failed to parse token endpoint response as JSON for nonce detection', {
-              tokenEndpoint,
-              status: tokenRes.status,
-              body: lastBodyText,
-              parseError: e && (e.message || String(e))
-            });
+            console.error(
+              "Failed to parse token endpoint response as JSON for nonce detection",
+              {
+                tokenEndpoint,
+                status: tokenRes.status,
+                body: lastBodyText,
+                parseError: e && (e.message || String(e)),
+              },
+            );
             parsedBody = null;
           }
 
           // Determine whether to attempt a DPoP-with-nonce retry.
-          const headerNonce = tokenRes.headers.get('dpop-nonce') || tokenRes.headers.get('DPoP-Nonce');
-          const wantsNonceFromBody = parsedBody && parsedBody.error === 'use_dpop_nonce';
+          const headerNonce =
+            tokenRes.headers.get("dpop-nonce") ||
+            tokenRes.headers.get("DPoP-Nonce");
+          const wantsNonceFromBody =
+            parsedBody && parsedBody.error === "use_dpop_nonce";
           const wantsNonce = wantsNonceFromBody || !!headerNonce;
 
           if (wantsNonce) {
             // Try to extract nonce from WWW-Authenticate header first, then DPoP-Nonce header
-            const www = tokenRes.headers.get('www-authenticate') || tokenRes.headers.get('WWW-Authenticate') || '';
+            const www =
+              tokenRes.headers.get("www-authenticate") ||
+              tokenRes.headers.get("WWW-Authenticate") ||
+              "";
             let nonceMatch = www.match(/nonce="?([^"]+)"?/i);
             let nonceVal: string | null = null;
             if (nonceMatch && nonceMatch[1]) nonceVal = nonceMatch[1];
@@ -280,20 +382,23 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
               // rebuild DPoP JWT including nonce claim and fresh jti
               const dpopPayloadWithNonce = {
                 htu: tokenEndpoint,
-                htm: 'POST',
+                htm: "POST",
                 iat: Math.floor(Date.now() / 1000),
                 jti: dpopJtiForNonce,
-                nonce: nonceVal
+                nonce: nonceVal,
               } as any;
 
               const dpopJwtWithNonce = await new SignJWT(dpopPayloadWithNonce)
-                .setProtectedHeader({ alg: 'ES256', typ: 'dpop+jwt', jwk })
+                .setProtectedHeader({ alg: "ES256", typ: "dpop+jwt", jwk })
                 .sign(privateKey as any);
 
               tokenRes = await fetch(tokenEndpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'DPoP': dpopJwtWithNonce },
-                body: params.toString()
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/x-www-form-urlencoded",
+                  DPoP: dpopJwtWithNonce,
+                },
+                body: params.toString(),
               });
               // We fetched a fresh response; reset cached body so downstream readers will read the new one
               lastBodyText = null;
@@ -303,79 +408,129 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
 
         if (!tokenRes.ok) {
           // Reuse cached body text if we previously read it, otherwise read now
-          const bodyText = lastBodyText ?? await tokenRes.text();
+          const bodyText = lastBodyText ?? (await tokenRes.text());
           // Emit full response body to aid diagnosis (may contain provider error details). Mask any long tokens if incidentally present.
           let maskedBody = bodyText;
           try {
             const parsed = JSON.parse(bodyText);
             // If the provider accidentally echoes back the code or verifier, mask them
-            if (parsed && typeof parsed === 'object') {
+            if (parsed && typeof parsed === "object") {
               const clone: any = { ...parsed };
               const maskIfLong = (val: any) => {
-                if (!val || typeof val !== 'string') return val;
-                return val.length > 12 ? `${val.slice(0,6)}...${val.slice(-4)}` : '<<masked>>';
+                if (!val || typeof val !== "string") return val;
+                return val.length > 12
+                  ? `${val.slice(0, 6)}...${val.slice(-4)}`
+                  : "<<masked>>";
               };
               if (clone.code) clone.code = maskIfLong(clone.code);
-              if (clone.access_token) clone.access_token = maskIfLong(clone.access_token);
-              if (clone.refresh_token) clone.refresh_token = maskIfLong(clone.refresh_token);
+              if (clone.access_token)
+                clone.access_token = maskIfLong(clone.access_token);
+              if (clone.refresh_token)
+                clone.refresh_token = maskIfLong(clone.refresh_token);
               maskedBody = JSON.stringify(clone);
             }
           } catch (e) {
             // Not JSON, leave raw text but truncate long strings for safety
-            if (typeof maskedBody === 'string' && maskedBody.length > 2000) maskedBody = maskedBody.slice(0,2000) + '...';
+            if (typeof maskedBody === "string" && maskedBody.length > 2000)
+              maskedBody = maskedBody.slice(0, 2000) + "...";
           }
-          console.error('Token endpoint error:', tokenRes.status, maskedBody);
-          throw new Error(`Token endpoint responded ${tokenRes.status}`);
+          console.error("[atProtocol] Token endpoint error:", {
+            status: tokenRes.status,
+            body: maskedBody,
+            endpoint: tokenEndpoint,
+            client_id: oauth.client_id,
+            redirect_uri: oauth.redirect_uri,
+          });
+          // Parse error details if available
+          let errorDetails = "Token exchange failed";
+          try {
+            const parsed = JSON.parse(bodyText);
+            if (parsed.error)
+              errorDetails = `${parsed.error}${parsed.error_description ? ": " + parsed.error_description : ""}`;
+          } catch (_) {
+            /* ignore */
+          }
+          throw new Error(
+            `Token endpoint error (${tokenRes.status}): ${errorDetails}`,
+          );
         }
 
-  const tokenJson = await tokenRes.json();
-        if (!tokenJson) throw new Error('No token returned from provider');
+        const tokenJson = await tokenRes.json();
+        if (!tokenJson) throw new Error("No token returned from provider");
         // Debug: inspect token response for scopes and keys
         try {
-          const scopeDebug = tokenJson.scope || tokenJson.scopes || tokenJson.scopeString || '';
-          console.log('Token response keys:', Object.keys(tokenJson));
-          console.log('Token scopes (raw):', scopeDebug);
+          const scopeDebug =
+            tokenJson.scope || tokenJson.scopes || tokenJson.scopeString || "";
+          console.log("Token response keys:", Object.keys(tokenJson));
+          console.log("Token scopes (raw):", scopeDebug);
         } catch (err) {
           // Non-fatal: emit debug-level information for diagnostics.
           // Use module logger if present, otherwise fallback to console.debug.
           try {
             const globalLogger = (globalThis as any).logger;
-            if (typeof globalLogger !== 'undefined' && typeof globalLogger.debug === 'function') {
-              globalLogger.debug('Failed to read token response debug fields', err);
+            if (
+              typeof globalLogger !== "undefined" &&
+              typeof globalLogger.debug === "function"
+            ) {
+              globalLogger.debug(
+                "Failed to read token response debug fields",
+                err,
+              );
             } else {
-              console.debug('Failed to read token response debug fields', err);
+              console.debug("Failed to read token response debug fields", err);
             }
           } catch (logErr) {
             // If logging itself fails, avoid throwing from this non-critical path.
-            console.debug('Logging failed while handling token response debug parse error', { logErr, originalError: err });
+            console.debug(
+              "Logging failed while handling token response debug parse error",
+              { logErr, originalError: err },
+            );
           }
         }
 
-  // Map common OAuth token fields to the session shape expected by our ATProtocol service
-  const sessionForAtp: OAuthSession = {} as OAuthSession;
+        // Map common OAuth token fields to the session shape expected by our ATProtocol service
+        const sessionForAtp: OAuthSession = {} as OAuthSession;
         // Access token: provider may return 'access_token' or 'accessJwt'
-        sessionForAtp.accessJwt = tokenJson.accessJwt || tokenJson.access_token || tokenJson.accessToken;
+        sessionForAtp.accessJwt =
+          tokenJson.accessJwt ||
+          tokenJson.access_token ||
+          tokenJson.accessToken;
         // Refresh token mapping
-        sessionForAtp.refreshJwt = tokenJson.refreshJwt || tokenJson.refresh_token || tokenJson.refreshToken;
+        sessionForAtp.refreshJwt =
+          tokenJson.refreshJwt ||
+          tokenJson.refresh_token ||
+          tokenJson.refreshToken;
         // DID / handle if provided by provider
         if (tokenJson.did) sessionForAtp.did = tokenJson.did;
         if (tokenJson.handle) sessionForAtp.handle = tokenJson.handle;
         // Also include raw tokenJson for debugging/compatibility if needed
         sessionForAtp.raw = tokenJson;
         // If the returned token does not include the required atproto scope, fail fast with a clear error
-        const returnedScopes = (tokenJson.scope || tokenJson.scopes || tokenJson.scopeString || '').toString();
+        const returnedScopes = (
+          tokenJson.scope ||
+          tokenJson.scopes ||
+          tokenJson.scopeString ||
+          ""
+        ).toString();
         if (!/\batproto\b/.test(returnedScopes)) {
-          console.error('Received token does not include required "atproto" scope:', returnedScopes);
-          const response: ApiResponse = { success: false, error: 'Token missing required scope: atproto', data: { scopes: returnedScopes } };
+          console.error(
+            'Received token does not include required "atproto" scope:',
+            returnedScopes,
+          );
+          const response: ApiResponse = {
+            success: false,
+            error: "Token missing required scope: atproto",
+            data: { scopes: returnedScopes },
+          };
           res.status(400).json(response);
           return;
         }
         // Debug: log that we received a token (do not log secrets in production)
-        console.log('Received token from provider, mapping to session:', {
+        console.log("Received token from provider, mapping to session:", {
           hasAccess: !!sessionForAtp.accessJwt,
           hasRefresh: !!sessionForAtp.refreshJwt,
           hasDid: !!sessionForAtp.did,
-          hasHandle: !!sessionForAtp.handle
+          hasHandle: !!sessionForAtp.handle,
         });
 
         // Pass the session object to the ATProtocol service to initialize
@@ -383,29 +538,51 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
         try {
           // Allow initializeWithOAuth to optionally return the internal BlueskyService
           // initializeWithOAuth now returns the BlueskyService instance when returnService=true
-          const service = await atProtocolService.initializeWithOAuth({ session: sessionForAtp, returnService: true });
+          const service = await atProtocolService.initializeWithOAuth({
+            session: sessionForAtp,
+            returnService: true,
+          });
           // Lazy import to avoid circular types
-          const { createSessionFromService } = await import('../controllers/authController.js');
-          const identifier = pickFirstNonEmpty(sessionForAtp?.handle, sessionForAtp?.did, tokenJson?.handle, tokenJson?.did);
+          const { createSessionFromService } = await import(
+            "../controllers/authController.js"
+          );
+          const identifier = pickFirstNonEmpty(
+            sessionForAtp?.handle,
+            sessionForAtp?.did,
+            tokenJson?.handle,
+            tokenJson?.did,
+          );
           const sessionId = createSessionFromService(service, identifier);
           const response: ApiResponse = { success: true, data: { sessionId } };
           // Mark the code exchange as completed successfully
-          oauthCodeCache.set(codeKey, { ts: Date.now(), status: 'done' });
+          oauthCodeCache.set(codeKey, { ts: Date.now(), status: "done" });
           res.json(response);
           return;
         } catch (innerErr) {
           // On error during service initialization, allow retry by removing cache entry
           oauthCodeCache.delete(codeKey);
-          console.error('Failed to initialize ATProtocol service with OAuth session:', innerErr);
-          const response: ApiResponse = { success: false, error: 'Failed to initialize session after token exchange' };
+          console.error(
+            "[atProtocol] Failed to initialize ATProtocol service with OAuth session:",
+            innerErr,
+          );
+          const errorMsg =
+            innerErr instanceof Error ? innerErr.message : String(innerErr);
+          const response: ApiResponse = {
+            success: false,
+            error: "Failed to initialize session after token exchange",
+            data: { details: errorMsg },
+          };
           res.status(500).json(response);
           return;
         }
       } catch (e) {
         // On any failure during exchange, remove the pending marker so callers can retry
         oauthCodeCache.delete(codeKey);
-        console.error('OAuth code exchange failed:', e);
-        const response: ApiResponse = { success: false, error: 'OAuth code exchange failed' };
+        console.error("OAuth code exchange failed:", e);
+        const response: ApiResponse = {
+          success: false,
+          error: "OAuth code exchange failed",
+        };
         res.status(500).json(response);
         return;
       }
@@ -413,7 +590,7 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
       if (!identifier || !password) {
         const response: ApiResponse = {
           success: false,
-          error: 'Bluesky identifier and password are required'
+          error: "Bluesky identifier and password are required",
         };
         res.status(400).json(response);
         return;
@@ -421,18 +598,21 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
 
       await atProtocolService.initialize({ identifier, password });
     }
-    
+
     const response: ApiResponse = {
       success: true,
-      message: 'AT Protocol service initialized successfully'
+      message: "AT Protocol service initialized successfully",
     };
-    
+
     res.json(response);
   } catch (error) {
-    console.error('Failed to initialize AT Protocol service:', error);
+    console.error("Failed to initialize AT Protocol service:", error);
     const response: ApiResponse = {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to initialize AT Protocol service'
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to initialize AT Protocol service",
     };
     res.status(500).json(response);
   }
@@ -441,14 +621,17 @@ export async function initializeATProtocol(req: Request, res: Response): Promise
 /**
  * Post learning progress to Bluesky
  */
-export async function postLearningProgress(req: Request, res: Response): Promise<void> {
+export async function postLearningProgress(
+  req: Request,
+  res: Response,
+): Promise<void> {
   try {
     const { userId, type, metadata, customContent } = req.body;
-    
+
     if (!userId || !type) {
       const response: ApiResponse = {
         success: false,
-        error: 'User ID and post type are required'
+        error: "User ID and post type are required",
       };
       res.status(400).json(response);
       return;
@@ -457,7 +640,8 @@ export async function postLearningProgress(req: Request, res: Response): Promise
     if (!atProtocolService.isAuthenticated()) {
       const response: ApiResponse = {
         success: false,
-        error: 'AT Protocol service not authenticated. Please initialize first.'
+        error:
+          "AT Protocol service not authenticated. Please initialize first.",
       };
       res.status(401).json(response);
       return;
@@ -467,23 +651,26 @@ export async function postLearningProgress(req: Request, res: Response): Promise
       userId,
       type,
       metadata || {},
-      customContent
+      customContent,
     );
-    
+
     const response: ApiResponse = {
       success: true,
       data: post,
-      message: post.blueskySuccess 
-        ? 'Learning progress posted successfully'
-        : 'Post created but failed to publish to Bluesky'
+      message: post.blueskySuccess
+        ? "Learning progress posted successfully"
+        : "Post created but failed to publish to Bluesky",
     };
-    
+
     res.json(response);
   } catch (error) {
-    console.error('Failed to post learning progress:', error);
+    console.error("Failed to post learning progress:", error);
     const response: ApiResponse = {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to post learning progress'
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to post learning progress",
     };
     res.status(500).json(response);
   }
@@ -492,15 +679,18 @@ export async function postLearningProgress(req: Request, res: Response): Promise
 /**
  * Generate shared learning data
  */
-export async function generateSharedData(req: Request, res: Response): Promise<void> {
+export async function generateSharedData(
+  req: Request,
+  res: Response,
+): Promise<void> {
   try {
     const { userId } = req.params;
     const { includeVocabulary } = req.query;
-    
+
     if (!userId) {
       const response: ApiResponse = {
         success: false,
-        error: 'User ID is required'
+        error: "User ID is required",
       };
       res.status(400).json(response);
       return;
@@ -508,21 +698,24 @@ export async function generateSharedData(req: Request, res: Response): Promise<v
 
     const sharedData = await atProtocolService.generateSharedLearningData(
       userId,
-      includeVocabulary === 'true'
+      includeVocabulary === "true",
     );
-    
+
     const response: ApiResponse = {
       success: true,
       data: sharedData,
-      message: 'Shared learning data generated successfully'
+      message: "Shared learning data generated successfully",
     };
-    
+
     res.json(response);
   } catch (error) {
-    console.error('Failed to generate shared learning data:', error);
+    console.error("Failed to generate shared learning data:", error);
     const response: ApiResponse = {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to generate shared learning data'
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to generate shared learning data",
     };
     res.status(500).json(response);
   }
@@ -531,23 +724,26 @@ export async function generateSharedData(req: Request, res: Response): Promise<v
 /**
  * Get post history
  */
-export async function getPostHistory(req: Request, res: Response): Promise<void> {
+export async function getPostHistory(
+  req: Request,
+  res: Response,
+): Promise<void> {
   try {
     const { userId } = req.query;
-    
+
     const history = atProtocolService.getPostHistory(userId as string);
-    
+
     const response: ApiResponse = {
       success: true,
-      data: history
+      data: history,
     };
-    
+
     res.json(response);
   } catch (error) {
-    console.error('Failed to get post history:', error);
+    console.error("Failed to get post history:", error);
     const response: ApiResponse = {
       success: false,
-      error: 'Failed to retrieve post history'
+      error: "Failed to retrieve post history",
     };
     res.status(500).json(response);
   }
@@ -556,21 +752,24 @@ export async function getPostHistory(req: Request, res: Response): Promise<void>
 /**
  * Get available post templates
  */
-export async function getPostTemplates(req: Request, res: Response): Promise<void> {
+export async function getPostTemplates(
+  req: Request,
+  res: Response,
+): Promise<void> {
   try {
     const templates = atProtocolService.getAvailableTemplates();
-    
+
     const response: ApiResponse = {
       success: true,
-      data: templates
+      data: templates,
     };
-    
+
     res.json(response);
   } catch (error) {
-    console.error('Failed to get post templates:', error);
+    console.error("Failed to get post templates:", error);
     const response: ApiResponse = {
       success: false,
-      error: 'Failed to retrieve post templates'
+      error: "Failed to retrieve post templates",
     };
     res.status(500).json(response);
   }
@@ -579,21 +778,24 @@ export async function getPostTemplates(req: Request, res: Response): Promise<voi
 /**
  * Get authentication status
  */
-export async function getAuthStatus(req: Request, res: Response): Promise<void> {
+export async function getAuthStatus(
+  req: Request,
+  res: Response,
+): Promise<void> {
   try {
     const isAuthenticated = atProtocolService.isAuthenticated();
-    
+
     const response: ApiResponse = {
       success: true,
-      data: { isAuthenticated }
+      data: { isAuthenticated },
     };
-    
+
     res.json(response);
   } catch (error) {
-    console.error('Failed to get auth status:', error);
+    console.error("Failed to get auth status:", error);
     const response: ApiResponse = {
       success: false,
-      error: 'Failed to get authentication status'
+      error: "Failed to get authentication status",
     };
     res.status(500).json(response);
   }
@@ -605,18 +807,18 @@ export async function getAuthStatus(req: Request, res: Response): Promise<void> 
 export async function logout(req: Request, res: Response): Promise<void> {
   try {
     atProtocolService.logout();
-    
+
     const response: ApiResponse = {
       success: true,
-      message: 'Logged out successfully'
+      message: "Logged out successfully",
     };
-    
+
     res.json(response);
   } catch (error) {
-    console.error('Failed to logout:', error);
+    console.error("Failed to logout:", error);
     const response: ApiResponse = {
       success: false,
-      error: 'Failed to logout'
+      error: "Failed to logout",
     };
     res.status(500).json(response);
   }
@@ -625,14 +827,17 @@ export async function logout(req: Request, res: Response): Promise<void> {
 /**
  * Auto-generate and post milestone achievements
  */
-export async function autoPostMilestone(req: Request, res: Response): Promise<void> {
+export async function autoPostMilestone(
+  req: Request,
+  res: Response,
+): Promise<void> {
   try {
     const { userId } = req.body;
-    
+
     if (!userId) {
       const response: ApiResponse = {
         success: false,
-        error: 'User ID is required'
+        error: "User ID is required",
       };
       res.status(400).json(response);
       return;
@@ -641,20 +846,21 @@ export async function autoPostMilestone(req: Request, res: Response): Promise<vo
     if (!atProtocolService.isAuthenticated()) {
       const response: ApiResponse = {
         success: false,
-        error: 'AT Protocol service not authenticated'
+        error: "AT Protocol service not authenticated",
       };
       res.status(401).json(response);
       return;
     }
 
     // Generate shared data to get current statistics
-    const sharedData = await atProtocolService.generateSharedLearningData(userId);
+    const sharedData =
+      await atProtocolService.generateSharedLearningData(userId);
     const { totalWords, studyStreak } = sharedData.summary;
 
     // Check for milestone achievements
     const milestones = [10, 25, 50, 100, 250, 500, 1000];
     const streakMilestones = [7, 14, 30, 60, 100];
-    
+
     let post: LearningProgressPost | null = null;
 
     // Check word count milestones
@@ -662,11 +868,11 @@ export async function autoPostMilestone(req: Request, res: Response): Promise<vo
       if (totalWords >= milestone) {
         post = await atProtocolService.postLearningProgress(
           userId,
-          'milestone',
+          "milestone",
           {
             wordsLearned: totalWords,
-            milestone: `${milestone} words milestone reached!`
-          }
+            milestone: `${milestone} words milestone reached!`,
+          },
         );
         break;
       }
@@ -678,10 +884,10 @@ export async function autoPostMilestone(req: Request, res: Response): Promise<vo
         if (studyStreak >= streakMilestone) {
           post = await atProtocolService.postLearningProgress(
             userId,
-            'streak',
+            "streak",
             {
-              streak: studyStreak
-            }
+              streak: studyStreak,
+            },
           );
           break;
         }
@@ -692,21 +898,24 @@ export async function autoPostMilestone(req: Request, res: Response): Promise<vo
       const response: ApiResponse = {
         success: true,
         data: post,
-        message: 'Milestone achievement posted successfully'
+        message: "Milestone achievement posted successfully",
       };
       res.json(response);
     } else {
       const response: ApiResponse = {
         success: true,
-        message: 'No milestone achievements to post at this time'
+        message: "No milestone achievements to post at this time",
       };
       res.json(response);
     }
   } catch (error) {
-    console.error('Failed to auto-post milestone:', error);
+    console.error("Failed to auto-post milestone:", error);
     const response: ApiResponse = {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to auto-post milestone'
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to auto-post milestone",
     };
     res.status(500).json(response);
   }
@@ -723,15 +932,15 @@ export async function getProfile(req: Request, res: Response): Promise<void> {
 
     const response: ApiResponse = {
       success: true,
-      data: profile
+      data: profile,
     };
 
     res.json(response);
   } catch (error) {
-    console.error('Failed to get profile:', error);
+    console.error("Failed to get profile:", error);
     const response: ApiResponse = {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to get profile'
+      error: error instanceof Error ? error.message : "Failed to get profile",
     };
     res.status(500).json(response);
   }
@@ -745,34 +954,44 @@ export async function getProfile(req: Request, res: Response): Promise<void> {
  *
  * This endpoint is disabled in production unless ENABLE_DEBUG_EXCHANGE=true is set.
  */
-export async function debugExchange(req: Request, res: Response): Promise<void> {
-  if (process.env.NODE_ENV === 'production' && process.env.ENABLE_DEBUG_EXCHANGE !== 'true') {
-    res.status(403).json({ success: false, error: 'Debug exchange disabled in production' });
+export async function debugExchange(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.ENABLE_DEBUG_EXCHANGE !== "true"
+  ) {
+    res
+      .status(403)
+      .json({ success: false, error: "Debug exchange disabled in production" });
     return;
   }
 
   try {
     const { redirectUrl, oauth } = req.body || {};
     let bodyOauth = oauth;
-    if (!bodyOauth && redirectUrl && typeof redirectUrl === 'string') {
+    if (!bodyOauth && redirectUrl && typeof redirectUrl === "string") {
       try {
         const u = new URL(redirectUrl);
-        const params: Record<string,string> = {};
-        u.searchParams.forEach((v,k) => { params[k] = v; });
+        const params: Record<string, string> = {};
+        u.searchParams.forEach((v, k) => {
+          params[k] = v;
+        });
         bodyOauth = {
           code: params.code,
           code_verifier: params.code_verifier,
-          redirect_uri: params.redirect_uri || (u.origin + u.pathname),
-          client_id: params.client_id
+          redirect_uri: params.redirect_uri || u.origin + u.pathname,
+          client_id: params.client_id,
         };
       } catch (e) {
-        res.status(400).json({ success: false, error: 'Invalid redirectUrl' });
+        res.status(400).json({ success: false, error: "Invalid redirectUrl" });
         return;
       }
     }
 
     if (!bodyOauth || !bodyOauth.code) {
-      res.status(400).json({ success: false, error: 'Missing oauth.code' });
+      res.status(400).json({ success: false, error: "Missing oauth.code" });
       return;
     }
 
@@ -780,15 +999,23 @@ export async function debugExchange(req: Request, res: Response): Promise<void> 
     const fakeReq: any = { body: { oauth: bodyOauth } };
     const fakeRes: any = {
       status: (code: number) => ({ json: (obj: any) => ({ code, obj }) }),
-      json: (obj: any) => obj
+      json: (obj: any) => obj,
     };
 
     // Call the internal exchange logic path
     await initializeATProtocol(fakeReq as Request, fakeRes as Response);
     // If initializeATProtocol returns without throwing, respond success
-    res.json({ success: true, message: 'Debug exchange completed (see server logs)' });
+    res.json({
+      success: true,
+      message: "Debug exchange completed (see server logs)",
+    });
   } catch (err) {
-    console.error('Debug exchange failed:', err);
-    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+    console.error("Debug exchange failed:", err);
+    res
+      .status(500)
+      .json({
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
   }
 }
