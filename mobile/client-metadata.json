@@ -1,7 +1,7 @@
 {
-  "client_id": "http://192.168.11.27:3000/client-metadata.json",
-  "client_name": "Bluesky LangApp Dev (Local)",
-  "client_uri": "http://192.168.11.27:3000",
+  "client_id": "https://rietamura.github.io/bluelang-oauth/.well-known/atproto_client_metadata.json",
+  "client_name": "Bluesky LangApp Dev",
+  "client_uri": "https://rietamura.github.io/bluelang-oauth",
   "logo_uri": "https://rietamura.github.io/bluelang-oauth/logo.png",
   "application_type": "native",
   "dpop_bound_access_tokens": true,
