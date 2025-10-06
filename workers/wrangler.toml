@@ -1,0 +1,41 @@
+# Cloudflare Workers - Phase 0 skeleton
+# - Minimal config to bring up a Workers service with Hono-based endpoints
+# - Replace placeholder IDs and add routes when moving to production
+
+name = "bluelangapp"
+main = "src/index.ts"
+compatibility_date = "2025-10-01"
+workers_dev = true
+# If you ever need limited Node APIs, uncomment below (not needed for Phase 0)
+# compatibility_flags = ["nodejs_compat"]
+
+# For production, uncomment and configure with your zone/route
+# routes = [
+#   { pattern = "api.example.com/*", zone_name = "example.com" }
+# ]
+
+
+[vars]
+
+# AT Protocol / Bluesky OAuth client settings
+
+BSKY_ISSUER = "https://bsky.social"
+
+
+CLIENT_ID = "https://rietamura.github.io/bluelang-oauth/.well-known/atproto_client_metadata.json"
+DEV_CLIENT_ID = "https://rietamura.github.io/bluelang-oauth/dev/.well-known/atproto_client_metadata.json"
+
+
+REDIRECT_URI = "blueskylearning://auth"
+
+# Optional: For local/desktop debugging, set a temporary HTTP callback
+# Make sure to also add this to your client metadata when using it.
+DEV_REDIRECT_URI = "http://127.0.0.1:8787/dev/callback"
+SCOPE = "atproto"
+
+
+# KV namespace bindings (create these in Cloudflare and paste IDs)
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "217b803b66f8419bae738d57a7b758dd"
+preview_id = "217b803b66f8419bae738d57a7b758dd"
