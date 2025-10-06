@@ -92,6 +92,7 @@ jspm_packages/
 backend/data/
 *.json.backup
 client-metadata.local.json
+workers/.wrangler/
 
 # TypeScript
 *.tsbuildinfo
