@@ -34,23 +34,6 @@ function isTTSEnabled() {
   return extra?.enableTTS !== false; // 未指定なら有効
 }
 
-// TTS: lazy-load expo-speech and guard by enableTTS flag from app.json extra
-let SpeechMod: null | typeof import("expo-speech") = null;
-async function ensureSpeech() {
-  if (!SpeechMod) {
-    const m = await import("expo-speech");
-    SpeechMod = m;
-  }
-  return SpeechMod;
-}
-function isTTSEnabled() {
-  const extra: any =
-    (Constants as any)?.expoConfig?.extra ||
-    (Constants as any)?.manifest?.extra ||
-    {};
-  return extra?.enableTTS !== false;
-}
-
 export const WordsScreen: React.FC = () => {
   const { words, isLoading, updateStatus } = useWords();
   const [examples, setExamples] = React.useState<{
