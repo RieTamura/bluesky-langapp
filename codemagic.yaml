@@ -90,10 +90,14 @@ workflows:
             --scheme "$XCODE_SCHEME"
 
       - name: Publish to TestFlight
+
         script: |
+
           app-store-connect publish \
+
             --path "$(find $CM_BUILD_DIR -name '*.ipa' | head -n 1)" \
-            --submit-to-testflight
+
+            --testflight
 
     artifacts:
       - $CM_BUILD_DIR/**/**/*.ipa
