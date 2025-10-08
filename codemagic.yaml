@@ -78,10 +78,16 @@ workflows:
           ls "$HOME/Library/MobileDevice/Provisioning Profiles" | wc -l || true
 
       # （必要なら有効化）ビルド番号の自動更新
-      # - name: Bump build number
-      #   script: |
-      #     # 例: タイムスタンプを CFBundleVersion に設定（プロジェクト構成に合わせて調整）
-      #     /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(date +%Y%m%d%H%M)" "$APP_PATH"/ios/*/Info.plist || true
+
+      - name: Bump build number (CFBundleVersion)
+
+        script: |
+
+          set -e
+          BUILD_NUMBER=$(date +%Y%m%d%H%M)
+          echo "Setting CFBundleVersion to $BUILD_NUMBER"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP_PATH"/ios/*/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP_PATH"/ios/*/Info.plist || true
 
       - name: Build .ipa
         script: |
