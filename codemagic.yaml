@@ -10,7 +10,11 @@ workflows:
     environment:
       vars:
         BUNDLE_ID: com.rietamura.bluelang
+
         APP_PATH: mobile
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.rietamura.bluelang
 
     scripts:
       - name: Print versions and install JS deps (mobile/)
@@ -39,26 +43,11 @@ workflows:
           pod install
           popd
 
-      - name: Set up signing (Automatic via App Store Connect)
-
+      - name: Apply signing profiles to Xcode project
         script: |
-
           set -e
-
-          # 1) Fetch certificates and provisioning profiles (create if missing)
-          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
-
-
-          # 2) Import downloaded certificates into keychain
-          echo "Certificates downloaded to: $HOME/Library/MobileDevice/Certificates"
-          ls -la "$HOME/Library/MobileDevice/Certificates" || true
-          keychain add-certificates
-
-          # 3) Apply provisioning profiles to the Xcode project (run in project dir)
           pushd "$APP_PATH/ios"
-
           xcode-project use-profiles
-
           popd
 
       - name: Detect workspace and scheme (under mobile/ios)
