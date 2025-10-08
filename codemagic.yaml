@@ -89,14 +89,23 @@ workflows:
             --workspace "$XCODE_WORKSPACE" \
             --scheme "$XCODE_SCHEME"
 
-      - name: Publish to TestFlight
+      - name: Upload to App Store Connect (no TestFlight submission)
 
         script: |
 
           set -e
+
           IPA_PATH="$(find "$CM_BUILD_DIR" -name '*.ipa' | head -n 1)"
+
           echo "Uploading IPA: $IPA_PATH"
-          app-store-connect publish --path "$IPA_PATH" --testflight
+
+          # Upload only to App Store Connect. This does NOT submit to TestFlight.
+          app-store-connect publish --path "$IPA_PATH"
+          # Next steps after upload:
+          # - For external TestFlight submission, add --testflight and ensure Beta App Information
+          #   (contact name, email, phone, feedback email) and a Beta Group are configured in App Store Connect.
+          # - Alternatively submit from App Store Connect: TestFlight > select the build > Submit for Beta Review.
+          # - For internal testing, add the uploaded build to an internal tester group in App Store Connect.
 
     artifacts:
       - $CM_BUILD_DIR/**/**/*.ipa
