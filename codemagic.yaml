@@ -5,32 +5,39 @@ workflows:
     instance_type: mac_mini_m2
 
     integrations:
-      # Codemagic の「Integrations → App Store Connect」で登録した表示名に置き換えてください
       app_store_connect: "Codemagic"
 
     environment:
       vars:
         BUNDLE_ID: com.rietamura.bluelang
+        APP_PATH: mobile
 
     scripts:
-      - name: Print versions and install JS deps
+      - name: Print versions and install JS deps (mobile/)
         script: |
           node -v
           npm -v
+          pushd "$APP_PATH"
           npm ci
           npm run lint --if-present
           npm run test --if-present
+          popd
 
-      - name: Expo prebuild (iOS on macOS runner)
+      - name: Expo prebuild (iOS on macOS runner, in mobile/)
         script: |
+          set -e
+          pushd "$APP_PATH"
           npx expo prebuild --platform ios --non-interactive --clean
-          # 必要に応じて ios/ 配下の Info.plist 等をここで書き換える
+          popd
+          # 必要に応じて $APP_PATH/ios 配下の Info.plist 等をここで書き換える
 
-      - name: Install CocoaPods
+      - name: Install CocoaPods (mobile/ios)
         script: |
-          cd ios
+          set -e
+          pushd "$APP_PATH/ios"
           pod repo update
           pod install
+          popd
 
       - name: Set up signing (Automatic via App Store Connect)
         script: |
@@ -38,13 +45,13 @@ workflows:
           app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
           xcode-project use-profiles
 
-      - name: Detect workspace and scheme
+      - name: Detect workspace and scheme (under mobile/ios)
         script: |
           set -euo pipefail
           # ワークスペース自動検出
-          WORKSPACE=$(ls -1d ios/*.xcworkspace | head -n 1)
+          WORKSPACE=$(ls -1d "$APP_PATH"/ios/*.xcworkspace | head -n 1)
           if [ -z "${WORKSPACE:-}" ]; then
-            echo "No .xcworkspace found under ios/"
+            echo "No .xcworkspace found under $APP_PATH/ios/"
             exit 1
           fi
           echo "XCODE_WORKSPACE=$WORKSPACE" >> $CM_ENV
@@ -62,7 +69,8 @@ workflows:
       # （必要なら有効化）ビルド番号の自動更新
       # - name: Bump build number
       #   script: |
-      #     /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(date +%Y%m%d%H%M)" ios/*/Info.plist || true
+      #     # 例: タイムスタンプを CFBundleVersion に設定（プロジェクト構成に合わせて調整）
+      #     /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(date +%Y%m%d%H%M)" "$APP_PATH"/ios/*/Info.plist || true
 
       - name: Build .ipa
         script: |
@@ -79,7 +87,7 @@ workflows:
     artifacts:
       - $CM_BUILD_DIR/**/**/*.ipa
       - $CM_BUILD_DIR/**/xcodebuild.log
-      - ios/build/**/*.dSYM
+      - mobile/ios/build/**/*.dSYM
       - $HOME/Library/Developer/Xcode/DerivedData/**/Logs/**/*.log
 
     publishing:
