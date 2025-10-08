@@ -36,7 +36,8 @@
             }
           }
         },
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": ["bsky"]
       }
     },
     "android": {
@@ -59,6 +60,8 @@
       "blueskyClientId": "https://rietamura.github.io/bluelang-oauth/.well-known/atproto_client_metadata.json",
       "useAuthProxy": false,
       "authProxyUrl": "https://auth.expo.io/@rietamura/bluesky-langapp",
+      "authUseLinkingOnly": true,
+      "enableTTS": false,
       "eas": {
         "projectId": "0bb8f270-fb24-4e9a-aa12-fcccc40bdc4c"
       }
