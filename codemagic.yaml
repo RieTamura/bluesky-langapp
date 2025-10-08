@@ -10,7 +10,6 @@ workflows:
     environment:
       vars:
         BUNDLE_ID: com.rietamura.bluelang
-
         APP_PATH: mobile
       ios_signing:
         distribution_type: app_store
