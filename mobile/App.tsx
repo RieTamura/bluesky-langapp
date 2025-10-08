@@ -1,33 +1,37 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { useColorScheme, Appearance } from 'react-native';
-import { type ThemeState, type ThemeColors } from './src/stores/theme';
-import { NavigationContainer, DarkTheme as NavDarkTheme, DefaultTheme as NavLightTheme } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { WordsScreen } from './src/screens/WordsScreen';
-import { QuizScreen } from './src/screens/QuizScreen';
-import { ProgressScreen } from './src/screens/ProgressScreen';
-import LoginScreen from './src/screens/LoginScreen';
-import LevelSelectionScreen from './src/screens/LevelSelectionScreen';
-import APISetupScreen from './src/screens/APISetupScreen';
-import { useAuth } from './src/hooks/useAuth';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Text, View } from 'react-native';
-import { useThemeColors, useTheme } from './src/stores/theme';
-import { getSelectedLevel } from './src/stores/userLevel';
-import { hasApiKey } from './src/stores/apiKeys';
-import { StatusBar } from 'react-native';
-import { MainScreen } from './src/screens/MainScreen';
-import { AppHeader, SettingsMenu, FooterNav } from './src/components';
-import { navigationRef } from './src/navigation/rootNavigation';
-import { SettingsScreen } from './src/screens/SettingsScreen';
-import { TTSSettingsScreen } from './src/screens/TTSSettingsScreen';
-import { SettingsHeader } from './src/components/SettingsHeader';
-import { LicenseScreen } from './src/screens/LicenseScreen';
-import { loadOfflineQueue } from './src/stores/offlineQueue';
-import { useAIModeStore } from './src/stores/aiMode';
-import { setTranslatorProvider } from './src/services/translation';
-import FreeDictionaryProvider from './src/services/translationProviders/freeDictionary';
+import React, { useEffect, useState, useMemo } from "react";
+import { useColorScheme, Appearance } from "react-native";
+import { type ThemeState, type ThemeColors } from "./src/stores/theme";
+import {
+  NavigationContainer,
+  DarkTheme as NavDarkTheme,
+  DefaultTheme as NavLightTheme,
+} from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { WordsScreen } from "./src/screens/WordsScreen";
+import { QuizScreen } from "./src/screens/QuizScreen";
+import { ProgressScreen } from "./src/screens/ProgressScreen";
+import LoginScreen from "./src/screens/LoginScreen";
+import LevelSelectionScreen from "./src/screens/LevelSelectionScreen";
+import APISetupScreen from "./src/screens/APISetupScreen";
+import { useAuth } from "./src/hooks/useAuth";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { Text, View } from "react-native";
+import { useThemeColors, useTheme } from "./src/stores/theme";
+import { getSelectedLevel } from "./src/stores/userLevel";
+import { hasApiKey } from "./src/stores/apiKeys";
+import { StatusBar } from "react-native";
+import { MainScreen } from "./src/screens/MainScreen";
+import { AppHeader, SettingsMenu, FooterNav } from "./src/components";
+import { navigationRef } from "./src/navigation/rootNavigation";
+import { SettingsScreen } from "./src/screens/SettingsScreen";
+import { TTSSettingsScreen } from "./src/screens/TTSSettingsScreen";
+import { SettingsHeader } from "./src/components/SettingsHeader";
+import { LicenseScreen } from "./src/screens/LicenseScreen";
+import { loadOfflineQueue } from "./src/stores/offlineQueue";
+import { useAIModeStore } from "./src/stores/aiMode";
+import { setTranslatorProvider } from "./src/services/translation";
+import FreeDictionaryProvider from "./src/services/translationProviders/freeDictionary";
 
 const Stack = createNativeStackNavigator();
 // Hoist a separate navigator for onboarding so it's not recreated on every render
@@ -40,66 +44,107 @@ export default function App() {
   const resolved = useTheme((state: ThemeState) => state.resolved);
   const colors: ThemeColors = useTheme((state: ThemeState) => state.colors);
   const systemScheme = useColorScheme();
-  const syncAutoResolution = useTheme((state: ThemeState) => state.syncAutoResolution);
-  useEffect(()=> {
+  const syncAutoResolution = useTheme(
+    (state: ThemeState) => state.syncAutoResolution,
+  );
+  useEffect(() => {
     hydrate();
   }, [hydrate]);
   // Restore offline queue from storage at startup
-  useEffect(()=> { loadOfflineQueue().catch(() => {}); }, []);
+  useEffect(() => {
+    loadOfflineQueue().catch(() => {});
+  }, []);
   // Register fallback translator provider (Free Dictionary) at startup
-  useEffect(()=> {
-    try { setTranslatorProvider(FreeDictionaryProvider); } catch (e) { /* ignore */ }
+  useEffect(() => {
+    try {
+      setTranslatorProvider(FreeDictionaryProvider);
+    } catch (e) {
+      /* ignore */
+    }
   }, []);
   // Hydrate AI mode from stored OpenAI key
-  useEffect(()=> {
+  useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const hasOpen = await hasApiKey('openai');
+        const hasOpen = await hasApiKey("openai");
         if (mounted) {
           useAIModeStore.getState().setEnabled(!!hasOpen);
-          useAIModeStore.getState().hydrate().catch(()=>{});
+          useAIModeStore
+            .getState()
+            .hydrate()
+            .catch(() => {});
         }
       } catch (e) {
         // ignore
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
   // フォールバック: Appearance listener が片方向で失敗する端末向けに hook の値で再同期
-  useEffect(()=> {
+  useEffect(() => {
     syncAutoResolution();
   }, [systemScheme, syncAutoResolution]);
   // 公式リスナー (クリーンアップ付き) — Fast Refresh でも多重登録を避ける
-  useEffect(()=> {
+  useEffect(() => {
     const sub = Appearance.addChangeListener(() => {
       syncAutoResolution();
     });
     return () => {
-      try { (sub as any).remove?.(); } catch (e) { /* ignore */ }
+      try {
+        (sub as any).remove?.();
+      } catch (e) {
+        /* ignore */
+      }
     };
   }, [syncAutoResolution]);
   // 明るさポーリング削除 (adaptive 廃止)
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
-  <StatusBar barStyle={resolved === 'dark' ? 'light-content' : 'dark-content'} />
-  <View style={{ flex:1, backgroundColor: colors.background }}>
-  <NavigationContainer
-          ref={navigationRef}
-          theme={useMemo(()=> {
-            if (resolved === 'dark') return {
-              ...NavDarkTheme,
-              colors: { ...NavDarkTheme.colors, background: colors.background, card: colors.surface, text: colors.text, border: colors.border, primary: colors.accent }
-            };
-            return {
-              ...NavLightTheme,
-              colors: { ...NavLightTheme.colors, background: colors.background, card: colors.surface, text: colors.text, border: colors.border, primary: colors.accent }
-            };
-          }, [resolved, colors.background, colors.surface, colors.text, colors.border, colors.accent])}
-        >
-          <AuthGate />
-        </NavigationContainer>
+        <StatusBar
+          barStyle={resolved === "dark" ? "light-content" : "dark-content"}
+        />
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+          <NavigationContainer
+            ref={navigationRef}
+            theme={useMemo(() => {
+              if (resolved === "dark")
+                return {
+                  ...NavDarkTheme,
+                  colors: {
+                    ...NavDarkTheme.colors,
+                    background: colors.background,
+                    card: colors.surface,
+                    text: colors.text,
+                    border: colors.border,
+                    primary: colors.accent,
+                  },
+                };
+              return {
+                ...NavLightTheme,
+                colors: {
+                  ...NavLightTheme.colors,
+                  background: colors.background,
+                  card: colors.surface,
+                  text: colors.text,
+                  border: colors.border,
+                  primary: colors.accent,
+                },
+              };
+            }, [
+              resolved,
+              colors.background,
+              colors.surface,
+              colors.text,
+              colors.border,
+              colors.accent,
+            ])}
+          >
+            <AuthGate />
+          </NavigationContainer>
         </View>
       </QueryClientProvider>
     </SafeAreaProvider>
@@ -142,7 +187,9 @@ function OnboardingGate() {
     }
 
     check();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   if (checking) return <Text>Checking onboarding status...</Text>;
@@ -152,7 +199,10 @@ function OnboardingGate() {
 function OnboardStack() {
   return (
     <OnboardStackNav.Navigator screenOptions={{ headerShown: false }}>
-      <OnboardStackNav.Screen name="LevelSelection" component={LevelSelectionScreen} />
+      <OnboardStackNav.Screen
+        name="LevelSelection"
+        component={LevelSelectionScreen}
+      />
       <OnboardStackNav.Screen name="APISetup" component={APISetupScreen} />
       <OnboardStackNav.Screen name="MainApp" component={AuthedStackWrapper} />
     </OnboardStackNav.Navigator>
@@ -170,18 +220,63 @@ function AuthedStack() {
   return (
     <>
       <View style={{ flex: 1 }}>
-        <Stack.Navigator screenOptions={{ contentStyle: { backgroundColor: c.background } }}>
-          <Stack.Screen name="Main" component={MainScreen} options={{ header: () => <AppHeader showFeedTabs onOpenMenu={() => setMenuOpen(true)} /> }} />
-          <Stack.Screen name="Words" component={WordsScreen} options={{ header: () => <AppHeader onOpenMenu={() => setMenuOpen(true)} /> }} />
-          <Stack.Screen name="Quiz" component={QuizScreen} options={{ header: () => <AppHeader onOpenMenu={() => setMenuOpen(true)} /> }} />
-          <Stack.Screen name="Progress" component={ProgressScreen} options={{ header: () => <AppHeader onOpenMenu={() => setMenuOpen(true)} /> }} />
-          <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false, title: '設定' }} />
-          <Stack.Screen name="TTSSettings" component={TTSSettingsScreen} options={{ header: () => <SettingsHeader /> }} />
-          <Stack.Screen name="License" component={LicenseScreen} options={{ title: 'ライセンス' }} />
+        <Stack.Navigator
+          screenOptions={{ contentStyle: { backgroundColor: c.background } }}
+        >
+          <Stack.Screen
+            name="Main"
+            component={MainScreen}
+            options={{
+              header: () => (
+                <AppHeader showFeedTabs onOpenMenu={() => setMenuOpen(true)} />
+              ),
+            }}
+          />
+          <Stack.Screen
+            name="Words"
+            component={WordsScreen}
+            options={{
+              header: () => <AppHeader onOpenMenu={() => setMenuOpen(true)} />,
+            }}
+          />
+          <Stack.Screen
+            name="Quiz"
+            component={QuizScreen}
+            options={{
+              header: () => <AppHeader onOpenMenu={() => setMenuOpen(true)} />,
+            }}
+          />
+          <Stack.Screen
+            name="Progress"
+            component={ProgressScreen}
+            options={{
+              header: () => <AppHeader onOpenMenu={() => setMenuOpen(true)} />,
+            }}
+          />
+          <Stack.Screen
+            name="Settings"
+            component={SettingsScreen}
+            options={{ headerShown: false, title: "設定" }}
+          />
+          <Stack.Screen
+            name="TTSSettings"
+            component={TTSSettingsScreen}
+            options={{ header: () => <SettingsHeader /> }}
+          />
+          <Stack.Screen
+            name="License"
+            component={LicenseScreen}
+            options={{ title: "ライセンス" }}
+          />
         </Stack.Navigator>
         <FooterNav />
       </View>
-  <SettingsMenu visible={menuOpen} onClose={() => { setMenuOpen(false); }} />
+      <SettingsMenu
+        visible={menuOpen}
+        onClose={() => {
+          setMenuOpen(false);
+        }}
+      />
     </>
   );
 }
