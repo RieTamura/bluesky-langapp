@@ -93,11 +93,10 @@ workflows:
 
         script: |
 
-          app-store-connect publish \
-
-            --path "$(find $CM_BUILD_DIR -name '*.ipa' | head -n 1)" \
-
-            --testflight
+          set -e
+          IPA_PATH="$(find "$CM_BUILD_DIR" -name '*.ipa' | head -n 1)"
+          echo "Uploading IPA: $IPA_PATH"
+          app-store-connect publish --path "$IPA_PATH" --testflight
 
     artifacts:
       - $CM_BUILD_DIR/**/**/*.ipa
