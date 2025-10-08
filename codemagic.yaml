@@ -1,0 +1,98 @@
+workflows:
+  ios-testflight:
+    name: iOS TestFlight (Expo prebuild + Xcode)
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+
+    # Codemagic の「Integrations → App Store Connect」で登録した表示名に置き換えてください
+    integrations:
+      app_store_connect: My App Store Connect API Key
+
+    environment:
+      vars:
+        BUNDLE_ID: com.rietamura.bluelang
+
+    scripts:
+      - name: Print versions and install JS deps
+        script: |
+          node -v
+          npm -v
+          npm ci
+          npm run lint --if-present
+          npm run test --if-present
+
+      - name: Expo prebuild (iOS on macOS runner)
+        script: |
+          npx expo prebuild --platform ios --non-interactive --clean
+          # ここで必要に応じて ios/ 配下の Info.plist などを書き換えるスクリプトを追加できます
+
+      - name: Install CocoaPods
+        script: |
+          cd ios
+          pod repo update
+          pod install
+
+      - name: Set up signing (Automatic via App Store Connect)
+        script: |
+          keychain add-certificates
+          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
+          xcode-project use-profiles
+
+      - name: Detect workspace and scheme
+        script: |
+          set -euo pipefail
+          # ワークスペース自動検出
+          WORKSPACE=$(ls -1d ios/*.xcworkspace | head -n 1)
+          if [ -z "${WORKSPACE:-}" ]; then
+            echo "No .xcworkspace found under ios/"
+            exit 1
+          fi
+          echo "XCODE_WORKSPACE=$WORKSPACE" >> $CM_ENV
+
+          # スキーム自動検出（最初のスキームを採用）
+          xcodebuild -list -json -workspace "$WORKSPACE" > xclist.json
+          SCHEME=$(python3 - <<'PY'
+import json
+d=json.load(open('xclist.json'))
+schemes=d.get('workspace',{}).get('schemes') or d.get('project',{}).get('schemes') or []
+print(schemes[0] if schemes else '')
+PY
+)
+          if [ -z "$SCHEME" ]; then
+            echo "No Xcode scheme detected"
+            exit 1
+          fi
+          echo "Detected scheme: $SCHEME"
+          echo "XCODE_SCHEME=$SCHEME" >> $CM_ENV
+
+      # ビルド番号の自動更新（必要なら有効化）
+      # - name: Bump build number
+      #   script: |
+      #     # 例: タイムスタンプを CFBundleVersion に設定（プロジェクト構成に合わせて調整）
+      #     /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(date +%Y%m%d%H%M)" ios/*/Info.plist || true
+
+      - name: Build .ipa
+        script: |
+          xcode-project build-ipa \
+            --workspace "$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+
+      - name: Publish to TestFlight
+        script: |
+          app-store-connect publish \
+            --path "$(find $CM_BUILD_DIR -name '*.ipa' | head -n 1)" \
+            --submit-to-testflight
+
+    artifacts:
+      - $CM_BUILD_DIR/**/**/*.ipa
+      - $CM_BUILD_DIR/**/xcodebuild.log
+      - ios/build/**/*.dSYM
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Logs/**/*.log
+
+    publishing:
+      email:
+        recipients:
+          - your-email@example.com
+        notify:
+          success: true
+          failure: true
