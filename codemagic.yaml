@@ -4,9 +4,9 @@ workflows:
     max_build_duration: 120
     instance_type: mac_mini_m2
 
-    # Codemagic の「Integrations → App Store Connect」で登録した表示名に置き換えてください
     integrations:
-      app_store_connect: My App Store Connect API Key
+      # Codemagic の「Integrations → App Store Connect」で登録した表示名に置き換えてください
+      app_store_connect: "Codemagic"
 
     environment:
       vars:
@@ -24,7 +24,7 @@ workflows:
       - name: Expo prebuild (iOS on macOS runner)
         script: |
           npx expo prebuild --platform ios --non-interactive --clean
-          # ここで必要に応じて ios/ 配下の Info.plist などを書き換えるスクリプトを追加できます
+          # 必要に応じて ios/ 配下の Info.plist 等をここで書き換える
 
       - name: Install CocoaPods
         script: |
@@ -51,13 +51,7 @@ workflows:
 
           # スキーム自動検出（最初のスキームを採用）
           xcodebuild -list -json -workspace "$WORKSPACE" > xclist.json
-          SCHEME=$(python3 - <<'PY'
-import json
-d=json.load(open('xclist.json'))
-schemes=d.get('workspace',{}).get('schemes') or d.get('project',{}).get('schemes') or []
-print(schemes[0] if schemes else '')
-PY
-)
+          SCHEME=$(python3 -c 'import json,sys; d=json.load(open("xclist.json")); s=(d.get("workspace",{}).get("schemes") or d.get("project",{}).get("schemes") or []); print(s[0] if s else "")')
           if [ -z "$SCHEME" ]; then
             echo "No Xcode scheme detected"
             exit 1
@@ -65,10 +59,9 @@ PY
           echo "Detected scheme: $SCHEME"
           echo "XCODE_SCHEME=$SCHEME" >> $CM_ENV
 
-      # ビルド番号の自動更新（必要なら有効化）
+      # （必要なら有効化）ビルド番号の自動更新
       # - name: Bump build number
       #   script: |
-      #     # 例: タイムスタンプを CFBundleVersion に設定（プロジェクト構成に合わせて調整）
       #     /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(date +%Y%m%d%H%M)" ios/*/Info.plist || true
 
       - name: Build .ipa
