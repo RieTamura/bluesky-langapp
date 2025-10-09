@@ -2,92 +2,29 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
-  Button,
-  ActivityIndicator,
   StyleSheet,
   Alert,
   Linking,
-  TextInput,
   TouchableOpacity,
+  ActivityIndicator,
 } from "react-native";
 import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import * as AuthSession from "expo-auth-session";
 import Constants from "expo-constants";
-import * as Clipboard from "expo-clipboard";
-import { api, API_BASE_URL } from "../services/api";
+import { api } from "../services/api";
 import { t } from "../i18n";
 import { useThemeColors } from "../stores/theme";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth, refreshAuthCache } from "../hooks/useAuth";
 import appJson from "../../app.json";
 
-// Client-side set to track in-flight authorization code exchanges and prevent duplicates.
-// Module-scope ensures it survives component re-renders (including StrictMode double render).
-const exchangeInFlightSet: Set<string> = new Set();
+// =======================
+// Types & Constants
+// =======================
 
-function bytesToHex(bytes: Uint8Array) {
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-async function secureRandomBytes(length: number) {
-  // Prefer Web Crypto API if available (also polyfilled by react-native-get-random-values)
-  if (typeof globalThis?.crypto?.getRandomValues === "function") {
-    const arr = new Uint8Array(length);
-    globalThis.crypto.getRandomValues(arr);
-    return arr;
-  }
-
-  // Try expo-crypto's getRandomBytesAsync when available (recommended for Expo SDK >=49)
-  try {
-    if (typeof (Crypto as any)?.getRandomBytesAsync === "function") {
-      const arr = await (Crypto as any).getRandomBytesAsync(length);
-      if (arr instanceof Uint8Array) return arr;
-      return new Uint8Array(arr);
-    }
-  } catch (_err) {
-    // fall through to throwing below
-  }
-
-  // If we reach here, no secure RNG is available. Do NOT silently fall back to Math.random().
-  throw new Error(
-    [
-      "Secure random number generator is not available in this environment.",
-      "A cryptographically secure RNG is required for PKCE and other crypto operations.",
-      "Install and configure a secure polyfill, for example:",
-      "  - For Expo managed projects: `expo install expo-crypto` and use `Crypto.getRandomBytesAsync` (or ensure global.crypto is polyfilled)",
-      "  - For bare React Native: `yarn add react-native-get-random-values` and import it at app entry to polyfill `global.crypto`",
-      "After installing, re-run the app. Do NOT rely on Math.random() for crypto purposes.",
-    ].join(" "),
-  );
-}
-
-async function sha256Base64Url(input: string) {
-  const digest = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    input,
-    { encoding: Crypto.CryptoEncoding.BASE64 },
-  );
-  return digest.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-async function generatePKCE() {
-  const bytes = await secureRandomBytes(32);
-  const verifier = bytesToHex(bytes);
-  const challenge = await sha256Base64Url(verifier);
-  return { verifier, challenge };
-}
-
-type LoginScreenProps = {
-  oauthTimeoutMs?: number;
-};
-
-// Default OAuth safety timeout: 5 minutes (ms). Can be overridden via
-// - component prop `oauthTimeoutMs`
-// - expo config `extra.oauthTimeoutMs`
-// - env var `EXPO_OAUTH_TIMEOUT_MS`
 const DEFAULT_OAUTH_TIMEOUT_MS = 5 * 60 * 1000;
+
+type LoginScreenProps = { oauthTimeoutMs?: number };
 
 export type LoginConfig = {
   resolvedClientId: string;
@@ -98,12 +35,94 @@ export type LoginConfig = {
   authUseLinkingOnly: boolean;
 };
 
-/**
- * Resolve login-related configuration from Constants, app.json, env and component prop.
- * Preserves preference order and parsing rules used inline previously. Keeps __DEV__ logging
- * and isolates try/catch around makeRedirectUri.
- */
+// In-flight exchange dedupe set (authorization code)
+const exchangeInFlightSet: Set<string> = new Set();
+
+// =======================
+// Utility helpers
+// =======================
+
+function bytesToHex(bytes: Uint8Array) {
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function secureRandomBytes(length: number) {
+  // Prefer Web Crypto API if polyfilled
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const g: any = globalThis as any;
+  if (typeof g?.crypto?.getRandomValues === "function") {
+    const arr = new Uint8Array(length);
+    g.crypto.getRandomValues(arr);
+    return arr;
+  }
+
+  // expo-crypto fallback
+  try {
+    if (typeof (Crypto as any)?.getRandomBytesAsync === "function") {
+      const arr = await (Crypto as any).getRandomBytesAsync(length);
+      return arr instanceof Uint8Array ? arr : new Uint8Array(arr);
+    }
+  } catch {
+    // ignore
+  }
+
+  throw new Error(
+    "Secure RNG not available. Ensure expo-crypto is installed and configured.",
+  );
+}
+
+async function sha256Base64Url(input: string) {
+  const data = new TextEncoder().encode(input);
+
+  if (typeof (globalThis as any).crypto?.subtle?.digest === "function") {
+    const digest = await (globalThis as any).crypto.subtle.digest(
+      "SHA-256",
+      data,
+    );
+    const hashArray = Array.from(new Uint8Array(digest));
+    const b64 = btoa(
+      String.fromCharCode.apply(null, hashArray as unknown as number[]),
+    );
+    return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  // expo-crypto fallback
+  try {
+    const hashHex = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      input,
+      { encoding: Crypto.CryptoEncoding.HEX },
+    );
+    const hashBytes = new Uint8Array(
+      hashHex.match(/.{1,2}/g)!.map((b) => parseInt(b, 16)),
+    );
+    const b64 = btoa(
+      String.fromCharCode.apply(
+        null,
+        Array.from(hashBytes) as unknown as number[],
+      ),
+    );
+    return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  } catch (e) {
+    throw new Error(`Failed to compute SHA-256: ${String(e)}`);
+  }
+}
+
+async function generatePKCE() {
+  const verifierBytes = await secureRandomBytes(32);
+  const verifier = bytesToHex(verifierBytes);
+  const challenge = await sha256Base64Url(verifier);
+  return { verifier, challenge };
+}
+
+// =======================
+// Config resolver
+// =======================
+
 export function resolveLoginConfig(oauthTimeoutMs?: number): LoginConfig {
+  // Read clientId from config
   const resolvedClientId =
     (Constants as any)?.expoConfig?.extra?.blueskyClientId ||
     (Constants as any)?.manifest?.extra?.blueskyClientId ||
@@ -116,7 +135,7 @@ export function resolveLoginConfig(oauthTimeoutMs?: number): LoginConfig {
     (appJson as any)?.expo?.extra ||
     {};
 
-  function parseBooleanCandidate(v: any, def: boolean) {
+  function parseBooleanCandidate(v: unknown, def: boolean) {
     if (typeof v === "boolean") return v;
     if (typeof v === "string") {
       const low = v.trim().toLowerCase();
@@ -127,87 +146,70 @@ export function resolveLoginConfig(oauthTimeoutMs?: number): LoginConfig {
   }
 
   let useProxy = parseBooleanCandidate(
-    _extra?.useAuthProxy ?? process.env.EXPO_USE_AUTH_PROXY,
+    (_extra as any)?.useAuthProxy ?? process.env.EXPO_USE_AUTH_PROXY,
     true,
   );
   const explicitProxyUrl =
     (appJson as any)?.expo?.extra?.authProxyUrl ||
-    _extra?.authProxyUrl ||
+    (_extra as any)?.authProxyUrl ||
     process.env.EXPO_AUTH_PROXY_URL ||
     "";
 
-  // Start with a sensible default
+  // Default native redirect
   let redirectUri = "blueskylearning://auth";
 
-  // Optional override: force Linking-based auth flow (bypass AuthSession) via app.json extra.authUseLinkingOnly or env EXPO_AUTH_USE_LINKING_ONLY
+  // Allow forcing Linking-only if needed (not recommended here)
   const authUseLinkingOnly = parseBooleanCandidate(
-    _extra?.authUseLinkingOnly ?? process.env.EXPO_AUTH_USE_LINKING_ONLY,
+    (_extra as any)?.authUseLinkingOnly ??
+      process.env.EXPO_AUTH_USE_LINKING_ONLY,
     false,
   );
 
   const resolvedOauthTimeoutMs =
     oauthTimeoutMs ??
     (Number(
-      _extra?.oauthTimeoutMs ??
+      (_extra as any)?.oauthTimeoutMs ??
         process.env.EXPO_OAUTH_TIMEOUT_MS ??
         DEFAULT_OAUTH_TIMEOUT_MS,
     ) ||
       DEFAULT_OAUTH_TIMEOUT_MS);
 
-  // Validate explicitProxyUrl before using it
   const hasValidProxyUrl =
     typeof explicitProxyUrl === "string" &&
     /^https?:\/\//i.test(explicitProxyUrl);
 
-  if (!hasValidProxyUrl && useProxy) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      "[LoginScreen] useAuthProxy is true but authProxyUrl is missing or invalid. Using native redirect URI.",
-    );
-    useProxy = false;
+  // Prefer proxy redirect if enabled
+  if (useProxy && hasValidProxyUrl) {
+    redirectUri = explicitProxyUrl;
   }
 
   try {
-    // Check if running in standalone mode
     const ownership = (Constants as any)?.appOwnership;
     const isStandalone = ownership === "standalone";
-
     if (__DEV__) {
-      console.log(
-        "[LoginScreen] Environment check:",
-        "ownership=",
+      console.log("[LoginScreen] Environment:", {
         ownership,
-        "isStandalone=",
         isStandalone,
-        "useProxy=",
         useProxy,
-        "explicitProxyUrl=",
         explicitProxyUrl,
-      );
+      });
     }
 
-    if (isStandalone) {
-      // Force canonical native redirect for standalone/TestFlight builds
-      useProxy = false;
-      redirectUri = "blueskylearning://auth";
-      if (__DEV__) {
-        console.log(
-          "[LoginScreen] Standalone mode detected, forcing redirectUri=",
-          redirectUri,
-        );
-      }
+    if (useProxy && hasValidProxyUrl) {
+      // Always use proxy redirect when enabled (Standalone 含む)
+      redirectUri = explicitProxyUrl;
     } else {
-      // For dev builds, use makeRedirectUri
+      // Proxy 未使用時のみ makeRedirectUri を利用
       const made = (AuthSession as any).makeRedirectUri({
         native: "blueskylearning://auth",
         scheme: "blueskylearning",
         path: "auth",
-        useProxy,
+        useProxy, // false の想定
       });
 
       if (__DEV__) {
         console.log(
-          "[LoginScreen] makeRedirectUri returned:",
+          "[LoginScreen] makeRedirectUri:",
           made,
           "useProxy=",
           useProxy,
@@ -217,7 +219,7 @@ export function resolveLoginConfig(oauthTimeoutMs?: number): LoginConfig {
       if (typeof made === "string" && made.trim().length > 0) {
         let normalized = made;
 
-        // Fix single slash schemes: blueskylearning:/auth -> blueskylearning://auth
+        // blueskylearning:/auth → blueskylearning://auth
         if (
           normalized.startsWith("blueskylearning:/") &&
           !normalized.startsWith("blueskylearning://")
@@ -227,8 +229,7 @@ export function resolveLoginConfig(oauthTimeoutMs?: number): LoginConfig {
             "blueskylearning://",
           );
         }
-
-        // If it's a native scheme without /auth, add it
+        // /auth が欠けていれば付与
         if (
           normalized.startsWith("blueskylearning://") &&
           !normalized.includes("/auth")
@@ -236,43 +237,26 @@ export function resolveLoginConfig(oauthTimeoutMs?: number): LoginConfig {
           normalized = normalized.replace(/\/+$/, "") + "/auth";
         }
 
-        if (__DEV__) {
-          console.log(
-            "[LoginScreen] Normalized redirect URI:",
-            "before=",
-            made,
-            "after=",
-            normalized,
-          );
-        }
-
         redirectUri = normalized;
-      } else if (hasValidProxyUrl && useProxy) {
-        // Fall back to explicit proxy URL if makeRedirectUri fails
-        redirectUri = explicitProxyUrl;
+      } else {
+        // 最後のフォールバック
+        redirectUri = "blueskylearning://auth";
+        useProxy = false;
       }
     }
-  } catch (_err) {
-    if (__DEV__) {
-      console.log("[LoginScreen] Error in resolveLoginConfig:", _err);
-    }
-    // On error, use native redirect as safe fallback
+  } catch (e) {
+    if (__DEV__) console.log("[LoginScreen] resolveLoginConfig error:", e);
     redirectUri = "blueskylearning://auth";
     useProxy = false;
   }
 
   if (__DEV__) {
-    console.log(
-      "[LoginScreen] FINAL resolveLoginConfig result:",
-      "redirectUri=",
+    console.log("[LoginScreen] RESOLVED:", {
       redirectUri,
-      "useProxy=",
       useProxy,
-      "authUseLinkingOnly=",
       authUseLinkingOnly,
-      "resolvedClientId=",
       resolvedClientId,
-    );
+    });
   }
 
   return {
@@ -285,25 +269,31 @@ export function resolveLoginConfig(oauthTimeoutMs?: number): LoginConfig {
   };
 }
 
+// =======================
+// Screen Component
+// =======================
+
 const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
   const colors = useThemeColors();
   const { loading } = useAuth();
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [manualAuthEndpoint, setManualAuthEndpoint] = useState("");
-  const [manualClientId, setManualClientId] = useState("");
   const [lastBackendResponse, setLastBackendResponse] = useState<string | null>(
     null,
   );
 
-  // redirectUrlInput removed: manual Process UI was removed per code review
+  const {
+    resolvedClientId,
+    redirectUri,
+    resolvedOauthTimeoutMs,
+    authUseLinkingOnly,
+  } = resolveLoginConfig(oauthTimeoutMs);
 
   const codeVerifierRef = useRef<string | null>(null);
-
-  // Track whether we already processed an initial URL (cold start)
   const processedInitialUrlRef = useRef<boolean>(false);
 
-  // On cold start, process an initial deep link like blueskylearning://auth?code=...
+  // 初回起動時の Deep Link 取り込み（blueskylearning://auth?code=...）
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -316,20 +306,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
           !processedInitialUrlRef.current
         ) {
           processedInitialUrlRef.current = true;
-          // Persist for debug inspection
+
           try {
             await SecureStore.setItemAsync(
               "debug.oauth.lastIncomingUrl",
               initialUrl,
             );
-          } catch (_) {
-            /* ignore */
+          } catch {
+            // ignore
           }
 
-          // Try to parse and handle as an auth callback
           try {
             const u = new URL(initialUrl);
-            // Only handle our scheme
             if (
               u.protocol &&
               u.protocol.toLowerCase().startsWith("blueskylearning")
@@ -337,68 +325,28 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
               const code = u.searchParams.get("code");
               const state = u.searchParams.get("state") || "";
               if (code) {
-                // Let handleAuthResult fetch PKCE verifier from SecureStore if needed
                 await handleAuthResult(
                   { type: "success", params: { code, state } },
                   undefined,
                 );
               }
             }
-          } catch (_) {
+          } catch {
             // ignore parse errors
           }
         }
-      } catch (_) {
+      } catch {
         // ignore
       }
     })();
     return () => {
       mounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Debug toggle to force Linking-based auth flow at runtime (in addition to config flag)
-
-  const [linkingOnly, setLinkingOnly] = useState(false);
-
-  const {
-    resolvedClientId,
-
-    redirectUri,
-
-    resolvedOauthTimeoutMs,
-
-    authUseLinkingOnly,
-  } = resolveLoginConfig(oauthTimeoutMs);
-
+  // --- Client Metadata (optional) ---
   const clientMetadataRef = useRef<any | null>(null);
-
-  // Redact obvious sensitive fields from a JSON string for debug display.
-  function redactBackendResponse(raw: string) {
-    try {
-      const obj = JSON.parse(raw);
-      const redact = (v: any) => {
-        if (v && typeof v === "object") {
-          for (const k of Object.keys(v)) {
-            if (/token|session|password|secret|auth/i.test(k)) {
-              v[k] = "REDACTED";
-            } else {
-              v[k] = redact(v[k]);
-            }
-          }
-          return v;
-        }
-        return v;
-      };
-      const safe = redact(obj);
-      return JSON.stringify(safe, null, 2);
-    } catch (e) {
-      // not JSON, do a simple redact by masking long continuous strings that look like tokens
-      return raw.replace(/([A-Za-z0-9_-]{8,})/g, (m) =>
-        m.length > 12 ? m.slice(0, 6) + "..." + m.slice(-4) : m,
-      );
-    }
-  }
   async function loadClientMetadataIfNeeded() {
     if (clientMetadataRef.current) return clientMetadataRef.current;
     try {
@@ -409,72 +357,41 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
         clientMetadataRef.current = j;
         return j;
       }
-    } catch (e) {
+    } catch {
       clientMetadataRef.current = null;
     }
     return null;
   }
 
-  /**
-   * Prepare PKCE verifier/challenge and persist verifier to SecureStore.
-   * Returns { verifier, challenge }.
-   */
+  // --- PKCE ---
   async function preparePKCEAndStore() {
     const { verifier, challenge } = await generatePKCE();
     codeVerifierRef.current = verifier;
     try {
       await SecureStore.setItemAsync("pkce.verifier", verifier);
-    } catch (_) {
-      /* ignore */
-    }
-    if (__DEV__) {
-      try {
-        console.log(
-          "[LoginScreen DEBUG] generated PKCE verifier length=",
-          verifier.length,
-        );
-      } catch (_) {
-        /* ignore */
-      }
+    } catch {
+      // ignore
     }
     return { verifier, challenge };
   }
 
-  // Debug helpers: persist non-secret information about the auth request so
-  // TestFlight builds can surface what URL and redirectUri were used.
+  // --- Debug helpers ---
   async function persistDebugAuthInfo(
     authUrl: string,
     redirectUriToStore: string,
   ) {
     try {
-      // Only store non-sensitive info: do NOT store authorization codes, tokens, or secrets.
       await SecureStore.setItemAsync("debug.oauth.authUrl", authUrl);
       await SecureStore.setItemAsync(
         "debug.oauth.redirectUri",
         redirectUriToStore,
       );
-    } catch (_) {
-      /* ignore storage errors */
+    } catch {
+      // ignore
     }
   }
 
-  async function readDebugAuthInfo(): Promise<{
-    authUrl?: string;
-    redirectUri?: string;
-  }> {
-    try {
-      const a = await SecureStore.getItemAsync("debug.oauth.authUrl");
-      const r = await SecureStore.getItemAsync("debug.oauth.redirectUri");
-      return { authUrl: a || undefined, redirectUri: r || undefined };
-    } catch (_) {
-      return {};
-    }
-  }
-
-  /**
-   * Build the authorization URL using manual overrides and metadata.
-   * Ensures 'atproto' is present in scope.
-   */
+  // --- Authorization URL builder ---
   function buildAuthUrl(
     meta: any,
     manualAuthEndpointVal: string,
@@ -489,69 +406,37 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
       "https://bsky.social/oauth/authorize";
     const effectiveClient = manualClientVal || resolvedClientId;
 
-    // Determine scope: prefer metadata, but ensure 'atproto' is present
+    // scope: ensure 'atproto'
     let scopeVal = "atproto";
     try {
       const metaScope = meta?.scope;
       if (Array.isArray(metaScope)) scopeVal = metaScope.join(" ");
       else if (typeof metaScope === "string" && metaScope.trim().length > 0)
         scopeVal = metaScope.trim();
-    } catch (_) {
-      /* ignore */
+    } catch {
+      // ignore
     }
     if (!/\batproto\b/.test(scopeVal))
       scopeVal = (scopeVal + " atproto").trim();
 
-    if (__DEV__) {
-      console.log(
-        "[LoginScreen DEBUG] effectiveClient (raw)=",
-        effectiveClient,
-      );
-      console.log(
-        "[LoginScreen DEBUG] effectiveClient (encoded)=",
-        encodeURIComponent(effectiveClient),
-      );
-    }
-
     const authUrl = `${authEndpoint}?response_type=code&client_id=${encodeURIComponent(effectiveClient)}&redirect_uri=${encodeURIComponent(redirectUriVal)}&scope=${encodeURIComponent(scopeVal)}&state=${state}&code_challenge=${encodeURIComponent(challenge)}&code_challenge_method=S256`;
-
-    if (__DEV__) {
-      console.log(
-        "[LoginScreen DEBUG] buildAuthUrl - redirectUriVal (raw)=",
-        redirectUriVal,
-      );
-      console.log(
-        "[LoginScreen DEBUG] buildAuthUrl - redirectUriVal (encoded)=",
-        encodeURIComponent(redirectUriVal),
-      );
-      console.log("[LoginScreen DEBUG] Full auth URL:", authUrl);
-    }
 
     return authUrl;
   }
 
-  /**
-   * Start the auth flow using AuthSession helpers, falling back to Linking listener.
-   * Returns the result object similar to the previous inline implementation.
-   */
-  // Global guard to prevent multiple auth flows from running at the same time (covers StrictMode and double-clicks)
-  if (typeof (globalThis as any).__authFlowInProgress === "undefined") {
-    (globalThis as any).__authFlowInProgress = false;
-  }
-
+  // --- Auth flow (Linking fallback) ---
   async function startAuthFlowWithLinking(authUrl: string) {
     return new Promise<any>((resolve) => {
       let handled = false;
       let subscription: any = null;
 
-      // safety timeout: configurable (default 5 minutes)
       const timer = setTimeout(() => {
         if (!handled) {
           handled = true;
           try {
             subscription?.remove?.();
-          } catch (_) {
-            /* ignore */
+          } catch {
+            // ignore
           }
           resolve({ type: "dismiss" });
         }
@@ -560,24 +445,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
       const cleanup = () => {
         try {
           subscription?.remove?.();
-        } catch (_) {
-          /* ignore */
+        } catch {
+          // ignore
         }
         try {
           clearTimeout(timer);
-        } catch (_) {
-          /* ignore */
+        } catch {
+          // ignore
         }
       };
 
       const handler = (event: any) => {
-        if (handled) {
-          if (__DEV__)
-            console.log(
-              "[LoginScreen] Linking event ignored (already handled)",
-            );
-          return;
-        }
+        if (handled) return;
         handled = true;
         cleanup();
         try {
@@ -587,15 +466,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
           parsed.searchParams.forEach((v, k) => {
             params[k] = v;
           });
-          if (__DEV__)
-            console.log(
-              "[LoginScreen] Linking event url:",
-              urlStr,
-              "params:",
-              params,
-            );
           resolve({ type: "success", params });
-        } catch (err) {
+        } catch {
           resolve({ type: "error" });
         }
       };
@@ -604,42 +476,31 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
         if ((Linking as any).addEventListener)
           subscription = (Linking as any).addEventListener("url", handler);
         else subscription = (Linking as any).addListener("url", handler);
-      } catch (_) {
+      } catch {
         try {
           subscription = (Linking as any).addEventListener?.("url", handler);
-        } catch (_) {
-          /* ignore */
+        } catch {
+          // ignore
         }
       }
 
-      // open browser after listener attached
       try {
         Linking.openURL(authUrl);
-      } catch (_) {
-        /* ignore */
+      } catch {
+        // ignore
       }
     });
   }
 
   async function startAuthFlow(authUrl: string) {
-    // Prevent duplicate auth flows application-wide
     if ((globalThis as any).__authFlowInProgress) {
-      if (__DEV__)
-        console.log(
-          "[LoginScreen] Auth flow already in progress, skipping startAuthFlow",
-        );
+      if (__DEV__) console.log("[LoginScreen] Flow in progress, skip");
       return { type: "dismiss" };
     }
     (globalThis as any).__authFlowInProgress = true;
     try {
-      // When explicitly requested, bypass AuthSession and use Linking-based flow.
-
-      if (authUseLinkingOnly || linkingOnly) {
-        if (__DEV__)
-          console.log("[LoginScreen] Using Linking flow", {
-            authUseLinkingOnly,
-            linkingOnly,
-          });
+      if (authUseLinkingOnly) {
+        if (__DEV__) console.log("[LoginScreen] Using Linking flow");
         return await startAuthFlowWithLinking(authUrl);
       }
 
@@ -650,176 +511,44 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
         if (__DEV__) console.log("[LoginScreen] Using AuthSession.startAsync");
         try {
           let result: any;
-          // Support both startAsync({ authUrl, returnUrl }) and openAuthSessionAsync(authUrl, returnUrl)
           if (
             startAsync?.name === "openAuthSessionAsync" ||
             startAsync?.length > 1
           ) {
-            // Older API signature
             result = await startAsync(authUrl, redirectUri);
           } else {
-            // Newer API signature
             result = await startAsync({ authUrl, returnUrl: redirectUri });
           }
-          if (__DEV__)
-            console.log("[LoginScreen] AuthSession result:", result?.type);
-
-          // Persist debug info for post-mortem inspection in TestFlight builds.
 
           try {
             await persistDebugAuthInfo(authUrl, redirectUri);
-          } catch (_) {
-            /* ignore */
+          } catch {
+            // ignore
           }
-
           return result;
         } catch (authSessionError) {
-          // If AuthSession fails, fall back to Linking approach
           if (__DEV__)
             console.log(
-              "[LoginScreen] AuthSession failed, falling back to Linking:",
+              "[LoginScreen] AuthSession failed, fallback to Linking",
               authSessionError,
             );
           return await startAuthFlowWithLinking(authUrl);
         }
       }
-      // Fallback to Linking-based flow
       if (__DEV__)
-        console.log(
-          "[LoginScreen] Falling back to Linking approach (no startAsync available)",
-        );
+        console.log("[LoginScreen] No AuthSession; fallback to Linking");
       return await startAuthFlowWithLinking(authUrl);
     } finally {
-      // Always clear the global flag so the app can start a new flow later
       (globalThis as any).__authFlowInProgress = false;
     }
   }
 
-  async function handleAuthResult(
-    result: any,
-    verifier: string | null | undefined,
-  ) {
-    if (
-      result &&
-      result.type === "success" &&
-      result.params &&
-      result.params.code
-    ) {
-      const code = result.params.code;
-
-      const client_id_for_exchange =
-        manualClientId || resolvedClientId || undefined;
-
-      // Debugging: log parameters used for exchange
-
-      try {
-        console.log(
-          "[LoginScreen DEBUG] Handling auth result for exchange, code:",
-
-          code ? `${code.slice(0, 6)}...${code.slice(-6)}` : null,
-        );
-      } catch (_) {
-        /* ignore */
-      }
-
-      // More robust duplicate detection: include a timestamped key so that concurrent
-
-      // handlers from StrictMode are less likely to race to the same Set entry.
-
-      const codeKey = `${code}_${Date.now()}`;
-
-      // Check if any existing in-flight key begins with the same code (prevents duplicates)
-
-      for (const existingKey of exchangeInFlightSet) {
-        if (existingKey.startsWith(code + "_")) {
-          console.warn(
-            "[LoginScreen] Duplicate code exchange detected:",
-
-            code ? `${String(code).slice(0, 8)}...` : "(no-code)",
-          );
-
-          setError(
-            t("auth.duplicateRequest") ||
-              "重複したリクエストです。しばらくお待ちください。",
-          );
-
-          return false;
-        }
-      }
-
-      exchangeInFlightSet.add(codeKey);
-
-      console.log(
-        "[LoginScreen] Starting code exchange for:",
-
-        code ? `${String(code).slice(0, 8)}...` : "(no-code)",
-      );
-
-      try {
-        // Fallback to in-memory or SecureStore-stored PKCE verifier if missing
-        let effectiveVerifier: string | null | undefined =
-          verifier ?? codeVerifierRef.current;
-        if (!effectiveVerifier) {
-          try {
-            const stored = await SecureStore.getItemAsync("pkce.verifier");
-            if (stored && typeof stored === "string" && stored.length > 0) {
-              effectiveVerifier = stored;
-            }
-          } catch (_) {
-            /* ignore */
-          }
-        }
-
-        const success = await exchangeCodeForSession(
-          code,
-
-          effectiveVerifier,
-
-          redirectUri,
-
-          client_id_for_exchange,
-
-          setLastBackendResponse,
-
-          setError,
-        );
-
-        console.log("[LoginScreen] Code exchange result:", success);
-
-        return success;
-      } finally {
-        // Ensure this particular key is removed (doesn't accidentally remove other concurrent keys)
-
-        exchangeInFlightSet.delete(codeKey);
-
-        console.log(
-          "[LoginScreen] Cleaned up exchange tracking for:",
-
-          code ? `${String(code).slice(0, 8)}...` : "(no-code)",
-        );
-      }
-    } else if (
-      result &&
-      (result.type === "dismiss" || result.type === "cancel")
-    ) {
-      setError(t("auth.cancelled"));
-
-      return false;
-    } else {
-      setError(t("auth.flowError"));
-
-      return false;
-    }
-  }
-
-  // Helper: exchange authorization code for session via backend
+  // --- Code exchange with backend ---
   const exchangeCodeForSession = async (
     code: string,
     verifier: string | null | undefined,
     redirect_uri: string,
     clientId: string | undefined,
-    setLastBackendResponse: React.Dispatch<React.SetStateAction<string | null>>,
-    setError: React.Dispatch<React.SetStateAction<string | null>>,
   ): Promise<boolean> => {
     try {
       const res = await api.post("/api/atprotocol/init", {
@@ -830,325 +559,243 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
           client_id: clientId,
         },
       });
+
       try {
-        setLastBackendResponse(JSON.stringify(res?.data || res || {}, null, 2));
+        setLastBackendResponse(JSON.stringify(res?.data ?? res, null, 2));
       } catch {
         setLastBackendResponse(String(res));
       }
+
       const sessionId =
         (res as any)?.data?.sessionId ||
         (res as any)?.sessionId ||
-        (res as any)?.data?.data?.sessionId;
+        (res as any)?.data?.data?.sessionId ||
+        null;
+
       if (sessionId) {
         try {
-          await SecureStore.setItemAsync("auth.sessionId", sessionId);
-        } catch (_) {
-          /* ignore */
+          await SecureStore.setItemAsync("auth.sessionId", String(sessionId));
+        } catch {
+          // ignore
         }
-        // Clear stored PKCE verifier now that exchange succeeded
+        // Update caches so UI reflects auth state immediately
         try {
-          await SecureStore.deleteItemAsync("pkce.verifier");
-        } catch (_) {
-          /* ignore */
+          await refreshAuthCache();
+        } catch {
+          // ignore
         }
-        codeVerifierRef.current = null;
-        Alert.alert(t("auth.success.title"), t("auth.success.message"));
-        setError(null);
         return true;
       }
-      Alert.alert(
-        t("auth.serverResponse.title"),
-        t("auth.serverResponse.message"),
+
+      setError(
+        t("auth.exchangeFailed") ||
+          "セッションの確立に失敗しました（sessionId なし）",
       );
       return false;
     } catch (e: any) {
-      setLastBackendResponse(e?.message || String(e));
-      setError(e?.message || "トークン交換に失敗しました");
+      setError(
+        (e && e.message) ||
+          t("auth.exchangeFailed") ||
+          "セッションの確立に失敗しました",
+      );
       return false;
     }
   };
 
-  const onStartOAuth = async () => {
-    setError(null);
-    if (!resolvedClientId && !manualClientId) {
-      Alert.alert(t("config.required"), t("config.clientIdMessage"));
-      return;
-    }
-    setBusy(true);
-    try {
-      if (__DEV__) {
-        console.log(
-          "[LoginScreen DEBUG] resolvedClientId (before OAuth) =",
-          resolvedClientId,
-        );
-        console.log("[LoginScreen DEBUG] API_BASE_URL =", API_BASE_URL);
-      }
-      if (__DEV__) {
-        try {
-          const now = new Date();
-          console.log(
-            "[LoginScreen DEBUG] local date string =",
-            now.toString(),
+  // --- Handle auth result ---
+  async function handleAuthResult(
+    result: any,
+    verifier: string | null | undefined,
+  ) {
+    if (
+      result &&
+      result.type === "success" &&
+      result.params &&
+      result.params.code
+    ) {
+      const code = String(result.params.code);
+
+      const codeKey = `${code}_${Date.now()}`;
+      for (const existingKey of exchangeInFlightSet) {
+        if (existingKey.startsWith(code + "_")) {
+          setError(
+            t("auth.duplicateRequest") ||
+              "重複したリクエストです。しばらくお待ちください。",
           );
-          console.log("[LoginScreen DEBUG] ISO (UTC) =", now.toISOString());
-          console.log(
-            "[LoginScreen DEBUG] timezone =",
-            Intl.DateTimeFormat().resolvedOptions().timeZone,
-          );
-          console.log(
-            "[LoginScreen DEBUG] timezone offset (minutes) =",
-            now.getTimezoneOffset(),
-          );
-          console.log("[LoginScreen DEBUG] Date.now() =", Date.now());
-        } catch (_) {
-          /* ignore */
+          return false;
         }
       }
-      const { verifier, challenge } = await preparePKCEAndStore();
-      const state = Math.random().toString(36).slice(2);
+      exchangeInFlightSet.add(codeKey);
+
+      try {
+        // Fallback to stored PKCE verifier if not supplied
+        let effectiveVerifier: string | null | undefined =
+          verifier ?? codeVerifierRef.current;
+        if (!effectiveVerifier) {
+          try {
+            const stored = await SecureStore.getItemAsync("pkce.verifier");
+            if (stored && typeof stored === "string" && stored.length > 0) {
+              effectiveVerifier = stored;
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        const client_id_for_exchange = resolvedClientId || undefined;
+
+        const success = await exchangeCodeForSession(
+          code,
+          effectiveVerifier,
+          redirectUri,
+          client_id_for_exchange,
+        );
+
+        return success;
+      } finally {
+        exchangeInFlightSet.delete(codeKey);
+      }
+    } else if (
+      result &&
+      (result.type === "dismiss" || result.type === "cancel")
+    ) {
+      setError(t("auth.cancelled") || "キャンセルされました");
+      return false;
+    } else {
+      setError(t("auth.flowError") || "認証フローでエラーが発生しました");
+      return false;
+    }
+  }
+
+  // --- UI handlers ---
+  const onPressLogin = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    setLastBackendResponse(null);
+
+    try {
+      // Fetch metadata (optional) and prepare PKCE
       const meta = await loadClientMetadataIfNeeded();
+      const { challenge, verifier } = await preparePKCEAndStore();
+      const state = String(Date.now());
+
       const authUrl = buildAuthUrl(
         meta,
-        manualAuthEndpoint,
-        manualClientId,
+        "", // manual auth endpoint (unused here)
+        "", // manual client id (unused here)
         redirectUri,
         challenge,
         state,
       );
-      // Persist debug info immediately so TestFlight/dev builds can inspect what was used.
-      try {
-        await persistDebugAuthInfo(authUrl, redirectUri);
-      } catch (_) {
-        /* ignore */
-      }
 
-      if (__DEV__) {
-        console.log("[LoginScreen] authUrl=", authUrl);
-        try {
-          Alert.alert("Auth URL", authUrl);
-        } catch (_) {
-          /* ignore */
-        }
-      }
-
-      const result = await startAuthFlow(authUrl);
-
-      if (__DEV__) console.log("[LoginScreen] auth result=", result);
-
-      const handled = await handleAuthResult(result, verifier);
-      if (handled) return;
+      const flowResult = await startAuthFlow(authUrl);
+      await handleAuthResult(flowResult, verifier);
     } catch (e: any) {
-      setError(e?.message || t("auth.prepareError"));
+      setError(e?.message || String(e));
     } finally {
       setBusy(false);
     }
-  };
+  }, [redirectUri, resolvedClientId, authUseLinkingOnly]);
 
-  if (loading)
-    return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <ActivityIndicator />
-      </View>
-    );
-
+  // --- Render ---
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Text style={[styles.title, { color: colors.text }]}>ログイン</Text>
-      <Text style={{ color: colors.secondaryText, marginBottom: 8 }}>
-        OAuth client: {resolvedClientId || "(未設定)"}
+      <Text style={[styles.title, { color: colors.text }]}>
+        Bluesky にログイン
       </Text>
-
-      <TextInput
-        placeholder="authorization_endpoint (手動デバッグ用)"
-        value={manualAuthEndpoint}
-        onChangeText={setManualAuthEndpoint}
-        style={[
-          styles.input,
-          { borderColor: colors.border, color: colors.text, marginBottom: 8 },
-        ]}
-        autoCapitalize="none"
-      />
-      <TextInput
-        placeholder="client_id (手動)"
-        value={manualClientId}
-        onChangeText={setManualClientId}
-        style={[
-          styles.input,
-          { borderColor: colors.border, color: colors.text, marginBottom: 8 },
-        ]}
-        autoCapitalize="none"
-      />
-
-      <View
-        style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}
-      >
-        <Text style={{ fontSize: 12, color: colors.secondaryText, flex: 1 }}>
-          redirectUri: {redirectUri}
-        </Text>
-        <View style={{ width: 8 }} />
-        <Button
-          title="Copy"
-          onPress={async () => {
-            try {
-              await Clipboard.setStringAsync(redirectUri);
-              Alert.alert(
-                "Copied",
-                "redirectUri をクリップボードにコピーしました",
-              );
-            } catch (e: any) {
-              Alert.alert("コピー失敗", e?.message || "failed to copy");
-            }
-          }}
-        />
-      </View>
 
       {!!error && (
-        <Text style={{ color: colors.error, marginBottom: 8 }}>{error}</Text>
+        <Text style={[styles.errorText, { color: colors.accent }]}>
+          {error}
+        </Text>
       )}
 
-      <View
-        style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}
-      >
-        <Text style={{ fontSize: 12, color: colors.secondaryText, flex: 1 }}>
-          Auth flow: {linkingOnly ? "Linking-only" : "AuthSession"}
-        </Text>
-        <View style={{ width: 8 }} />
-        <Button
-          title={linkingOnly ? "Use AuthSession" : "Use Linking"}
-          onPress={() => setLinkingOnly((v) => !v)}
-        />
-      </View>
-
       <TouchableOpacity
-        onPress={onStartOAuth}
-        disabled={busy}
+        onPress={onPressLogin}
+        disabled={busy || loading}
         style={[
-          styles.primaryButton,
-          { backgroundColor: (colors as any).primary || "#0a84ff" },
-          busy ? { opacity: 0.7 } : {},
+          styles.btn,
+          {
+            backgroundColor: colors.accent,
+            opacity: busy || loading ? 0.6 : 1,
+          },
         ]}
       >
-        <Text style={styles.primaryButtonText}>
-          {busy ? "処理中..." : "Sign in with Bluesky (PKCE)"}
+        <Text style={styles.btnText}>
+          {busy ? "起動中..." : "Bluesky で認可へ"}
         </Text>
       </TouchableOpacity>
-      <View style={{ height: 8 }} />
-      <TouchableOpacity
-        onPress={async () => {
-          try {
-            const info = await readDebugAuthInfo();
-            const content = `authUrl: ${info.authUrl || "<none>"}\nredirectUri: ${info.redirectUri || "<none>"}`;
-            await Clipboard.setStringAsync(content);
-            Alert.alert(
-              "Debug info copied",
-              "Auth URL and redirectUri copied to clipboard.",
-            );
-          } catch (e: any) {
-            Alert.alert("Copy failed", e?.message || "failed to copy");
-          }
-        }}
-        style={{ alignItems: "center", paddingVertical: 10 }}
-      >
-        <Text style={{ color: colors.secondaryText, fontSize: 12 }}>
-          Copy debug auth info
-        </Text>
-      </TouchableOpacity>
-      <View style={{ height: 8 }} />
-      <Button
-        title="Open auth URL in browser (debug)"
-        onPress={async () => {
-          setError(null);
-          try {
-            const { verifier, challenge } = await generatePKCE();
-            const state = Math.random().toString(36).slice(2);
-            const meta = await loadClientMetadataIfNeeded();
-            const authEndpoint =
-              manualAuthEndpoint ||
-              meta?.authorization_endpoint ||
-              "https://bsky.social/oauth/authorize";
-            const effectiveClient = manualClientId || resolvedClientId;
-            const authUrl = `${authEndpoint}?response_type=code&client_id=${encodeURIComponent(effectiveClient)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=all&state=${state}&code_challenge=${encodeURIComponent(challenge)}&code_challenge_method=S256`;
-            codeVerifierRef.current = verifier;
-            if (__DEV__) {
-              console.log(
-                "[LoginScreen DEBUG] authUrl=",
-                authUrl,
-                "redirectUri=",
-                redirectUri,
-                "verifier=",
-                verifier,
-              );
-              Alert.alert("Auth URL", authUrl);
-            }
-            await Linking.openURL(authUrl);
-          } catch (e: any) {
-            Alert.alert("デバッグ起動エラー", e?.message || "error");
-          }
-        }}
-      />
 
-      {/* Manual Process UI removed per code review; keep UI compact */}
-      <Text
-        style={{ fontSize: 12, color: colors.secondaryText, marginBottom: 6 }}
-      >
-        API: {API_BASE_URL}
-      </Text>
-      <Button
-        title="接続テスト"
-        onPress={async () => {
-          try {
-            await api.get("/health");
-            Alert.alert("接続OK", `API: ${API_BASE_URL}`);
-          } catch (e: any) {
-            // If it's our ApiErrorShape, display its message and status
-            const msg = e?.message || e?.error || String(e);
-            const status = e?.status ? ` (status: ${e.status})` : "";
-            Alert.alert("接続失敗", `${msg}${status}\n\nAPI: ${API_BASE_URL}`);
-            setLastBackendResponse(JSON.stringify(e, null, 2));
-          }
-        }}
-      />
-
-      {__DEV__ && lastBackendResponse ? (
-        <View
-          style={{
-            marginTop: 12,
-            padding: 8,
-            borderWidth: 1,
-            borderColor: colors.border,
-            borderRadius: 6,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 12,
-              color: colors.secondaryText,
-              marginBottom: 6,
-            }}
-          >
-            Last backend response:
-          </Text>
-          <Text style={{ fontSize: 11, color: colors.text }}>
-            {redactBackendResponse(lastBackendResponse)}
+      {busy && (
+        <View style={styles.spinnerRow}>
+          <ActivityIndicator />
+          <Text style={{ color: colors.secondaryText, marginLeft: 8 }}>
+            認可ページを開いています...
           </Text>
         </View>
-      ) : null}
+      )}
+
+      {!!lastBackendResponse && (
+        <View style={styles.debugBox}>
+          <Text style={[styles.debugTitle, { color: colors.text }]}>
+            最終レスポンス（デバッグ）
+          </Text>
+          <Text style={[styles.debugText, { color: colors.secondaryText }]}>
+            {lastBackendResponse}
+          </Text>
+        </View>
+      )}
     </View>
   );
 };
 
+export default LoginScreen;
+
+// =======================
+// Styles
+// =======================
+
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, justifyContent: "center" },
+  container: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 32,
+  },
   title: {
-    fontSize: 24,
-    fontWeight: "600",
-    textAlign: "center",
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 12,
+  },
+  btn: {
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+  },
+  btnText: {
+    color: "#fff",
+    fontWeight: "700",
+  },
+  spinnerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+  },
+  errorText: {
     marginBottom: 8,
   },
-  input: { borderWidth: 1, padding: 12, borderRadius: 8 },
-  primaryButton: { paddingVertical: 14, borderRadius: 8, alignItems: "center" },
-  primaryButtonText: { color: "#fff", fontWeight: "600" },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  debugBox: {
+    marginTop: 16,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  debugTitle: {
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  debugText: {
+    fontSize: 12,
+  },
 });
-
-export default LoginScreen;
