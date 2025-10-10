@@ -26,7 +26,9 @@ CLIENT_ID = "https://rietamura.github.io/bluelang-oauth/.well-known/atproto_clie
 DEV_CLIENT_ID = "https://rietamura.github.io/bluelang-oauth/dev/.well-known/atproto_client_metadata.json"
 
 
-REDIRECT_URI = "blueskylearning://auth"
+
+REDIRECT_URI = "https://auth.expo.io/@rietamura/bluesky-langapp"
+
 
 # Optional: For local/desktop debugging, set a temporary HTTP callback
 # Make sure to also add this to your client metadata when using it.

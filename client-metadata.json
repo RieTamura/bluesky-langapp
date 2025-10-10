@@ -5,11 +5,9 @@
   "logo_uri": "https://rietamura.github.io/bluelang-oauth/logo.png",
   "application_type": "native",
   "dpop_bound_access_tokens": true,
-  "redirect_uris": [
-    "blueskylearning://auth",
-    "https://auth.expo.io/@rietamura/bluesky-langapp",
-    "exp://localhost:8081"
-  ],
+
+  "redirect_uris": ["https://auth.expo.io/@rietamura/bluesky-langapp"],
+
   "grant_types": ["authorization_code", "refresh_token"],
   "response_types": ["code"],
   "scope": ["atproto", "transition:generic", "transition:chat.bsky"],
