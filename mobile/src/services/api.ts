@@ -247,4 +247,111 @@ export const postsApi = {
 };
 
 // Expose resolved base URL for diagnostics / UI (e.g., show in a dev settings screen)
+
 export const API_BASE_URL = BASE_URL;
+
+// Resolve Workers base URL (for ATProtocol auth only)
+const envWorkerUrl = process.env.EXPO_PUBLIC_ATP_WORKER_URL as
+  | string
+  | undefined;
+const configWorkerUrl = (Constants as any)?.expoConfig?.extra?.atpWorkerUrl as
+  | string
+  | undefined;
+export const ATP_WORKER_BASE_URL = (
+  envWorkerUrl ||
+  configWorkerUrl ||
+  "https://your-worker.example.com"
+).replace(/\/$/, "");
+
+// Worker-side request helper (reuses same error shapes as backend client)
+async function requestWorker<T>(
+  path: string,
+  init: RequestInit = {},
+  attempt = 0,
+): Promise<ApiSuccess<T>> {
+  const sessionId = await getSessionId();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...((init.headers as Record<string, string>) || {}),
+  };
+  if (sessionId) headers.Authorization = `Bearer ${sessionId}`;
+
+  let res: Response;
+  try {
+    if (__DEV__ && attempt === 0) {
+      // eslint-disable-next-line no-console
+      console.log("[worker api] fetch", ATP_WORKER_BASE_URL + path);
+    }
+    res = await fetch(ATP_WORKER_BASE_URL + path, { ...init, headers });
+  } catch (e) {
+    if ((e as any)?.name === "AbortError") {
+      throw <ApiErrorShape>{
+        error: "REQUEST_ABORTED",
+        message: "リクエストが中断されました",
+        status: 0,
+      };
+    }
+    throw <ApiErrorShape>{
+      error: "NETWORK_OFFLINE",
+      message: "オフラインです",
+      status: 0,
+    };
+  }
+
+  let json: any;
+  try {
+    json = await res.json();
+  } catch {
+    /* ignore parse here */
+  }
+
+  if (!res.ok) {
+    const code = mapStatusToCode(res.status);
+    const shape: ApiErrorShape = {
+      error: (json?.error as string) || code,
+      message: json?.message || code,
+      status: res.status,
+    };
+    throw shape;
+  }
+
+  return {
+    success: true,
+    data: json?.data ?? json,
+    meta: json?.meta,
+    message: json?.message,
+  };
+}
+
+// ATProtocol (Workers) auth-only client
+export const atpWorkersAuth = {
+  // Initialize OAuth and receive authorize_url/state (supports optional ?redirect=dev)
+  init: (options?: { redirect?: "dev" | "prod" }) => {
+    const q = options?.redirect === "dev" ? "?redirect=dev" : "";
+    return requestWorker<{
+      authorize_url: string;
+      state: string;
+      redirect_uri: string;
+      client_id: string;
+    }>(`/api/atprotocol/init${q}`, { method: "GET" });
+  },
+  // Exchange authorization code + state for sessionId stored in KV
+  token: (code: string, state: string) =>
+    requestWorker<{
+      ok: boolean;
+      sessionId: string;
+      expires_in: number;
+      token_type: string;
+    }>("/api/atprotocol/token", {
+      method: "POST",
+      body: JSON.stringify({ code, state }),
+    }),
+  // Auth status via Workers (session backed by KV)
+  me: () => requestWorker<any>("/api/auth/me"),
+  // Logout via Workers
+  logout: () =>
+    requestWorker<any>("/api/auth/logout", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+};

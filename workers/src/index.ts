@@ -7,6 +7,8 @@ import {
   importJWK,
   decodeJwt,
 } from "jose";
+import type { StatusCode } from "hono/utils/http-status";
+const asStatus = (n: number): StatusCode => n as unknown as StatusCode;
 
 type Env = {
   // KV namespace for session/state
@@ -321,17 +323,17 @@ app.post("/api/atprotocol/token", async (c) => {
             json: json2,
           });
 
-          return c.json(
-            {
-              error: json2?.error || "TOKEN_EXCHANGE_FAILED",
-              message:
-                json2?.error_description ||
-                rawText2 ||
-                "Token exchange failed (retry with nonce)",
-              status: resp2.status,
-            },
-            resp2.status,
-          );
+          c.status(resp2.status as StatusCode);
+          return c.json({
+            error: json2?.error || "TOKEN_EXCHANGE_FAILED",
+
+            message:
+              json2?.error_description ||
+              rawText2 ||
+              "Token exchange failed (retry with nonce)",
+
+            status: resp2.status,
+          });
         }
 
         // Replace resp/json with successful retry response
@@ -342,13 +344,13 @@ app.post("/api/atprotocol/token", async (c) => {
         console.error("DPoP nonce retry failed", {
           error: e instanceof Error ? e.message : String(e),
         });
-        return c.json(
-          {
-            error: "DPOP_NONCE_RETRY_FAILED",
-            message: "Retry with DPoP nonce failed",
-          },
-          400,
-        );
+
+        c.status(400 as StatusCode);
+        return c.json({
+          error: "DPOP_NONCE_RETRY_FAILED",
+
+          message: "Retry with DPoP nonce failed",
+        });
       }
     }
   }
@@ -359,14 +361,15 @@ app.post("/api/atprotocol/token", async (c) => {
       body: rawText,
       json,
     });
-    return c.json(
-      {
-        error: json?.error || "TOKEN_EXCHANGE_FAILED",
-        message: json?.error_description || rawText || "Token exchange failed",
-        status: resp.status,
-      },
-      resp.status,
-    );
+
+    c.status(resp.status as StatusCode);
+    return c.json({
+      error: json?.error || "TOKEN_EXCHANGE_FAILED",
+
+      message: json?.error_description || rawText || "Token exchange failed",
+
+      status: resp.status,
+    });
   }
 
   const access_token = json?.access_token as string | undefined;
@@ -719,18 +722,16 @@ app.get("/api/bsky/session", async (c) => {
 
   if (!ok) {
     // surface upstream error as much as possible
-    return c.json(
-      {
-        error: json?.error || "UPSTREAM_ERROR",
-        message:
-          json?.message ||
-          json?.error_description ||
-          text ||
-          "Upstream request failed",
-        status,
-      },
+    c.status(status as StatusCode);
+    return c.json({
+      error: json?.error || "UPSTREAM_ERROR",
+      message:
+        json?.message ||
+        json?.error_description ||
+        text ||
+        "Upstream request failed",
       status,
-    );
+    });
   }
 
   return c.json({ ok: true, data: json });
@@ -825,18 +826,16 @@ app.get("/api/bsky/repo", async (c) => {
   );
 
   if (!ok) {
-    return c.json(
-      {
-        error: json?.error || "UPSTREAM_ERROR",
-        message:
-          json?.message ||
-          json?.error_description ||
-          text ||
-          "Upstream request failed",
-        status,
-      },
+    c.status(status as StatusCode);
+    return c.json({
+      error: json?.error || "UPSTREAM_ERROR",
+      message:
+        json?.message ||
+        json?.error_description ||
+        text ||
+        "Upstream request failed",
       status,
-    );
+    });
   }
 
   return c.json({ ok: true, data: json });

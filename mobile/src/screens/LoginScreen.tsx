@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Alert,
   Linking,
   TouchableOpacity,
   ActivityIndicator,
@@ -12,7 +11,7 @@ import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import * as AuthSession from "expo-auth-session";
 import Constants from "expo-constants";
-import { api } from "../services/api";
+import { atpWorkersAuth, ATP_WORKER_BASE_URL, api } from "../services/api";
 import { t } from "../i18n";
 import { useThemeColors } from "../stores/theme";
 import { useAuth, refreshAuthCache } from "../hooks/useAuth";
@@ -667,14 +666,54 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
     }
   }
 
-  // --- UI handlers ---
   const onPressLogin = useCallback(async () => {
     setBusy(true);
+
     setError(null);
+
     setLastBackendResponse(null);
 
     try {
-      // Fetch metadata (optional) and prepare PKCE
+      const useWorkers =
+        typeof ATP_WORKER_BASE_URL === "string" &&
+        !/your-worker\.example\.com$/.test(ATP_WORKER_BASE_URL);
+
+      if (useWorkers) {
+        // Workers init -> authorize -> token
+        const initRes = await atpWorkersAuth.init();
+        const { authorize_url, state } = (initRes as any)?.data ?? initRes;
+
+        const flowResult = await startAuthFlow(authorize_url);
+        if (flowResult?.type === "success" && flowResult?.params?.code) {
+          const code = String(flowResult.params.code);
+          const returnedState =
+            String(flowResult?.params?.state || "") || String(state || "");
+
+          const tokenRes = await atpWorkersAuth.token(code, returnedState);
+          const { sessionId } = (tokenRes as any)?.data ?? tokenRes;
+
+          if (sessionId) {
+            await SecureStore.setItemAsync("auth.sessionId", String(sessionId));
+            try {
+              await refreshAuthCache();
+            } catch {}
+            return;
+          }
+          setError("セッションの確立に失敗しました（sessionId なし）");
+          return;
+        } else if (
+          flowResult?.type === "dismiss" ||
+          flowResult?.type === "cancel"
+        ) {
+          setError(t("auth.cancelled") || "キャンセルされました");
+          return;
+        } else {
+          setError(t("auth.flowError") || "認証フローでエラーが発生しました");
+          return;
+        }
+      }
+
+      // Backend (direct) flow with PKCE
       const meta = await loadClientMetadataIfNeeded();
       const { challenge, verifier } = await preparePKCEAndStore();
       const state = String(Date.now());
