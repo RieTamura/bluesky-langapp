@@ -5,7 +5,7 @@
     "name": "BlueskyLangApp",
     "slug": "bluesky-langapp",
     "icon": "./assets/icon.png",
-    "version": "0.4.4",
+    "version": "0.4.5",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "updates": {
