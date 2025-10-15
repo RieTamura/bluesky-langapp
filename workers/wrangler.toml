@@ -27,7 +27,15 @@ DEV_CLIENT_ID = "https://rietamura.github.io/bluelang-oauth/dev/.well-known/atpr
 
 
 
-REDIRECT_URI = "https://auth.expo.io/@rietamura/bluesky-langapp"
+
+# NOTE: Runtime now derives the production redirect from the incoming request host:
+#   http://<your-worker-host>/callback
+# Keep this as an HTTP fallback only (ATProto currently requires http: for redirect_uris).
+# Also make sure your published client metadata (.well-known/atproto_client_metadata.json)
+# includes your Workers callback URL(s), for example:
+#   "redirect_uris": ["http://<your-worker-host>/callback", "http://127.0.0.1:8787/dev/callback"]
+REDIRECT_URI = "http://bluelangapp.YOUR_ACCOUNT.workers.dev/callback"
+
 
 
 # Optional: For local/desktop debugging, set a temporary HTTP callback

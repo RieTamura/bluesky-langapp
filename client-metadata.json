@@ -6,7 +6,10 @@
   "application_type": "native",
   "dpop_bound_access_tokens": true,
 
-  "redirect_uris": ["https://auth.expo.io/@rietamura/bluesky-langapp"],
+  "redirect_uris": [
+    "http://bluelangapp.YOUR_ACCOUNT.workers.dev/callback",
+    "http://127.0.0.1:8787/dev/callback"
+  ],
 
   "grant_types": ["authorization_code", "refresh_token"],
   "response_types": ["code"],

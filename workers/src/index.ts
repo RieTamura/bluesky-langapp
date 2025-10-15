@@ -67,7 +67,12 @@ async function initHandler(c: any) {
     (c.req.query("redirect") || "").toLowerCase() === "dev" &&
     !!DEV_REDIRECT_URI;
 
-  const redirectUri = useDevRedirect ? DEV_REDIRECT_URI! : REDIRECT_URI;
+  // Derive http callback from current request host for production
+  const reqUrl = new URL(c.req.url);
+  const host = reqUrl.host || c.req.header("host") || "";
+  const derivedHttpRedirect = host ? `http://${host}/callback` : REDIRECT_URI;
+
+  const redirectUri = useDevRedirect ? DEV_REDIRECT_URI! : derivedHttpRedirect;
   const clientId = useDevRedirect && DEV_CLIENT_ID ? DEV_CLIENT_ID : CLIENT_ID;
 
   const state = crypto.randomUUID();
@@ -846,6 +851,43 @@ app.notFound((c) => c.json({ error: "Not Found" }, 404));
 app.onError((err, c) => {
   console.error("Worker error:", err);
   return c.json({ error: "Internal Server Error" }, 500);
+});
+
+// Production callback: redirects OAuth result back to the native app via deep link
+// Example: https://<your-worker-domain>/callback?code=...&state=...
+// Deep link target (iOS/Android): blueskylearning://auth
+app.get("/callback", async (c) => {
+  const url = new URL(c.req.url);
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state") || "";
+  const error = url.searchParams.get("error");
+  const error_description = url.searchParams.get("error_description");
+
+  // If upstream returned an error, forward it to the app to show a friendly message
+  if (error) {
+    const deeplinkErr = `blueskylearning://auth?error=${encodeURIComponent(error)}${error_description ? `&error_description=${encodeURIComponent(error_description)}` : ""}${state ? `&state=${encodeURIComponent(state)}` : ""}`;
+    return c.redirect(deeplinkErr, 302);
+  }
+
+  if (!code) {
+    return c.json(
+      { error: "VALIDATION_ERROR", message: "code is required" },
+      400,
+    );
+  }
+
+  // Optional integrity check: ensure we still have PKCE/state stored
+  if (state) {
+    const pkceRaw = await c.env.SESSIONS.get(`pkce:${state}`);
+    if (!pkceRaw) {
+      const deeplinkBad = `blueskylearning://auth?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}&error=invalid_state`;
+      return c.redirect(deeplinkBad, 302);
+    }
+  }
+
+  // Success: deep-link the short code (and state) back into the app
+  const deeplink = `blueskylearning://auth?code=${encodeURIComponent(code)}${state ? `&state=${encodeURIComponent(state)}` : ""}`;
+  return c.redirect(deeplink, 302);
 });
 
 export default app;

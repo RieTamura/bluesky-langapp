@@ -31,6 +31,9 @@
 
       "ios": {
         "image": "latest"
+      },
+      "env": {
+        "EXPO_PUBLIC_ATP_WORKER_URL": "https://bluelangapp.YOUR_ACCOUNT.workers.dev"
       }
     }
   },
