@@ -9,7 +9,7 @@ workflows:
 
     environment:
       groups:
-        - appstore_credentials
+        - appstore
 
       vars:
         BUNDLE_ID: com.rietamura.graspo
