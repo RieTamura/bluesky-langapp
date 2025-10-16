@@ -52,11 +52,15 @@ workflows:
 
           keychain initialize
 
-          # Optionally pass certificate private key so CLI can create/use a matching Apple Distribution certificate
-          CERT_KEY_ARG=""
-          if [ -n "${CERTIFICATE_PRIVATE_KEY:-}" ]; then
-            CERT_KEY_ARG="--certificate-key \"$CERTIFICATE_PRIVATE_KEY\""
+
+          # Require certificate private key for creating/using Apple Distribution certificate
+
+          if [ -z "${CERTIFICATE_PRIVATE_KEY:-}" ]; then
+
+            echo "CERTIFICATE_PRIVATE_KEY is missing. Generate a 2048-bit RSA key in PEM format and add it to the ios_signing_credentials group in Codemagic."
+            exit 1
           fi
+
 
           # Fetch or create signing files (App Store)
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
@@ -71,7 +75,9 @@ workflows:
 
             --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
 
-            ${CERT_KEY_ARG}
+
+            --certificate-key "$CERTIFICATE_PRIVATE_KEY"
+
 
           # Import downloaded certificates to keychain
           keychain add-certificates
