@@ -5,7 +5,7 @@ workflows:
     instance_type: mac_mini_m2
 
     integrations:
-      app_store_connect: "Graspo"
+      app_store_connect: "Graspo2"
 
     environment:
       groups:
