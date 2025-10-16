@@ -9,11 +9,11 @@ workflows:
 
     environment:
       vars:
-        BUNDLE_ID: com.rietamura.bluelang
+        BUNDLE_ID: com.rietamura.graspo
         APP_PATH: mobile
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.rietamura.bluelang
+        bundle_identifier: com.rietamura.graspo
 
     scripts:
       - name: Print versions and install JS deps (mobile/)

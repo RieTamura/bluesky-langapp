@@ -1,9 +1,9 @@
 {
   "expo": {
     "owner": "rietamura",
-    "scheme": "blueskylearning",
-    "name": "BlueskyLangApp",
-    "slug": "bluesky-langapp",
+    "scheme": "graspo",
+    "name": "Graspo",
+    "slug": "graspo",
     "icon": "./assets/icon.png",
     "version": "0.4.5",
     "orientation": "portrait",
@@ -16,12 +16,12 @@
       "icon": "./assets/icon.png",
       "supportsTablet": true,
       "userInterfaceStyle": "automatic",
-      "bundleIdentifier": "com.rietamura.bluelang",
+      "bundleIdentifier": "com.rietamura.graspo",
       "infoPlist": {
         "CFBundleURLTypes": [
           {
-            "CFBundleURLName": "blueskylearning",
-            "CFBundleURLSchemes": ["blueskylearning"]
+            "CFBundleURLName": "graspo",
+            "CFBundleURLSchemes": ["graspo"]
           }
         ],
         "NSAppTransportSecurity": {
@@ -50,7 +50,7 @@
         {
           "action": "VIEW",
           "category": ["DEFAULT", "BROWSABLE"],
-          "data": { "scheme": "blueskylearning" }
+          "data": { "scheme": "graspo" }
         }
       ]
     },
@@ -61,7 +61,7 @@
       "useAuthProxy": false,
       "authProxyUrl": "https://auth.expo.io/@rietamura/bluesky-langapp",
       "authUseLinkingOnly": false,
-      "atpWorkerUrl": "https://bluelangapp.YOUR_ACCOUNT.workers.dev",
+      "atpWorkerUrl": "https://auth.graspo.YOUR_ACCOUNT.workers.dev",
       "enableTTS": false,
       "eas": {
         "projectId": "0bb8f270-fb24-4e9a-aa12-fcccc40bdc4c"
