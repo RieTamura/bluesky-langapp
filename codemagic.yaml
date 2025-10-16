@@ -4,18 +4,11 @@ workflows:
     max_build_duration: 120
     instance_type: mac_mini_m2
 
-    # Use the connected App Store Connect integration in Codemagic UI
-    # Integration should be configured with an API key that has App Manager access.
     integrations:
       app_store_connect: "Graspo"
 
     environment:
-      # Optional: Create a variable group `ios_signing_credentials` in Codemagic UI
-      # and add CERTIFICATE_PRIVATE_KEY (PEM text) if you need Codemagic to create
-      # a new Apple Distribution certificate the first time. If a distribution
-      # certificate already exists on your Apple Developer account, this can be omitted.
       groups:
-        - ios_signing_credentials
         - appstore_credentials
 
       vars:
@@ -39,7 +32,6 @@ workflows:
           pushd "$APP_PATH"
           npx expo prebuild --platform ios --non-interactive --clean
           popd
-          # 必要に応じて $APP_PATH/ios 配下の Info.plist 等をここで書き換える
 
       - name: Install CocoaPods (mobile/ios)
         script: |
@@ -53,30 +45,18 @@ workflows:
         script: |
           set -euo pipefail
 
-          # Initialize keychain for importing certificates
           keychain initialize
 
-          # Build optional flag for creating a new Distribution certificate if needed
-          CERT_KEY_ARG=""
-          if [ -n "${CERTIFICATE_PRIVATE_KEY:-}" ]; then
-            CERT_KEY_ARG="--certificate-key \"$CERTIFICATE_PRIVATE_KEY\""
-          fi
-
-          # Fetch (or create) the provisioning profiles and distribution certificate
-          # Using credentials from the connected App Store Connect integration
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
             --create \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
-            ${CERT_KEY_ARG}
+            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY"
 
-          # Import any downloaded certificates to the keychain
           keychain add-certificates
 
       - name: Apply signing profiles to Xcode project
-
         script: |
           set -e
           pushd "$APP_PATH/ios"
@@ -87,62 +67,34 @@ workflows:
         script: |
           set -euo pipefail
           WORKSPACE=$(ls -1d "$APP_PATH"/ios/*.xcworkspace | head -n 1)
-          if [ -z "${WORKSPACE:-}" ]; then
-            echo "No .xcworkspace found under $APP_PATH/ios/"
-            exit 1
-          fi
-          echo "XCODE_WORKSPACE=$WORKSPACE" >> $CM_ENV
-          xcodebuild -list -json -workspace "$WORKSPACE" > xclist.json
-          SCHEME=$(python3 -c 'import json,sys; d=json.load(open("xclist.json")); s=(d.get("workspace",{}).get("schemes") or d.get("project",{}).get("schemes") or []); print(s[0] if s else "")')
-          if [ -z "$SCHEME" ]; then
-            echo "No Xcode scheme detected"
-            exit 1
-          fi
+          SCHEME=$(xcodebuild -list -json -workspace "$WORKSPACE" | jq -r '.workspace.schemes[0]')
+          echo "Detected workspace: $WORKSPACE"
           echo "Detected scheme: $SCHEME"
-          echo "XCODE_SCHEME=$SCHEME" >> $CM_ENV
+          echo "export WORKSPACE=$WORKSPACE" >> $CM_ENV_PATH
+          echo "export SCHEME=$SCHEME" >> $CM_ENV_PATH
 
-      - name: Verify signing settings
+      - name: Build iOS app for release
         script: |
-          set -e
-          xcodebuild -showBuildSettings \
-            -workspace "$XCODE_WORKSPACE" \
-            -scheme "$XCODE_SCHEME" | egrep 'CODE_SIGN|PROVISION|DEVELOPMENT_TEAM|PRODUCT_BUNDLE_IDENTIFIER' || true
+          set -euo pipefail
+          pushd "$APP_PATH/ios"
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -archivePath "$CM_BUILD_DIR/Graspo.xcarchive" \
+            archive CODE_SIGN_STYLE=Manual
+          popd
 
-          echo "Installed provisioning profiles:"
-          ls "$HOME/Library/MobileDevice/Provisioning Profiles" | wc -l || true
-
-      - name: Bump build number (CFBundleVersion)
+      - name: Export IPA
         script: |
-          set -e
-          BUILD_NUMBER=$(date +%Y%m%d%H%M)
-          echo "Setting CFBundleVersion to $BUILD_NUMBER"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP_PATH"/ios/*/Info.plist || true
-          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP_PATH"/ios/*/Info.plist || true
-
-      - name: Build .ipa
-        script: |
-          set -e
-          xcode-project build-ipa \
-            --workspace "$XCODE_WORKSPACE" \
-            --scheme "$XCODE_SCHEME"
+          set -euo pipefail
+          xcode-project build-ipa --archive-path "$CM_BUILD_DIR/Graspo.xcarchive"
 
     artifacts:
-      - $CM_BUILD_DIR/**/**/*.ipa
-      - $CM_BUILD_DIR/**/xcodebuild.log
-      - mobile/ios/build/**/*.dSYM
-      - $HOME/Library/Developer/Xcode/DerivedData/**/Logs/**/*.log
+      - $CM_BUILD_DIR/*.ipa
+      - $CM_BUILD_DIR/*.dSYM.zip
 
     publishing:
-      # Upload using Codemagic's built-in App Store Connect integration
       app_store_connect:
         auth: integration
-        # For first-time uploads, ensure an App Store Connect app record exists.
-        # To only upload (no TestFlight submission), keep false:
         submit_to_testflight: true
-
-      email:
-        recipients:
-          - your-email@example.com
-        notify:
-          success: true
-          failure: true
