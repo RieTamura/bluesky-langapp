@@ -6,6 +6,7 @@ import {
   Linking,
   TouchableOpacity,
   ActivityIndicator,
+  TextInput,
 } from "react-native";
 import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
@@ -274,13 +275,17 @@ export function resolveLoginConfig(oauthTimeoutMs?: number): LoginConfig {
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
   const colors = useThemeColors();
-  const { loading } = useAuth();
+  const { loading, login } = useAuth();
 
   const [busy, setBusy] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
+
   const [lastBackendResponse, setLastBackendResponse] = useState<string | null>(
     null,
   );
+  const [identifier, setIdentifier] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
 
   const {
     resolvedClientId,
@@ -674,67 +679,22 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
     setLastBackendResponse(null);
 
     try {
-      const useWorkers =
-        typeof ATP_WORKER_BASE_URL === "string" &&
-        !/your-worker\.example\.com$/.test(ATP_WORKER_BASE_URL);
-
-      if (useWorkers) {
-        // Workers init -> authorize -> token
-        const initRes = await atpWorkersAuth.init();
-        const { authorize_url, state } = (initRes as any)?.data ?? initRes;
-
-        const flowResult = await startAuthFlow(authorize_url);
-        if (flowResult?.type === "success" && flowResult?.params?.code) {
-          const code = String(flowResult.params.code);
-          const returnedState =
-            String(flowResult?.params?.state || "") || String(state || "");
-
-          const tokenRes = await atpWorkersAuth.token(code, returnedState);
-          const { sessionId } = (tokenRes as any)?.data ?? tokenRes;
-
-          if (sessionId) {
-            await SecureStore.setItemAsync("auth.sessionId", String(sessionId));
-            try {
-              await refreshAuthCache();
-            } catch {}
-            return;
-          }
-          setError("セッションの確立に失敗しました（sessionId なし）");
-          return;
-        } else if (
-          flowResult?.type === "dismiss" ||
-          flowResult?.type === "cancel"
-        ) {
-          setError(t("auth.cancelled") || "キャンセルされました");
-          return;
-        } else {
-          setError(t("auth.flowError") || "認証フローでエラーが発生しました");
-          return;
-        }
+      if (!identifier || !password) {
+        setError("ハンドルまたはDIDとApp Passwordを入力してください");
+        return;
       }
-
-      // Backend (direct) flow with PKCE
-      const meta = await loadClientMetadataIfNeeded();
-      const { challenge, verifier } = await preparePKCEAndStore();
-      const state = String(Date.now());
-
-      const authUrl = buildAuthUrl(
-        meta,
-        "", // manual auth endpoint (unused here)
-        "", // manual client id (unused here)
-        redirectUri,
-        challenge,
-        state,
-      );
-
-      const flowResult = await startAuthFlow(authUrl);
-      await handleAuthResult(flowResult, verifier);
+      const res: any = await login(identifier.trim(), password);
+      try {
+        setLastBackendResponse(JSON.stringify(res?.data ?? res, null, 2));
+      } catch {
+        /* ignore */
+      }
     } catch (e: any) {
-      setError(e?.message || String(e));
+      setError(e?.message || "ログインに失敗しました");
     } finally {
       setBusy(false);
     }
-  }, [redirectUri, resolvedClientId, authUseLinkingOnly]);
+  }, [identifier, password, login]);
 
   // --- Render ---
   return (
@@ -749,6 +709,46 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
         </Text>
       )}
 
+      <TextInput
+        value={identifier}
+        onChangeText={setIdentifier}
+        placeholder="ハンドルまたは DID（例: alice.bsky.social または did:plc:...）"
+        autoCapitalize="none"
+        autoCorrect={false}
+        editable={!busy && !loading}
+        style={{
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.border,
+          color: colors.text,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          borderRadius: 8,
+          marginTop: 12,
+        }}
+        placeholderTextColor={colors.secondaryText}
+      />
+
+      <TextInput
+        value={password}
+        onChangeText={setPassword}
+        placeholder="App Password（例: abcd-efgh-ijkl-mnop）"
+        autoCapitalize="none"
+        autoCorrect={false}
+        secureTextEntry
+        textContentType="password"
+        editable={!busy && !loading}
+        style={{
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.border,
+          color: colors.text,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          borderRadius: 8,
+          marginTop: 12,
+        }}
+        placeholderTextColor={colors.secondaryText}
+      />
+
       <TouchableOpacity
         onPress={onPressLogin}
         disabled={busy || loading}
@@ -756,12 +756,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ oauthTimeoutMs }) => {
           styles.btn,
           {
             backgroundColor: colors.accent,
+
             opacity: busy || loading ? 0.6 : 1,
           },
         ]}
       >
         <Text style={styles.btnText}>
-          {busy ? "起動中..." : "Bluesky で認可へ"}
+          {busy ? "ログイン中..." : "App Password でログイン"}
         </Text>
       </TouchableOpacity>
 
